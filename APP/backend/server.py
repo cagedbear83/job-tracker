@@ -14,6 +14,9 @@ import logging
 import secrets
 import pytz
 import asyncio
+import hmac
+import hashlib
+import json
 from datetime import datetime, timezone, timedelta, date
 from typing import List, Optional, Literal
 
@@ -28,12 +31,6 @@ from apscheduler.triggers.cron import CronTrigger
 import requests as http_requests
 from twilio.rest import Client as TwilioClient
 
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import letter
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-from reportlab.lib.units import inch
-
 # ---- DB ----
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
@@ -44,7 +41,9 @@ app = FastAPI(title="Illinois UI Job Search Tracker")
 api = APIRouter(prefix="/api")
 
 JWT_ALGO = "HS256"
-JWT_SECRET = os.environ.get("JWT_SECRET", "dev-secret")
+JWT_SECRET = os.environ.get("JWT_SECRET")
+if not JWT_SECRET:
+    raise RuntimeError("JWT_SECRET environment variable is required for secure token signing")
 
 
 # ============== Models ==============
@@ -714,141 +713,89 @@ async def import_screenshot(file: UploadFile = File(...), week_id: str = Form(..
 
 
 # ============== Reports (PDF) ==============
-@api.get("/reports/benefit-week/{wid}")
-async def report_pdf(wid: str, user=Depends(get_current_user)):
-    w = await db.benefit_weeks.find_one({"id": wid, "user_id": user["id"]}, {"_id": 0})
+@api.get("/reports/benefit-week/{week_id}")
+async def report_pdf(week_id: str, user=Depends(get_current_user)):
+    from pypdf import PdfReader, PdfWriter
+    import io
+
+    # Load the benefit week
+    w = await db.benefit_weeks.find_one({"id": week_id, "user_id": user["id"]})
     if not w:
-        raise HTTPException(status_code=404, detail="Benefit week not found")
-    profile = await db.profiles.find_one({"user_id": user["id"]}, {"_id": 0}) or {}
-    contacts = await db.contacts.find({"benefit_week_id": wid}, {"_id": 0}).sort("contact_date", 1).to_list(1000)
+        raise HTTPException(status_code=404, detail="Week not found")
+
+    # Load all contacts for this week
+    contacts = await db.contacts.find(
+        {"benefit_week_id": week_id}
+    ).sort("contact_date", 1).to_list(30)
+
+    # Load claimant info
+    claimant = await db.profiles.find_one({"id": w.get("claimant_id"), "user_id": user["id"]})
+    claimant_name = claimant.get("full_name", "") if claimant else user.get("full_name", "")
+    claimant_id   = claimant.get("claimant_id", "") if claimant else ""
+
+    # Split name into first / last / MI
+    name_parts = claimant_name.strip().split()
+    first = name_parts[0] if len(name_parts) >= 1 else ""
+    last  = name_parts[-1] if len(name_parts) >= 2 else ""
+    mi    = name_parts[1][0] if len(name_parts) >= 3 else ""
+
+    # Week ending date (Saturday of the benefit week)
+    week_end = w.get("week_end", "")
+
+    # Map contacts to form field slots (form holds 30 max across 6 sections of 5)
+    field_values = {
+        "frstname": first,
+        "lstname":  last,
+        "mi":       mi,
+        "idssn":    claimant_id,
+    }
+
+    # Fill week-end date into whichever sections we need
+    sections_needed = max(1, -(-len(contacts) // 5))  # ceiling division
+    for s in range(1, sections_needed + 1):
+        field_values[f"weekend{s}"] = week_end
+
+    # Fill contact rows
+    for i, c in enumerate(contacts[:30], start=1):
+        employer    = c.get("employer_name", "")
+        address     = c.get("employer_address", "")
+        person      = c.get("person_contacted", "")
+        method      = c.get("contact_method", "")
+        work_type   = c.get("type_of_work", "")
+        result      = c.get("result", "")
+        cdate       = c.get("contact_date", "")
+        if hasattr(cdate, "strftime"):
+            cdate = cdate.strftime("%m/%d/%Y")
+
+        field_values[f"date{i}"]          = str(cdate)
+        field_values[f"name{i}"]          = employer
+        field_values[f"address{i}"]       = address
+        field_values[f"personcontact{i}"] = person
+        field_values[f"methodcontact{i}"] = method
+        field_values[f"typework{i}"]      = work_type
+        field_values[f"result{i}"]        = result
+
+    # Fill the state PDF form
+    template_path = ROOT_DIR / "assets" / "ADJ034F.pdf"
+    if not template_path.exists():
+        raise HTTPException(status_code=500, detail="State form template not found in assets/ADJ034F.pdf")
+
+    reader = PdfReader(str(template_path))
+    writer = PdfWriter()
+    writer.append(reader)
+    writer.update_page_form_field_values(writer.pages[0], field_values)
+    writer.update_page_form_field_values(writer.pages[1], field_values)
 
     buf = io.BytesIO()
-    doc = SimpleDocTemplate(buf, pagesize=letter, leftMargin=0.5*inch, rightMargin=0.5*inch, topMargin=0.5*inch, bottomMargin=0.5*inch)
-    styles = getSampleStyleSheet()
-    title_style = ParagraphStyle('t', parent=styles['Heading1'], textColor=colors.HexColor("#0033A0"), spaceAfter=4, fontSize=16)
-    sub_style = ParagraphStyle('s', parent=styles['Normal'], fontSize=8, textColor=colors.HexColor("#52525B"))
-    label_style = ParagraphStyle('l', parent=styles['Normal'], fontSize=9, textColor=colors.HexColor("#09090B"))
-    story = []
-
-    # Logo + Title header
-    from reportlab.platypus import Image as RLImage
-    logo_path = str(ROOT_DIR / "assets" / "ides-logo.png")
-    header_data = []
-    try:
-        logo = RLImage(logo_path, width=0.85*inch, height=0.85*inch)
-        header_data = [[logo,
-                        Paragraph("ILLINOIS DEPARTMENT OF EMPLOYMENT SECURITY<br/><font size=9 color='#52525B'>Work Search Record — Benefit Week Report (ADJ034F-style)</font>", title_style)]]
-        ht = Table(header_data, colWidths=[1.0*inch, 6.5*inch])
-        ht.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'MIDDLE'), ('LEFTPADDING', (0,0), (-1,-1), 0)]))
-        story.append(ht)
-    except Exception:
-        story.append(Paragraph("ILLINOIS DEPARTMENT OF EMPLOYMENT SECURITY", title_style))
-        story.append(Paragraph("Work Search Record — Benefit Week Report (ADJ034F-style)", sub_style))
-    story.append(Spacer(1, 4))
-    story.append(Paragraph("<font color='#DC2626'><b>UNOFFICIAL</b></font> — generated by a third-party tracker; mirrors IDES form structure for personal record-keeping.", sub_style))
-    story.append(Spacer(1, 12))
-
-    # Claimant block
-    claim_data = [
-        ["Claimant Name:", f"{profile.get('first_name','')} {profile.get('middle_initial','')} {profile.get('last_name','')}".strip(),
-         "ID (last 4):", profile.get('claimant_id_last4','')],
-        ["Address:", f"{profile.get('address','')}, {profile.get('city','')}, {profile.get('state','IL')} {profile.get('zip_code','')}".strip(", "),
-         "Phone:", profile.get('phone','')],
-        ["Occupation:", profile.get('occupation',''), "Week:", f"{w['week_start']} to {w['week_end']}"],
-    ]
-    ct = Table(claim_data, colWidths=[1.1*inch, 3.0*inch, 0.9*inch, 2.5*inch])
-    ct.setStyle(TableStyle([
-        ('BOX', (0,0), (-1,-1), 0.75, colors.HexColor("#09090B")),
-        ('INNERGRID', (0,0), (-1,-1), 0.25, colors.HexColor("#D4D4D8")),
-        ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
-        ('FONTSIZE', (0,0), (-1,-1), 9),
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('BACKGROUND', (0,0), (0,-1), colors.HexColor("#F4F4F5")),
-        ('BACKGROUND', (2,0), (2,-1), colors.HexColor("#F4F4F5")),
-        ('LEFTPADDING', (0,0), (-1,-1), 6),
-        ('RIGHTPADDING', (0,0), (-1,-1), 6),
-        ('TOPPADDING', (0,0), (-1,-1), 5),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 5),
-    ]))
-    story.append(ct)
-    story.append(Spacer(1, 14))
-
-    story.append(Paragraph("WORK SEARCH CONTACTS", ParagraphStyle('h', parent=styles['Heading3'], fontSize=11, textColor=colors.HexColor("#09090B"))))
-    story.append(Paragraph("Illinois law requires a minimum of 3 work-search contacts per week.", sub_style))
-    story.append(Spacer(1, 6))
-
-    # Contact table - mirror Work Search Form columns
-    header = ["#", "Date", "Employer Name & Address", "Method", "Position / Type of Work", "Result"]
-    rows = [header]
-    for i, c in enumerate(contacts, 1):
-        emp = c.get("employer_name", "")
-        addr = c.get("employer_address", "")
-        emp_addr = f"{emp}\n{addr}" if addr else emp
-        position = c.get("position_applied") or c.get("type_of_work","")
-        if c.get("type_of_work") and c.get("position_applied"):
-            position = f"{c['position_applied']}\n({c['type_of_work']})"
-        rows.append([
-            str(i),
-            c.get("contact_date",""),
-            Paragraph(emp_addr.replace("\n", "<br/>"), label_style),
-            c.get("contact_method",""),
-            Paragraph(str(position).replace("\n", "<br/>"), label_style),
-            Paragraph(c.get("result",""), label_style),
-        ])
-    # Pad to 3 minimum
-    while len(rows) - 1 < 3:
-        rows.append([str(len(rows)), "", "", "", "", ""])
-
-    t = Table(rows, colWidths=[0.3*inch, 0.9*inch, 2.4*inch, 0.85*inch, 1.85*inch, 1.2*inch], repeatRows=1)
-    t.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#0033A0")),
-        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
-        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0,0), (-1,0), 9),
-        ('FONTSIZE', (0,1), (-1,-1), 8.5),
-        ('BOX', (0,0), (-1,-1), 0.75, colors.HexColor("#09090B")),
-        ('INNERGRID', (0,0), (-1,-1), 0.25, colors.HexColor("#D4D4D8")),
-        ('VALIGN', (0,0), (-1,-1), 'TOP'),
-        ('LEFTPADDING', (0,0), (-1,-1), 5),
-        ('RIGHTPADDING', (0,0), (-1,-1), 5),
-        ('TOPPADDING', (0,0), (-1,-1), 5),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 5),
-    ]))
-    story.append(t)
-    story.append(Spacer(1, 16))
-
-    # Compliance summary
-    n = len(contacts)
-    status_color = colors.HexColor("#16A34A") if n >= 3 else colors.HexColor("#DC2626")
-    summary = Paragraph(
-        f"<b>Total Contacts:</b> {n} / 3 required &nbsp;&nbsp; <b>Certified:</b> {'YES' if w.get('certified') else 'NO'} &nbsp;&nbsp; <b>Status:</b> <font color='{status_color}'>{'COMPLIANT' if n>=3 else 'NON-COMPLIANT'}</font>",
-        styles['Normal']
-    )
-    story.append(summary)
-    if w.get("notes"):
-        story.append(Spacer(1, 8))
-        story.append(Paragraph(f"<b>Notes:</b> {w['notes']}", styles['Normal']))
-
-    story.append(Spacer(1, 22))
-    sig = Table([
-        ["Claimant Signature:", "_______________________________", "Date:", "______________"],
-    ], colWidths=[1.4*inch, 3.0*inch, 0.6*inch, 1.5*inch])
-    sig.setStyle(TableStyle([('FONTSIZE', (0,0), (-1,-1), 9)]))
-    story.append(sig)
-
-    story.append(Spacer(1, 12))
-    story.append(Paragraph(
-        f"Generated {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')} by Illinois UI Tracker. "
-        "This unofficial report mirrors the IDES Work Search form (ADJ034F).",
-        sub_style
-    ))
-
-    doc.build(story)
+    writer.write(buf)
     buf.seek(0)
-    await log_audit(user["id"], "EXPORT_PDF", "benefit_week", wid, f"Generated report for week {w['week_start']}")
-    return StreamingResponse(buf, media_type="application/pdf", headers={
-        "Content-Disposition": f"attachment; filename=BenefitWeek_{w['week_start']}.pdf"
-    })
+
+    filename = f"WorkSearch_{week_end}.pdf".replace("/", "-")
+    return StreamingResponse(
+        buf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
 
 
 # ============== Dashboard summary ==============
@@ -1315,16 +1262,76 @@ async def sms_verify_otp(body: OtpVerifyIn, user=Depends(get_current_user)):
 
 
 # ============== Mailgun Webhook ==============
+async def _parse_mailgun_webhook(request: Request) -> dict:
+    content_type = request.headers.get("content-type", "").lower()
+    if "application/json" in content_type:
+        return await request.json()
+
+    form = await request.form()
+    payload = {k: v for k, v in form.items()}
+    if "event-data" in payload:
+        try:
+            payload["data"] = json.loads(payload["event-data"])
+        except Exception:
+            payload["data"] = payload["event-data"]
+    if "signature" in payload and isinstance(payload["signature"], str):
+        try:
+            payload["signature"] = json.loads(payload["signature"])
+        except Exception:
+            pass
+    return payload
+
+
+def _verify_mailgun_signature(payload: dict):
+    signature_payload = payload.get("signature", {})
+    if isinstance(signature_payload, str):
+        try:
+            signature_payload = json.loads(signature_payload)
+        except Exception:
+            signature_payload = {}
+
+    timestamp = None
+    token = None
+    signature = None
+    if isinstance(signature_payload, dict):
+        timestamp = signature_payload.get("timestamp")
+        token = signature_payload.get("token")
+        signature = signature_payload.get("signature")
+
+    timestamp = timestamp or payload.get("timestamp") or payload.get("signature[timestamp]")
+    token = token or payload.get("token") or payload.get("signature[token]")
+    signature = signature or payload.get("signature") or payload.get("signature[signature]")
+
+    if not timestamp or not token or not signature:
+        raise HTTPException(status_code=400, detail="Mailgun webhook signature missing")
+
+    secret = os.environ.get("MAILGUN_API_KEY", "")
+    if not secret:
+        logging.warning("Mailgun webhook signature verification is not configured")
+        raise HTTPException(status_code=503, detail="Mailgun webhook verification is not configured")
+
+    expected = hmac.new(secret.encode("utf-8"), f"{timestamp}{token}".encode("utf-8"), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(expected, str(signature)):
+        raise HTTPException(status_code=403, detail="Invalid Mailgun webhook signature")
+
+
 @api.post("/webhooks/mailgun")
 async def mailgun_webhook(request: Request):
-    """Public webhook (no auth — Mailgun signs payloads but for simplicity we just log).
-    Handles: email.bounced, email.complained, email.delivered."""
-    payload = await request.json()
-    event_type = payload.get("type", "")
-    data = payload.get("data", {}) or {}
-    to_emails = data.get("to") or []
+    payload = await _parse_mailgun_webhook(request)
+    _verify_mailgun_signature(payload)
+    data = payload.get("data") or {}
+    if isinstance(data, str):
+        try:
+            data = json.loads(data)
+        except Exception:
+            data = {}
+    event_type = data.get("event") or payload.get("type", "")
+    to_emails = data.get("recipient") or data.get("recipients") or data.get("message", {}).get("headers", {}).get("to") or []
     if isinstance(to_emails, str):
-        to_emails = [to_emails]
+        if "," in to_emails:
+            to_emails = [addr.strip() for addr in to_emails.split(",") if addr.strip()]
+        else:
+            to_emails = [to_emails.strip()]
     await db.email_events.insert_one({
         "id": str(uuid.uuid4()),
         "type": event_type,
@@ -1332,14 +1339,12 @@ async def mailgun_webhook(request: Request):
         "received_at": datetime.now(timezone.utc),
         "raw": data,
     })
-    # Disable reminders for bounced / complained addresses
-    if event_type in ("email.bounced", "email.complained"):
+    if event_type in ("email.bounced", "email.complained", "bounced", "complained", "complaint"):
         for addr in to_emails:
             await db.profiles.update_many(
                 {"reminder_email": addr},
                 {"$set": {"reminders_enabled": False, "email_bounced": True, "email_bounced_at": datetime.now(timezone.utc).isoformat()}}
             )
-            # Also disable when claimant has no override and the user's account email bounced
             users_with_email = await db.users.find({"email": addr.lower() if isinstance(addr, str) else ""}, {"_id": 0, "id": 1}).to_list(20)
             for u in users_with_email:
                 await db.profiles.update_many(
@@ -1455,57 +1460,68 @@ async def on_startup():
     except Exception as e:
         logging.info(f"invites indexes: {e}")
 
-    # Seed demo user
-    email = os.environ.get("ADMIN_EMAIL", "demo@illinoistracker.test").lower()
-    password = os.environ.get("ADMIN_PASSWORD", "Demo1234!")
-    existing = await db.users.find_one({"email": email})
-    if not existing:
-        uid = str(uuid.uuid4())
-        await db.users.insert_one({
-            "id": uid,
-            "email": email,
-            "name": "Demo Claimant",
-            "password_hash": hash_password(password),
-            "role": "user",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        })
-        pid = str(uuid.uuid4())
-        await db.profiles.insert_one({
-            "id": pid,
-            "user_id": uid,
-            "label": "Primary",
-            "first_name": "Demo",
-            "last_name": "Claimant",
-            "middle_initial": "A",
-            "claimant_id_last4": "1234",
-            "address": "100 W Randolph St",
-            "city": "Chicago",
-            "state": "IL",
-            "zip_code": "60601",
-            "phone": "312-555-0100",
-            "occupation": "Software Developer",
-            "reminders_enabled": True,
-            "reminder_email": "kmgagen@gmail.com",
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-        })
-        await db.users.update_one({"id": uid}, {"$set": {"active_claimant_id": pid}})
+    # Seed demo user only when explicitly enabled
+    demo_user_enabled = os.environ.get("ENABLE_DEMO_USER", "true").lower() in ("1", "true", "yes")
+    demo_email = os.environ.get("DEMO_USER_EMAIL", "demo@illinoistracker.test").lower()
+    demo_password = os.environ.get("DEMO_USER_PASSWORD", "Demo1234!")
+    if demo_user_enabled:
+        existing = await db.users.find_one({"email": demo_email})
+        if not existing:
+            uid = str(uuid.uuid4())
+            await db.users.insert_one({
+                "id": uid,
+                "email": demo_email,
+                "name": "Demo Claimant",
+                "password_hash": hash_password(demo_password),
+                "role": "user",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            })
+            pid = str(uuid.uuid4())
+            await db.profiles.insert_one({
+                "id": pid,
+                "user_id": uid,
+                "label": "Primary",
+                "first_name": "Demo",
+                "last_name": "Claimant",
+                "middle_initial": "A",
+                "claimant_id_last4": "1234",
+                "address": "100 W Randolph St",
+                "city": "Chicago",
+                "state": "IL",
+                "zip_code": "60601",
+                "phone": "312-555-0100",
+                "occupation": "Software Developer",
+                "reminders_enabled": True,
+                "reminder_email": "kmgagen@gmail.com",
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            })
+            await db.users.update_one({"id": uid}, {"$set": {"active_claimant_id": pid}})
+        else:
+            if not verify_password(demo_password, existing["password_hash"]):
+                await db.users.update_one({"email": demo_email}, {"$set": {"password_hash": hash_password(demo_password)}})
     else:
-        # keep password in sync with env if .env changed
-        if not verify_password(password, existing["password_hash"]):
-            await db.users.update_one({"email": email}, {"$set": {"password_hash": hash_password(password)}})
+        logging.info("Demo user seeding disabled. Set ENABLE_DEMO_USER=true to enable it.")
 
-    # Seed admin (case-worker) account
-    admin_email = "admin@illinoistracker.app"
-    admin_pw = "Admin1234!"
-    if not await db.users.find_one({"email": admin_email}):
-        await db.users.insert_one({
-            "id": str(uuid.uuid4()),
-            "email": admin_email,
-            "name": "Admin / Case Worker",
-            "password_hash": hash_password(admin_pw),
-            "role": "admin",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        })
+    # Seed admin (case-worker) account only when configured explicitly
+    admin_email = os.environ.get("ADMIN_EMAIL", "").strip().lower()
+    admin_pw = os.environ.get("ADMIN_PASSWORD", "")
+    if admin_email and admin_pw:
+        existing_admin = await db.users.find_one({"email": admin_email})
+        if not existing_admin:
+            await db.users.insert_one({
+                "id": str(uuid.uuid4()),
+                "email": admin_email,
+                "name": "Admin / Case Worker",
+                "password_hash": hash_password(admin_pw),
+                "role": "admin",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            })
+        elif existing_admin.get("role") == "admin" and not verify_password(admin_pw, existing_admin["password_hash"]):
+            await db.users.update_one({"email": admin_email}, {"$set": {"password_hash": hash_password(admin_pw)}})
+        elif existing_admin.get("role") != "admin":
+            logging.warning(f"Configured ADMIN_EMAIL {admin_email} already exists as non-admin. Skipping admin seed.")
+    else:
+        logging.warning("ADMIN_EMAIL and ADMIN_PASSWORD are not configured; no admin account will be created automatically.")
 
     # Data migration: backfill claimant_id and active_claimant_id
     async for u in db.users.find({}, {"_id": 0, "id": 1, "active_claimant_id": 1, "role": 1}):

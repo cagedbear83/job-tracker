@@ -192,14 +192,6 @@ export default function Claimants() {
         </div>
       </div>
 
-      <div className="border border-zinc-200 bg-[#F4F4F5] p-4 text-xs text-zinc-700 flex items-start gap-3">
-        <EnvelopeSimple size={18} weight="bold" className="text-[#0033A0] flex-shrink-0 mt-0.5" />
-        <div>
-          <b>Email sandbox notice:</b> Resend sandbox sender <code>onboarding@resend.dev</code> only delivers to the account email <code>kmgagen@gmail.com</code> until you verify a domain.
-          To use a different reminder address, verify a domain at <a className="underline text-[#0033A0]" href="https://resend.com/domains" target="_blank" rel="noreferrer">resend.com/domains</a>.
-        </div>
-      </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {claimants.length === 0 && (
           <div className="col-span-2 border border-dashed border-zinc-300 p-12 text-center text-sm text-zinc-500">

@@ -1,216 +1,225 @@
-# Job Tracker
+# Illinois UI Job Tracker
 
-A simple application for tracking job applications, organizing opportunities, and keeping the search process in one place.
+Illinois UI Job Tracker is a full-stack app designed to help people manage their unemployment insurance work-search contacts and job applications. It includes a FastAPI backend, a React/Tailwind frontend, and MongoDB storage.
 
 ## Overview
 
-Job Tracker is designed to help manage the job search workflow by storing application details, tracking statuses, and keeping related information organized in a single project.
+This project supports:
+- authenticated caseworkers and claimants
+- claimant profiles and active claimant selection
+- benefit week tracking
+- work-search contact logging
+- CSV import/export of contacts
+- screenshot text extraction via AI vision
+- PDF report generation for benefit-week forms
+- email reminders and SMS notifications
+- admin invite and audit tooling
 
-## Features
+## Architecture
 
-- Track job applications in one place.
-- Organize companies, roles, and application dates.
-- Monitor progress through stages such as applied, interview, offer, or rejected.
-- Keep notes and follow-up details for each opportunity.
-- Reduce reliance on spreadsheets for job search management.
+- Backend: `APP/backend/server.py`
+  - FastAPI + Motor (async MongoDB)
+  - JWT auth and role-based admin protection
+  - Mailgun and Twilio integration points
+  - APScheduler-driven reminder scheduler
+- Frontend: `APP/frontend`
+  - React application with Tailwind UI
+  - Pages for login, dashboard, claimants, weeks, and more
+- Database: MongoDB
+  - collections include `users`, `profiles`, `benefit_weeks`, `contacts`, `invites`, `audit_log`, and more
 
-## Tech Stack
+## Prerequisites
 
-- aiohappyeyeballs==2.6.2
-- aiohttp==3.13.5
-- aiohttp-retry==2.9.1
-- aiosignal==1.4.0
-- annotated-doc==0.0.4
-- annotated-types==0.7.0
-- anyio==4.13.0
-- APScheduler==3.11.2
-- asn1crypto==1.5.1
-- attrs==26.1.0
-- bcrypt==5.0.0
-- cachetools==7.1.4
-- certifi==2026.5.20
-- cffi==2.0.0
-- charset-normalizer==3.4.7
-- click==8.4.1
-- colorama==0.4.6
-- cryptography==48.0.0
-- dataclass-wizard==0.39.1
-- diskcache==5.6.3
-- dnslib==0.9.26
-- dnspython==2.8.0
-- docker==7.1.0
-- email-validator==2.3.0
-- fastapi==0.136.3
-- frozenlist==1.8.0
-- h11==0.16.0
-- h5py==3.16.0
-- idna==3.16
-- Jinja2==3.1.6
-- llama_cpp_python==0.3.21
-- localstack==2026.5.0
-- markdown-it-py==4.2.0
-- MarkupSafe==3.0.3
-- mdurl==0.1.2
-- motor==3.7.1
-- multidict==6.7.1
-- numpy==2.4.4
-- numpy-quaternion==2024.0.13
-- optional-django==0.3.0
-- packaging==26.2
-- pillow==12.2.0
-- plux==1.16.0
-- propcache==0.5.2
-- psutil==7.2.2
-- pycparser==3.0
-- pydantic==2.13.4
-- pydantic_core==2.46.4
-- Pygments==2.20.0
-- PyJWT==2.13.0
-- pymongo==4.17.0
-- pyotp==2.9.0
-- pyquaternion==0.9.9
-- python-dateutil==2.9.0.post0
-- python-dotenv==1.2.2
-- python-multipart==0.0.29
-- pytz==2026.2
-- pywin32==311
-- PyYAML==6.0.3
-- reportlab==4.5.1
-- requests==2.34.2
-- resend==2.30.1
-- rich==15.0.0
-- scipy==1.17.1
-- semver==3.0.4
-- six==1.17.0
-- starlette==1.1.0
-- tabulate==0.10.0
-- tqdm==4.67.3
-- twilio==9.10.9
-- typing-inspection==0.4.2
-- typing_extensions==4.15.0
-- tzdata==2026.2
-- tzlocal==5.3.1
-- urllib3==2.7.0
-- uvicorn==0.48.0
-- webpack==6.0.0
-- windows-curses==2.4.2
-- yarl==1.24.2
-- zod==0.8.0
-
-
-## Getting Started
-
-### Prerequisites
-
-- Python
-- Node.js
+- Python 3.11+
+- Node.js 18+
+- Yarn
 - MongoDB
-- npm
 
-### Installation
+## Setup
 
-Step 1. Install Python 3.11+ - make sure to check "Add Python to PATH" during install on Windows. Open your terminal and navigate to your project folder and run the following commands:
-
-```bash
-sudo apt update
-sudo apt install python3
-python3 --version
-```
-
-Step 2. Install Node.js (v18 or later) + Yarn. Download Node from nodejs.org, then install Yarn by running in your terminal:
-
-```bash
-npm install -g yarn
-```
-
-Step 3. For the database, download from mongodb.com/try/download/community - the free Community edition is all you need. Install it and let it run as a service (it'll start automatically in the background).
-
-Optionally grab MongoDB Compass (a visual GUI for the database) - very helpful for a beginner to see what's actually stored.
-
-
-Step 4. Clone the repository. In your terminal run the following command:
+### 1. Clone the repository
 
 ```bash
 git clone https://github.com/cagedbear83/job-tracker.git
 cd job-tracker
 ```
 
-Step 5. Create the environment. Open your terminal, navigate to your project folder, and run the following command:
+### 2. Backend setup
 
 ```bash
-# Replace ".venv" with any name you prefer for your environment folder
+cd APP/backend
 python -m venv .venv
+.venv\Scripts\activate    # Windows
+# or
+source .venv/bin/activate  # macOS/Linux
+pip install -r requirements
 ```
 
-Step 6. Create the app running. Open two terminal windows - one for the backend, one for the frontend.
-
-Terminal 1 - Backend:
+### 3. Frontend setup
 
 ```bash
-cd "job-tracker/App/backend"
-pip install -r requirements
+cd APP/frontend
+yarn install
+```
+
+## Environment variables
+
+Create a `.env` file in `APP/backend` with the following values.
+
+### Required for backend startup
+
+```env
+MONGO_URL="mongodb://localhost:27017"
+DB_NAME="ides_tracker_db"
+JWT_SECRET="<strong-random-secret>"
+FRONTEND_URL="http://localhost:3000"
+```
+
+### Optional integrations
+
+```env
+MAILGUN_API_KEY="<your-mailgun-api-key>"
+MAILGUN_DOMAIN="<your-mailgun-domain>"
+MAILGUN_FROM="Illinois UI Tracker <noreply@yourdomain.com>"
+TWILIO_ACCOUNT_SID="<your-twilio-sid>"
+TWILIO_AUTH_TOKEN="<your-twilio-auth-token>"
+TWILIO_FROM_NUMBER="+12345678900"
+```
+
+### Development helper flags
+
+```env
+ENABLE_DEMO_USER="true"
+ADMIN_EMAIL=""
+ADMIN_PASSWORD=""
+```
+
+> Security notes
+> - `JWT_SECRET` is required and has no fallback in production.
+> - `ADMIN_EMAIL` / `ADMIN_PASSWORD` are only created when explicitly configured.
+> - Demo seeding is disabled unless `ENABLE_DEMO_USER=true`.
+
+## Local development .env example
+
+```env
+MONGO_URL="mongodb://localhost:27017"
+DB_NAME="ides_tracker_db"
+JWT_SECRET="dev-secret-change-me"
+FRONTEND_URL="http://localhost:3000"
+MAILGUN_API_KEY=""
+MAILGUN_DOMAIN=""
+MAILGUN_FROM=""
+TWILIO_ACCOUNT_SID=""
+TWILIO_AUTH_TOKEN=""
+TWILIO_FROM_NUMBER=""
+ENABLE_DEMO_USER="true"
+ADMIN_EMAIL=""
+ADMIN_PASSWORD=""
+```
+
+## Running the app
+
+### Backend
+
+```bash
+cd APP/backend
+.venv\Scripts\activate    # Windows
 uvicorn server:app --reload --port 8001
 ```
 
-Terminal 2 - Frontend:
+### Frontend
 
 ```bash
-cd "job-tracker/App/frontend"
-yarn install
+cd APP/frontend
 yarn start
+```
 
-## Usage
+## Deployment
 
-1. Create or sign-in to an account.
-2. Add a new job application.
-3. Update the application status as the process moves forward.
-4. Review saved opportunities, notes, and follow-up items.
-5. Print or save PDF that adhere to IDES requirements.
+For production, run the backend without `--reload` and point it at a production MongoDB instance.
 
-## Project Structure
+```bash
+cd APP/backend
+.venv\Scripts\activate    # Windows
+uvicorn server:app --host 0.0.0.0 --port 8001 --workers 2
+```
 
-```job-tracker/
-├── App/
-    ├── .venv/
-    ├── backend/
-        ├── __pycache__/
-        ├── assets/
-        ├── tests/
-        ├── .env
-        ├── requirements
-        ├── server.py
-    ├── frontend/
-        ├── src/
-            ├── Pages/
-                ├── Admin.jsx
-                ├── AuditLog.jsx
-                ├── BenefitWeeks.jsx
-                ├── Calendar.jsx
-                ├── Claimants.jsx
-                ├── Dashboard.jsx
-                ├── ForgotPassword.jsx
-                ├── ImportPage.jsx
-                ├── InviteSignup.jsx
-                ├── Landing.jsx
-                ├── Login.jsx
-                ├── Profile.jsx
-                ├── Register.jsx
-                ├── ResetPassword.jsx
-                ├── WeekDetail.jsx
-        ├── components.json
-        ├── craco.config.js
-        ├── jsconfig.json
-        ├── package.json
-        ├── postcss.config.js
-        ├── README.md
-        ├── tailwind.config.js
-        ├── yarn.lock
-    ├── public/
+Set `CORS_ORIGINS` explicitly in `APP/backend/.env` for your frontend domain:
+
+```env
+CORS_ORIGINS="https://yourdomain.com"
+```
+
+For email and SMS in production, configure:
+- `MAILGUN_API_KEY`
+- `MAILGUN_DOMAIN`
+- `MAILGUN_FROM`
+- `TWILIO_ACCOUNT_SID`
+- `TWILIO_AUTH_TOKEN`
+- `TWILIO_FROM_NUMBER`
+
+Protect your production secret values and never commit `.env` to source control.
+
+## Running tests
+
+### Backend tests
+
+```bash
+cd APP/backend
+.venv\Scripts\activate
+pytest
+```
+
+### Frontend tests
+
+```bash
+cd APP/frontend
+yarn test
+```
+
+## Project structure
+
+```text
+job-tracker/
+├── APP/
+│   ├── backend/
+│   │   ├── assets/
+│   │   ├── tests/
+│   │   ├── requirements
+│   │   ├── server.py
+│   │   └── .env
+│   ├── frontend/
+│   │   ├── public/
+│   │   ├── src/
+│   │   ├── package.json
+│   │   └── README.md
+│   └── memory/
 ├── design_guidelines.json
+├── requirements.txt
 └── README.md
 ```
 
-## Screenshots
+## Features
+
+- User registration, login, and JWT authentication
+- Claimant profile management
+- Benefit week tracking and work-search contact logging
+- CSV import/export for contacts
+- Screenshot OCR import via AI vision
+- PDF report generation for benefit-week reports
+- Dashboard summaries and trend analytics
+- Admin-only invite, user, and integration management
+- Mailgun webhook processing with signature verification
+
+## Notes
+
+- The backend includes an admin guard for `/api/admin/*` routes.
+- Mailgun webhook requests are verified before updating reminder settings.
+- CORS origins are configurable via `CORS_ORIGINS` in `APP/backend/.env`.
+
+## License
+
+This project is available under the MIT License.
 
 Add screenshots or a short demo GIF here once the interface is ready.
 
