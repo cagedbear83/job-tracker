@@ -171,13 +171,33 @@ def verify_password(p: str, h: str) -> bool:
 
 
 def create_token(user_id: str, email: str) -> str:
+    # Use numeric timestamps for JWT claims
     payload = {
         "sub": user_id,
         "email": email,
-        "exp": datetime.now(timezone.utc) + timedelta(days=7),
-        "iat": datetime.now(timezone.utc),
+        "exp": int((datetime.now(timezone.utc) + timedelta(days=7)).timestamp()),
+        "iat": int(datetime.now(timezone.utc).timestamp()),
     }
-    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGO)
+    # Prefer PyJWT if available, otherwise use a small HMAC-SHA256 implementation
+    try:
+        if hasattr(jwt, "encode"):
+            return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGO)
+    except Exception:
+        pass
+
+    # Fallback: construct JWT by hand (HS256)
+    import base64, json, hmac, hashlib
+
+    def _b64u(data: bytes) -> str:
+        return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
+
+    header = {"alg": JWT_ALGO, "typ": "JWT"}
+    header_b64 = _b64u(json.dumps(header, separators=(",", ":")).encode())
+    payload_b64 = _b64u(json.dumps(payload, separators=(",", ":")).encode())
+    signing_input = f"{header_b64}.{payload_b64}".encode()
+    sig = hmac.new(JWT_SECRET.encode(), signing_input, hashlib.sha256).digest()
+    sig_b64 = _b64u(sig)
+    return f"{header_b64}.{payload_b64}.{sig_b64}"
 
 
 async def get_current_user(request: Request) -> dict:
@@ -189,11 +209,48 @@ async def get_current_user(request: Request) -> dict:
         token = request.cookies.get("access_token")
     if not token:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    # Try PyJWT decode first, otherwise use fallback HMAC validation
+    payload = None
     try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token expired")
-    except jwt.InvalidTokenError:
+        if hasattr(jwt, "decode"):
+            payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
+    except Exception as e:
+        # PyJWT raised an error; map to HTTP errors below
+        err = e
+
+    if payload is None:
+        # Fallback decode: validate HMAC and parse payload
+        try:
+            import base64, json, hmac, hashlib
+
+            def _b64ud(s: str) -> bytes:
+                s2 = s + "=" * (-len(s) % 4)
+                return base64.urlsafe_b64decode(s2.encode())
+
+            parts = token.split('.')
+            if len(parts) != 3:
+                raise ValueError("Invalid token format")
+            header_b64, payload_b64, sig_b64 = parts
+            signing_input = f"{header_b64}.{payload_b64}".encode()
+            expected_sig = hmac.new(JWT_SECRET.encode(), signing_input, hashlib.sha256).digest()
+            sig = _b64ud(sig_b64)
+            if not hmac.compare_digest(sig, expected_sig):
+                raise ValueError("Invalid signature")
+            payload_json = _b64ud(payload_b64)
+            payload = json.loads(payload_json)
+        except ValueError as e:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        except Exception:
+            raise HTTPException(status_code=401, detail="Invalid token")
+
+    # Verify exp
+    try:
+        exp = int(payload.get("exp", 0))
+        if datetime.now(timezone.utc).timestamp() > exp:
+            raise HTTPException(status_code=401, detail="Token expired")
+    except HTTPException:
+        raise
+    except Exception:
         raise HTTPException(status_code=401, detail="Invalid token")
     user = await db.users.find_one({"id": payload["sub"]}, {"_id": 0, "password_hash": 0})
     if not user:
