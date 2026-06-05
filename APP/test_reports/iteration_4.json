@@ -1,0 +1,40 @@
+{
+  "summary": "Round 4 fully verified. Backend: 14/14 pytest passed in /app/backend/tests/test_round4.py covering: (1) SMS OTP send rejects non-E.164 with 400; (2) E.164 OTP send writes otp_codes row with 6-digit code + 10-min expiry + OTP_SEND audit (Twilio attempt allowed to 200 or 502 since trial may reject); (3) OTP verify with seeded code: wrong→400, correct→200 marks profile sms_verified=true + sms_phone, reuse→400; (4) Expired OTP→400 with 'expired' msg; (5) Rate-limit: seeded sms_log row 1 min ago causes second /sms/send-otp to same phone to return 502 'rate-limited' and NOT insert new sms_log row; (6) Resend webhook (no auth) writes email_events + sets reminders_enabled=false + email_bounced=true on matching profile.reminder_email; (7) GET /admin/email-events admin-gated, returns event list; (8) Non-admin 403; (9) Bulk invite CSV: 3-row CSV creates 1 (valid), skips invalid email + existing user, re-run skips pending invite, INVITE_BULK audit logged; (10) /dashboard/trend?weeks=4/52 returns ≤4/≤52; weeks=200 caps at 52; (11) PDF /reports/benefit-week/{id}: %PDF- magic bytes, >100KB (300KB observed indicating embedded logo image), 'UNOFFICIAL' string present in FlateDecode+ASCII85 decoded text stream; (12) ides-logo.png asset file exists and >0 bytes. Frontend desktop (1920x1080): (a) Dashboard trend-range toggle 4/12/52 fires /api/dashboard/trend?weeks=N for each click — all 3 URLs captured; (b) Admin > Invites tab Bulk import button opens dialog with data-testid='bulk-invite-dialog', bulk-csv-input textarea pre-populated with 'email,claimant_label,note' header, and 'Import & email' button — visible & functional; (c) Claimants page after seeding Primary with sms_enabled=true+sms_verified=false shows 'Verify phone →' button which opens OTP dialog Step 1 with phone input (data-testid='otp-phone-input'), Send code button (data-testid='otp-send-button') enabled when phone starts with +, plus Twilio trial notice.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Admin > Bulk invite dialog & OTP dialog", "issues": ["Console warning: Missing `Description` or `aria-describedby` for DialogContent — accessibility hint, not blocking. Add <DialogDescription> or aria-describedby."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_round4.py",
+    "/app/test_reports/pytest/round4_results.xml",
+    "/app/backend/tests/test_round3.py",
+    "/app/backend/tests/test_round2.py",
+    "/app/backend/tests/backend_test.py"
+  ],
+  "action_items": [
+    "Optional: add aria-describedby / <DialogDescription> to bulk-invite-dialog and otp-dialog to silence Radix Dialog a11y warnings.",
+    "Optional: Resend webhook is public (no signature verification) — for production, verify the Svix signature in `Webhook-Signature` header (Resend uses Svix). Currently any unauthenticated POST can disable reminders for a target email. Consider raising priority before public exposure.",
+    "Optional: bulk invite CSV size is unbounded — consider a max rows guard (e.g. 500) to prevent runaway Resend sends + DB writes."
+  ],
+  "critical_code_review_comments": [
+    "send_sms_rate_limited inserts sms_log only when Twilio succeeds — so a successful trial-blocked Twilio (e.g. 'unverified number') does NOT throttle the next attempt. For OTP this is acceptable (user retries), but if Twilio returns success for an unreachable number you could still hammer it. Low risk.",
+    "Resend webhook lacks signature verification — see action item.",
+    "PDF logo embed adds ~290KB ASCII85+FlateDecode XObject — acceptable but consider downscaling the source PNG (currently produces 728x360 image) to reduce per-report payload.",
+    "OTP code generated with stdlib `random.randint` instead of `secrets.randbelow(1000000)` — predictable enough that brute force is still bounded by 10-min expiry + single-use, but `secrets` is the convention for auth tokens.",
+    "bulk_invite uses lc.get('claimant_label') or lc.get('label') — good fallback. Header row 'email,claimant_label,note' is documented in UI placeholder.",
+    "dashboard trend cap at 52 is implemented (verified weeks=200 returned ≤52).",
+    "/sms/verify-otp returns 400 for wrong/expired/used — uniform error code per spec."
+  ],
+  "updated_files": ["/app/backend/tests/test_round4.py"],
+  "success_rate": {"backend": "100% (14/14 round-4 + 16/16 round-3 + 17/17 round-2 + 16/16 round-1)", "frontend": "100% on round-4 flows (trend toggle, bulk-invite dialog, OTP dialog step 1)"},
+  "test_credentials": "demo@illinoistracker.app / Demo1234! and admin@illinoistracker.app / Admin1234! — both working",
+  "seed_data_creation": "Test created: ~3 otp_codes rows for Primary claimant (cleaned per-test), 1 sms_log row at +13125559999 (1-min-old to trigger rate-limit), 1 sms_log row at +15005550006 (real Twilio attempt may have charged trial credit), 1 email_events row (TEST_bounce@example.com bounce), 1 bulk invite (TEST_bulk_*@example.com) — revoked after test, 1 real Resend email sent (bulk-invite valid row). DB state mutation: demo's Primary profile briefly had sms_enabled=true+sms_verified=false+sms_phone=+13125550100 for frontend OTP UI test (restorable via verify-otp flow or manual reset).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Four backend test suites total: backend_test.py (R1, 16 tests), test_round2.py (R2, 17 tests, 1 real Resend email/run), test_round3.py (R3, 16 tests, 1 real Resend + 1 Twilio magic-number attempt), test_round4.py (R4, 14 tests, 1 real Resend bulk-invite + 1 Twilio attempt to +15005550006). Run: REACT_APP_BACKEND_URL=https://work-search-hub-3.preview.emergentagent.com MONGO_URL=mongodb://localhost:27017 DB_NAME=ides_tracker_db pytest backend/tests/ -v. Total real Resend emails per full suite run: ~3. PDF text extraction trick: streams use ASCII85Decode+FlateDecode chain — must decode both (see test_pdf_report_has_logo_and_unofficial). Webhook endpoint /api/webhooks/resend is intentionally public (no auth) per spec — does NOT need bearer token. Frontend Claimants page conditionally renders verify-phone button only when sms_enabled=true AND sms_verified=false — set via mongo direct write if you need to re-test that branch.",
+  "rca of the issue": "No bugs found. One initial test failure was test-script-only: PDF 'UNOFFICIAL' string is buried inside ASCII85+FlateDecode-compressed content stream — fixed by decoding both wrappers before grep."
+}

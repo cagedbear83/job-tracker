@@ -1,0 +1,105 @@
+{
+  "theme": "Light",
+  "archetype": "Archetype 4: Swiss & High-Contrast",
+  "rationale": "For a government compliance and job search tracker app, trust, clarity, and authority are paramount. A Swiss & High-Contrast design ensures the data density is manageable, forms are highly legible, and the application feels official and functional.",
+  "colors": {
+    "background": "#FFFFFF",
+    "surface": "#F4F4F5",
+    "primary": "#0033A0",
+    "primary_hover": "#002266",
+    "secondary": "#E4E4E7",
+    "text_primary": "#09090B",
+    "text_secondary": "#52525B",
+    "border": "#D4D4D8",
+    "success": "#16A34A",
+    "warning": "#EAB308",
+    "danger": "#DC2626"
+  },
+  "typography": {
+    "headings": {
+      "family": "Chivo",
+      "weights": ["400", "700", "900"],
+      "tracking": "tracking-tight"
+    },
+    "body": {
+      "family": "IBM Plex Sans",
+      "weights": ["400", "500", "600"],
+      "tracking": "tracking-normal"
+    },
+    "hierarchy": {
+      "h1": "text-4xl sm:text-5xl font-black text-slate-900 tracking-tighter",
+      "h2": "text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight",
+      "h3": "text-xl sm:text-2xl font-semibold text-slate-800",
+      "body": "text-base text-slate-700 leading-relaxed",
+      "small_labels": "text-xs font-semibold uppercase tracking-[0.2em] text-slate-500"
+    }
+  },
+  "spacing_and_layout": {
+    "strategy": "The Control Room Grid",
+    "rules": [
+      "Use dense, highly structured grids for the dashboard (grid-cols-1 md:grid-cols-3 lg:grid-cols-4) with gap-4 or gap-6.",
+      "Containers with borders must use p-6 or p-8 internally.",
+      "Never center forms; left-align all inputs and labels for high readability.",
+      "Use subgrid where necessary to maintain alignment across rows."
+    ]
+  },
+  "surface_strategies": {
+    "cards": "Grid Borders: Flat background, 1px subtle border (border-border), crisp corners (rounded-none or max rounded-sm), no shadows.",
+    "hover_states": "Slight border color darkening, extremely subtle bg-slate-50 shifts, avoid floating shadow effects to maintain the grounded, physical paper-like compliance feel.",
+    "header": "Solid White Background with a hard 1px bottom border to clearly separate navigation from the workspace."
+  },
+  "component_rules": {
+    "forms": "Use Shadcn Form, Input, Select components. All form fields MUST have clear, visible labels. No placeholder-only inputs.",
+    "buttons": "Flat, sharp corners (rounded-none or rounded-sm). Primary buttons use the Illinois Blue (#0033A0) with high-contrast white text.",
+    "tables": "Use Shadcn Table. Dense rows for the Work Search Contact log to maximize data visibility without scrolling.",
+    "date_pickers": "Use Shadcn Calendar component.",
+    "modals": "Use Shadcn Dialog for edit/delete confirmations.",
+    "toast": "Use Sonner for audit log notifications and form success messages."
+  },
+  "icons": {
+    "library": "@phosphor-icons/react",
+    "instructions": "Use Phosphor icons with 'regular' or 'bold' weight to match the technical Swiss aesthetic."
+  },
+  "pages": {
+    "login": {
+      "layout": "Split screen. Left side: High-contrast authentication form. Right side: Hero image of Chicago Skyline with a dark 40% overlay and the state emblem or large typography.",
+      "background_image": "https://images.unsplash.com/photo-1657639789999-837194c7d6aa?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2MDV8MHwxfHNlYXJjaHwxfHxpbGxpbm9pcyUyMGNoaWNhZ28lMjBza3lsaW5lfGVufDB8fHx8MTc3ODU0ODUxN3ww&ixlib=rb-4.1.0&q=85"
+    },
+    "dashboard": {
+      "layout": "Control Room Grid. Top row: Key compliance metrics (Weeks Logged, Total Contacts, Active Status). Main area: Data table of recent Work Search Contacts. Sidebar or top nav for quick actions."
+    },
+    "claimant_profile": {
+      "layout": "Standard vertical form. Fields: First Name, Last Name, MI, ID/SSN. Left-aligned, generous padding."
+    },
+    "work_search_log": {
+      "layout": "Complex data table matching the ADJ034F form columns. Editable rows or slide-out panel for editing/adding: Week Ending, Contact Date, Name & Address, Method, Type of Work, Results."
+    },
+    "import_page": {
+      "layout": "Large dropzone area in the center using dashed 2px borders. Supported formats highlighted (CSV, PNG, JPG). Include an audit list below showing successfully parsed records."
+    },
+    "audit_log": {
+      "layout": "Full-width technical data table showing timestamps, actions (Login, Form Created, PDF Download), and User ID."
+    }
+  },
+  "media": {
+    "images": [
+      {
+        "url": "https://images.unsplash.com/photo-1657639789999-837194c7d6aa?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2MDV8MHwxfHNlYXJjaHwxfHxpbGxpbm9pcyUyMGNoaWNhZ28lMjBza3lsaW5lfGVufDB8fHx8MTc3ODU0ODUxN3ww&ixlib=rb-4.1.0&q=85",
+        "description": "Chicago skyline, used for the login/registration split-screen background to add local context and visual interest.",
+        "category": "hero_background"
+      }
+    ]
+  },
+  "testing": {
+    "data_testid_rules": "All interactive elements (buttons, inputs, dropdowns) MUST have a data-testid attribute formatted as kebab-case and role-based (e.g., data-testid='submit-work-search-button')."
+  },
+  "instructions_to_main_agent": [
+    "Strictly follow the color palette. Use the primary Illinois Blue (#0033A0) only for primary actions.",
+    "Install and use @phosphor-icons/react for all icons.",
+    "Implement Google Fonts for 'Chivo' (headings) and 'IBM Plex Sans' (body) in index.html.",
+    "Build the dashboard using the Control Room Grid strategy (dense, highly structured).",
+    "Ensure all forms have high contrast, explicit labels, and 1px sharp borders. Do not use soft shadows.",
+    "The Work Search log must closely mirror the ADJ034F form columns for compliance.",
+    "Ensure the PDF generation matches the required ADJ034F structure as closely as possible."
+  ]
+}
