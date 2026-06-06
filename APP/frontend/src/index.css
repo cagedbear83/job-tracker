@@ -1,0 +1,75 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Swiss High-Contrast palette */
+  --background: 0 0% 100%;
+  --foreground: 240 6% 6%;
+  --card: 0 0% 100%;
+  --card-foreground: 240 6% 6%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 240 6% 6%;
+  --primary: 222 100% 31%;        /* Illinois Blue #0033A0 */
+  --primary-foreground: 0 0% 100%;
+  --secondary: 240 5% 96%;
+  --secondary-foreground: 240 6% 10%;
+  --muted: 240 5% 96%;
+  --muted-foreground: 240 4% 36%;
+  --accent: 240 5% 96%;
+  --accent-foreground: 240 6% 10%;
+  --destructive: 0 73% 51%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 240 5% 84%;
+  --input: 240 5% 84%;
+  --ring: 222 100% 31%;
+  --radius: 0.125rem;
+}
+
+* { border-color: hsl(var(--border)); }
+
+html, body, #root {
+  height: 100%;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'cv11', 'ss01';
+}
+
+h1, h2, h3, h4, .font-display {
+  font-family: 'Chivo', 'IBM Plex Sans', system-ui, sans-serif;
+  letter-spacing: -0.015em;
+}
+
+.font-mono-data {
+  font-family: 'IBM Plex Sans', monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Brand accent bar */
+.brand-bar {
+  background: linear-gradient(90deg, #0033A0 0%, #0033A0 60%, #DC2626 60%, #DC2626 70%, #ffffff 70%, #ffffff 100%);
+  height: 4px;
+  width: 100%;
+}
+
+.kbd-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+}
+
+/* Dense table */
+table.compliance-table th, table.compliance-table td { padding: 0.5rem 0.75rem; }
+table.compliance-table tbody tr:hover { background: hsl(var(--secondary)); }
+
+/* Sharp focus ring */
+*:focus-visible { outline: 2px solid #0033A0; outline-offset: 2px; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: #D4D4D8; }
+::-webkit-scrollbar-thumb:hover { background: #A1A1AA; }
