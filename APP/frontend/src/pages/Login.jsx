@@ -10,8 +10,8 @@ import { toast } from "sonner";
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState("demo@illinoistracker.app");
-  const [password, setPassword] = useState("Demo1234!");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
 
   const onSubmit = async (e) => {
