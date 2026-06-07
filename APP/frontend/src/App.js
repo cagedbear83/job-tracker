@@ -19,6 +19,9 @@ import BenefitWeeks from "@/pages/BenefitWeeks";
 import WeekDetail from "@/pages/WeekDetail";
 import ImportPage from "@/pages/ImportPage";
 import AuditLog from "@/pages/AuditLog";
+import SmsOptIn from "@/pages/SmsOptIn";
+import PrivacyPolicy from "@/pages/PrivacyPolicy";
+import Terms from "@/pages/Terms";
 
 function Protected({ children }) {
   const { user, loading } = useAuth();
@@ -77,6 +80,9 @@ function App() {
               <Route path="/import" element={<ImportPage />} />
               <Route path="/audit" element={<AuditLog />} />
               <Route path="/admin" element={<AdminPage />} />
+              <Route path="/sms-opt-in" element={<SmsOptIn />} />
+              <Route path="/privacy" element={<PrivacyPolicy />} />
+              <Route path="/terms" element={<Terms />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
