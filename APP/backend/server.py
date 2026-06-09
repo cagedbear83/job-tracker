@@ -58,6 +58,14 @@ class RegisterIn(BaseModel):
     email: EmailStr
     password: str = Field(min_length=6)
     name: str
+    first_name: str = ""
+    last_name: str = ""
+    phone: str = ""
+    dob: Optional[str] = None  # ISO date YYYY-MM-DD
+    address: str = ""
+    city: str = ""
+    zip: str = ""
+    claimant_id: Optional[str] = None
 
 
 class LoginIn(BaseModel):
@@ -382,9 +390,49 @@ async def register(body: RegisterIn):
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.users.insert_one(user_doc)
+    
+    # After creating user, auto-create their claimant profile
+    await db.claimants.insert_one({
+        "id": str(uuid.uuid4()),
+        "user_id": uid,
+        "full_name": f"{body.first_name} {body.last_name}".strip(),
+        "phone": body.phone,
+        "date_of_birth": body.dob,
+        "address": body.address,
+        "city": body.city,
+        "zip": body.zip,
+        "claimant_id": body.claimant_id or "",
+        "is_primary": True,
+        "created_at": datetime.now(timezone.utc)
+    })
+    
+    # After creating user, send verification email
+    verification_token = secrets.token_urlsafe(32)
+    await db.users.update_one(
+        {"id": uid},
+        {"$set": {
+            "email_verified": False,
+            "verification_token": verification_token,
+            "verification_token_expires": datetime.now(timezone.utc) + timedelta(hours=24)
+        }}
+    )
+    verify_url = f"{os.environ.get('FRONTEND_URL')}/verify-email?token={verification_token}"
+    await send_email(
+        email,
+        "Verify your Illinois UI Tracker email",
+        f"""
+        <p>Thanks for signing up. Please verify your email address:</p>
+        <a href="{verify_url}" style="background:#0033A0;color:#fff;padding:12px 24px;text-decoration:none;font-weight:bold;display:inline-block;">
+            Verify Email Address
+        </a>
+        <p>This link expires in 24 hours.</p>
+        """
+    )
+    
     await log_audit(uid, "REGISTER", "user", uid, f"Account created: {email}")
     token = create_token(uid, email)
     return AuthOut(token=token, user=UserPublic(id=uid, email=email, name=body.name, role="user"))
+
 
 
 @api.post("/auth/login", response_model=AuthOut)
@@ -393,9 +441,26 @@ async def login(body: LoginIn):
     user = await db.users.find_one({"email": email})
     if not user or not verify_password(body.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
+    if not user.get("email_verified", False):
+        raise HTTPException(status_code=403, detail="Please verify your email address before logging in.")
     token = create_token(user["id"], user["email"])
     await log_audit(user["id"], "LOGIN", "user", user["id"], f"Login successful")
     return AuthOut(token=token, user=UserPublic(id=user["id"], email=user["email"], name=user.get("name", ""), role=user.get("role", "user")))
+
+
+@api.get("/auth/verify-email")
+async def verify_email(token: str):
+    user = await db.users.find_one({"verification_token": token})
+    if not user:
+        raise HTTPException(status_code=400, detail="Invalid or expired verification token")
+    expires = user.get("verification_token_expires")
+    if expires and datetime.now(timezone.utc) > expires:
+        raise HTTPException(status_code=400, detail="Verification link has expired")
+    await db.users.update_one(
+        {"id": user["id"]},
+        {"$set": {"email_verified": True}, "$unset": {"verification_token": "", "verification_token_expires": ""}}
+    )
+    return {"message": "Email verified successfully"}
 
 
 @api.post("/auth/logout")

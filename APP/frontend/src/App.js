@@ -7,6 +7,7 @@ import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import ForgotPassword from "@/pages/ForgotPassword";
 import ResetPassword from "@/pages/ResetPassword";
+import VerifyEmail from "@/pages/VerifyEmail";
 import Landing from "@/pages/Landing";
 import InviteSignup from "@/pages/InviteSignup";
 import Layout from "@/components/Layout";
@@ -59,6 +60,7 @@ function App() {
             <Route path="/" element={<LandingOrApp />} />
             <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />
             <Route path="/register" element={<PublicOnly><Register /></PublicOnly>} />
+            <Route path="/verify-email" element={<PublicOnly><VerifyEmail /></PublicOnly>} />
             <Route path="/forgot-password" element={<PublicOnly><ForgotPassword /></PublicOnly>} />
             <Route path="/reset-password" element={<PublicOnly><ResetPassword /></PublicOnly>} />
             <Route path="/invite/:code" element={<PublicOnly><InviteSignup /></PublicOnly>} />

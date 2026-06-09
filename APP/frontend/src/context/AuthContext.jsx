@@ -21,28 +21,28 @@ export function AuthProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    const t = localStorage.getItem("ides_token");
+    const t = sessionStorage.getItem("ides_token");
     if (!t) { setLoading(false); return; }
     api.get("/auth/me")
       .then(async (r) => {
         setUser(r.data);
         if (r.data.role !== "admin") await refreshClaimants();
       })
-      .catch(() => { localStorage.removeItem("ides_token"); })
+      .catch(() => { sessionStorage.removeItem("ides_token"); })
       .finally(() => setLoading(false));
   }, [refreshClaimants]);
 
   const login = async (email, password) => {
     const { data } = await api.post("/auth/login", { email, password });
-    localStorage.setItem("ides_token", data.token);
+    sessionStorage.setItem("ides_token", data.token);
     setUser(data.user);
     if (data.user.role !== "admin") await refreshClaimants();
     return data.user;
   };
 
-  const register = async (email, password, name) => {
-    const { data } = await api.post("/auth/register", { email, password, name });
-    localStorage.setItem("ides_token", data.token);
+  const register = async (body) => {
+    const { data } = await api.post("/auth/register", body);
+    sessionStorage.setItem("ides_token", data.token);
     setUser(data.user);
     await refreshClaimants();
     return data.user;
@@ -50,7 +50,7 @@ export function AuthProvider({ children }) {
 
   const logout = async () => {
     try { await api.post("/auth/logout"); } catch {}
-    localStorage.removeItem("ides_token");
+    sessionStorage.removeItem("ides_token");
     setUser(null);
     setClaimants([]);
     setActiveClaimantId(null);

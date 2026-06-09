@@ -12,7 +12,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Plus, Trash, PencilSimple, CheckCircle, EnvelopeSimple, PaperPlaneTilt, UserCircle } from "@phosphor-icons/react";
+import { PlusIcon, TrashIcon, PencilSimpleIcon, CheckCircleIcon, EnvelopeSimpleIcon, PaperPlaneTiltIcon, UserCircleIcon } from "@phosphor-icons/react";
 
 const blank = () => ({
   label: "", first_name: "", last_name: "", middle_initial: "",
@@ -164,7 +164,7 @@ export default function Claimants() {
                 <div className="col-span-3"><Label className="kbd-label">State</Label><Input value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value })} className="rounded-none mt-2" /></div>
                 <div className="col-span-3"><Label className="kbd-label">ZIP</Label><Input value={form.zip_code} onChange={(e) => setForm({ ...form, zip_code: e.target.value })} className="rounded-none mt-2" /></div>
                 <div className="col-span-12 border-t pt-3 mt-2">
-                  <Label className="kbd-label">Reminder Email (leave blank to use account email)</Label>
+                  <Label className="kbd-label"><EnvelopeSimple size={14} weight="bold" className="inline mr-1" />Reminder Email (leave blank to use account email)</Label>
                   <Input value={form.reminder_email} onChange={(e) => setForm({ ...form, reminder_email: e.target.value })} placeholder="kmgagen@gmail.com" className="rounded-none mt-2" data-testid="claimant-reminder-email" />
                   <label className="flex items-center gap-2 text-sm mt-3">
                     <input type="checkbox" checked={form.reminders_enabled} onChange={(e) => setForm({ ...form, reminders_enabled: e.target.checked })} data-testid="claimant-reminders-toggle" />
@@ -216,7 +216,8 @@ export default function Claimants() {
                 <div className="text-xs text-zinc-500 mt-1">{c.occupation}</div>
                 <div className="text-xs text-zinc-500 mt-1">{c.address ? `${c.address}, ${c.city}, ${c.state} ${c.zip_code}` : "—"}</div>
                 <div className="mt-3 flex items-center gap-2">
-                  <span className={`text-xs font-semibold uppercase tracking-wider px-2 py-0.5 border ${c.reminders_enabled ? "border-[#16A34A] text-[#16A34A]" : "border-zinc-300 text-zinc-500"}`}>
+                  <span className={`text-xs font-semibold uppercase tracking-wider px-2 py-0.5 border inline-flex items-center gap-1 ${c.reminders_enabled ? "border-[#16A34A] text-[#16A34A]" : "border-zinc-300 text-zinc-500"}`}>
+                    <EnvelopeSimple size={12} weight="bold" />
                     {c.reminders_enabled ? "Reminders ON" : "Reminders off"}
                   </span>
                   {c.sms_enabled && (
@@ -229,7 +230,7 @@ export default function Claimants() {
                       EMAIL BOUNCED
                     </span>
                   )}
-                  <span className="text-xs text-zinc-500">{c.reminder_email || "via account email"}</span>
+                  <span className="text-xs text-zinc-500 inline-flex items-center gap-1"><EnvelopeSimple size={12} className="text-zinc-400" /> {c.reminder_email || "via account email"}</span>
                 </div>
               </div>
               <div className="flex flex-col gap-1">
