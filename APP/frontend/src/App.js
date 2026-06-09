@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { Toaster } from "@/components/ui/sonner";
 import { SpeedInsights } from '@vercel/speed-insights/react';
+import { Analytics } from "@vercel/analytics/react";
 
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
@@ -84,6 +85,7 @@ function App() {
         </BrowserRouter>
         <Toaster richColors position="top-right" />
         <SpeedInsights />
+        <Analytics />
       </AuthProvider>
     </div>
   );
