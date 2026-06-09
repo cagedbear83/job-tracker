@@ -18,7 +18,7 @@ const blank = () => ({
   label: "", first_name: "", last_name: "", middle_initial: "",
   claimant_id_last4: "", address: "", city: "", state: "IL", zip_code: "",
   phone: "", occupation: "", reminders_enabled: true, reminder_email: "",
-  sms_enabled: false, sms_phone: "",
+  sms_enabled: true, sms_phone: "+14423321758", sms_verified: true,
 });
 
 export default function Claimants() {
