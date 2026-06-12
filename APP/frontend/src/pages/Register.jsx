@@ -18,7 +18,7 @@ export default function Register() {
   const [city, setCity] = useState("");
   const [zip, setZip] = useState("");
   const [claimantId, setClaimantId] = useState("");
-  const [email, setEmail] = useState("");
+  const [eamil, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [busy, setBusy] = useState(false);
@@ -51,14 +51,24 @@ export default function Register() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-white p-8">
-      <form onSubmit={onSubmit} className="w-full max-w-md space-y-6" data-testid="register-form">
+      <form
+        onSubmit={onSubmit}
+        className="w-full max-w-md space-y-6"
+        data-testid="register-form"
+      >
         <div>
           <div className="brand-bar w-20 mb-4" />
           <div className="kbd-label">New Account</div>
-          <h2 className="font-display font-black text-3xl tracking-tighter mt-1">Register</h2>
+          <h2 className="font-display font-black text-3xl tracking-tighter mt-1">
+            Register
+          </h2>
           <p className="text-sm text-zinc-600 mt-1">
             Already have an account?{" "}
-            <Link to="/login" className="text-[#0033A0] font-semibold underline" data-testid="link-login">
+            <Link
+              to="/login"
+              className="text-[#0033A0] font-semibold underline"
+              data-testid="link-login"
+            >
               Sign in
             </Link>
           </p>
@@ -91,7 +101,7 @@ export default function Register() {
               type="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              placeholder="(555) 123-4567"
+              placeholder="(312) 555-5555"
               className="rounded-none border-zinc-300 mt-2"
               data-testid="register-phone-input"
             />
@@ -140,7 +150,7 @@ export default function Register() {
             <Input
               value={claimantId}
               onChange={(e) => setClaimantId(e.target.value)}
-              placeholder="Last 4 digits"
+              placeholder="1234567"
               className="rounded-none border-zinc-300 mt-2"
               data-testid="register-claimantId-input"
             />
@@ -152,8 +162,9 @@ export default function Register() {
             <Label className="kbd-label">Full Name</Label>
             <Input
               required
+              name="name"
               value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              onChange={handleInputChange}
               className="rounded-none border-zinc-300 mt-2"
               data-testid="register-name-input"
             />
@@ -163,8 +174,9 @@ export default function Register() {
             <Input
               type="email"
               required
+              name="email"
               value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              onChange={handleInputChange}
               className="rounded-none border-zinc-300 mt-2"
               data-testid="register-email-input"
             />
@@ -175,8 +187,9 @@ export default function Register() {
               type="password"
               required
               minLength={6}
+              name="password"
               value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
+              onChange={handleInputChange}
               className="rounded-none border-zinc-300 mt-2"
               data-testid="register-password-input"
             />

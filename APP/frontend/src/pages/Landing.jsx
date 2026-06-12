@@ -96,7 +96,7 @@ export default function Landing() {
             <Feature Icon={Robot} title="AI Screenshot Import" desc="Drop an Indeed screenshot. Gemini 2.5 Pro extracts the job in seconds." />
             <Feature Icon={FileCsv} title="CSV Import & Export" desc="Bulk-import from spreadsheets. Export per week or all contacts." />
             <Feature Icon={FilePdf} title="ADJ034F-style PDF" desc="Generate IDES-style work-search reports with full audit-ready data." />
-            <Feature Icon={EnvelopeSimple} title="Email + SMS Reminders" desc="Sun / Wed / Fri / Sat nudges via Resend + Twilio. Never miss a week." />
+            <Feature Icon={EnvelopeSimple} title="Email + SMS Reminders" desc="Sun / Wed / Fri / Sat nudges via Mailgun + Twilio. Never miss a week." />
             <Feature Icon={UsersThree} title="Multi-claimant" desc="One account, multiple claimants. Family + case-worker friendly." />
             <Feature Icon={ShieldCheck} title="Admin / Case-worker" desc="Read-only oversight across users. Invite claimants with one click." />
             <Feature Icon={DeviceMobile} title="Mobile-friendly" desc="Drawer nav, dense data tables — works on a phone in the field." />
@@ -122,7 +122,7 @@ export default function Landing() {
             <div className="kbd-label">Workflow</div>
             <ol className="mt-3 space-y-3 text-sm">
               <li className="flex gap-3"><span className="w-6 h-6 bg-[#0033A0] text-white text-xs font-bold inline-flex items-center justify-center">1</span><span>Admin opens <code>/admin</code> → Invites → enters claimant email + label.</span></li>
-              <li className="flex gap-3"><span className="w-6 h-6 bg-[#0033A0] text-white text-xs font-bold inline-flex items-center justify-center">2</span><span>Resend emails a 14-day single-use signup link.</span></li>
+              <li className="flex gap-3"><span className="w-6 h-6 bg-[#0033A0] text-white text-xs font-bold inline-flex items-center justify-center">2</span><span>Mailgun emails a 14-day single-use signup link.</span></li>
               <li className="flex gap-3"><span className="w-6 h-6 bg-[#0033A0] text-white text-xs font-bold inline-flex items-center justify-center">3</span><span>Claimant opens link → sets password → account + claimant pre-created.</span></li>
               <li className="flex gap-3"><span className="w-6 h-6 bg-[#0033A0] text-white text-xs font-bold inline-flex items-center justify-center">4</span><span>Weekly reminders begin automatically.</span></li>
             </ol>

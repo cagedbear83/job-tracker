@@ -1,40 +1,49 @@
-from dotenv import load_dotenv
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
+load_dotenv(ROOT_DIR / ".env")
 
-import os
-import io
-import csv
-import uuid
-import jwt
-import bcrypt
-import logging
-import secrets
-import pytz
 import asyncio
-import hmac
+import csv
 import hashlib
+import hmac
+import io
 import json
-from datetime import datetime, timezone, timedelta, date
-from typing import List, Optional, Literal
+import logging
+import os
+import secrets
+import uuid
+from datetime import date, datetime, timedelta, timezone
+from typing import List, Literal, Optional
 
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, UploadFile, File, Form
-from fastapi.responses import StreamingResponse
-from starlette.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient
-from pydantic import BaseModel, Field, EmailStr, ConfigDict
-
+import bcrypt
+import jwt
+import pytz
+import requests as http_requests
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
-import requests as http_requests
+from fastapi import (
+    APIRouter,
+    Depends,
+    FastAPI,
+    File,
+    Form,
+    HTTPException,
+    Request,
+    UploadFile,
+)
+from fastapi.responses import StreamingResponse
+from motor.motor_asyncio import AsyncIOMotorClient
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from starlette.middleware.cors import CORSMiddleware
 from twilio.rest import Client as TwilioClient
 
 # ---- DB ----
-mongo_url = os.environ['MONGO_URL']
+mongo_url = os.environ["MONGO_URL"]
 client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+db = client[os.environ["DB_NAME"]]
 
 # ---- App ----
 app = FastAPI(title="Illinois UI Job Search Tracker")
@@ -43,7 +52,9 @@ api = APIRouter(prefix="/api")
 JWT_ALGO = "HS256"
 JWT_SECRET = os.environ.get("JWT_SECRET")
 if not JWT_SECRET:
-    raise RuntimeError("JWT_SECRET environment variable is required for secure token signing")
+    raise RuntimeError(
+        "JWT_SECRET environment variable is required for secure token signing"
+    )
 
 
 # ============== Models ==============
@@ -126,7 +137,7 @@ class InviteRedeem(BaseModel):
 
 class BenefitWeekIn(BaseModel):
     week_start: str  # ISO date YYYY-MM-DD (Sunday)
-    week_end: str    # ISO date (Saturday)
+    week_end: str  # ISO date (Saturday)
     notes: str = ""
     certified: bool = False
 
@@ -142,7 +153,9 @@ class ContactIn(BaseModel):
     contact_date: str  # ISO date
     employer_name: str
     employer_address: str = ""
-    contact_method: Literal["In Person", "Phone", "Email", "Online", "Mail", "Other"] = "Online"
+    contact_method: Literal[
+        "In Person", "Phone", "Email", "Online", "Mail", "Other"
+    ] = "Online"
     type_of_work: str = ""
     position_applied: str = ""
     person_contacted: str = ""
@@ -194,7 +207,10 @@ def create_token(user_id: str, email: str) -> str:
         pass
 
     # Fallback: construct JWT by hand (HS256)
-    import base64, json, hmac, hashlib
+    import base64
+    import hashlib
+    import hmac
+    import json
 
     def _b64u(data: bytes) -> str:
         return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
@@ -229,18 +245,23 @@ async def get_current_user(request: Request) -> dict:
     if payload is None:
         # Fallback decode: validate HMAC and parse payload
         try:
-            import base64, json, hmac, hashlib
+            import base64
+            import hashlib
+            import hmac
+            import json
 
             def _b64ud(s: str) -> bytes:
                 s2 = s + "=" * (-len(s) % 4)
                 return base64.urlsafe_b64decode(s2.encode())
 
-            parts = token.split('.')
+            parts = token.split(".")
             if len(parts) != 3:
                 raise ValueError("Invalid token format")
             header_b64, payload_b64, sig_b64 = parts
             signing_input = f"{header_b64}.{payload_b64}".encode()
-            expected_sig = hmac.new(JWT_SECRET.encode(), signing_input, hashlib.sha256).digest()
+            expected_sig = hmac.new(
+                JWT_SECRET.encode(), signing_input, hashlib.sha256
+            ).digest()
             sig = _b64ud(sig_b64)
             if not hmac.compare_digest(sig, expected_sig):
                 raise ValueError("Invalid signature")
@@ -260,13 +281,17 @@ async def get_current_user(request: Request) -> dict:
         raise
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid token")
-    user = await db.users.find_one({"id": payload["sub"]}, {"_id": 0, "password_hash": 0})
+    user = await db.users.find_one(
+        {"id": payload["sub"]}, {"_id": 0, "password_hash": 0}
+    )
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
     return user
 
 
-async def log_audit(user_id: str, action: str, entity: str, entity_id: str = None, detail: str = ""):
+async def log_audit(
+    user_id: str, action: str, entity: str, entity_id: str = None, detail: str = ""
+):
     doc = {
         "id": str(uuid.uuid4()),
         "user_id": user_id,
@@ -298,7 +323,9 @@ async def get_active_claimant_id(user_id: str) -> Optional[str]:
 
 
 async def send_email(to_email: str, subject: str, html: str) -> bool:
-    logging.info(f"MAILGUN DEBUG key={os.environ.get('MAILGUN_API_KEY','MISSING')} domain={os.environ.get('MAILGUN_DOMAIN','MISSING')}")
+    logging.info(
+        f"MAILGUN DEBUG key={os.environ.get('MAILGUN_API_KEY', 'MISSING')} domain={os.environ.get('MAILGUN_DOMAIN', 'MISSING')}"
+    )
     api_key = os.environ.get("MAILGUN_API_KEY", "")
     domain = os.environ.get("MAILGUN_DOMAIN", "")
     sender = os.environ.get("MAILGUN_FROM", "")
@@ -314,7 +341,7 @@ async def send_email(to_email: str, subject: str, html: str) -> bool:
                 "to": to_email,
                 "subject": subject,
                 "html": html,
-            }
+            },
         )
         if response.status_code == 200:
             logging.info(f"Mailgun sent to {to_email}")
@@ -345,7 +372,9 @@ def send_sms(to_number: str, body: str) -> bool:
 SMS_MIN_INTERVAL_MINUTES = int(os.environ.get("SMS_MIN_INTERVAL_MINUTES", "30"))
 
 
-async def send_sms_rate_limited(phone: str, body: str, claimant_id: str = "") -> tuple[bool, str]:
+async def send_sms_rate_limited(
+    phone: str, body: str, claimant_id: str = ""
+) -> tuple[bool, str]:
     """Returns (sent, reason). Enforces per-phone rate limit via Mongo."""
     if not phone:
         return False, "no phone"
@@ -358,20 +387,27 @@ async def send_sms_rate_limited(phone: str, body: str, claimant_id: str = "") ->
             last_at = last_at.replace(tzinfo=timezone.utc)
         delta = datetime.now(timezone.utc) - last_at
         if delta.total_seconds() < SMS_MIN_INTERVAL_MINUTES * 60:
-            return False, f"rate-limited ({int(delta.total_seconds()/60)}m / {SMS_MIN_INTERVAL_MINUTES}m)"
+            return (
+                False,
+                f"rate-limited ({int(delta.total_seconds() / 60)}m / {SMS_MIN_INTERVAL_MINUTES}m)",
+            )
     ok = send_sms(phone, body)
     if ok:
-        await db.sms_log.insert_one({
-            "phone": phone,
-            "claimant_id": claimant_id,
-            "body_preview": body[:120],
-            "sent_at": datetime.now(timezone.utc),
-        })
+        await db.sms_log.insert_one(
+            {
+                "phone": phone,
+                "claimant_id": claimant_id,
+                "body_preview": body[:120],
+                "sent_at": datetime.now(timezone.utc),
+            }
+        )
     return ok, "ok" if ok else "twilio-error"
 
 
 def to_public_user(u: dict) -> UserPublic:
-    return UserPublic(id=u["id"], email=u["email"], name=u.get("name", ""), role=u.get("role", "user"))
+    return UserPublic(
+        id=u["id"], email=u["email"], name=u.get("name", ""), role=u.get("role", "user")
+    )
 
 
 # ============== Auth Endpoints ==============
@@ -390,33 +426,40 @@ async def register(body: RegisterIn):
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.users.insert_one(user_doc)
-    
+
     # After creating user, auto-create their claimant profile
-    await db.claimants.insert_one({
-        "id": str(uuid.uuid4()),
-        "user_id": uid,
-        "full_name": f"{body.first_name} {body.last_name}".strip(),
-        "phone": body.phone,
-        "date_of_birth": body.dob,
-        "address": body.address,
-        "city": body.city,
-        "zip": body.zip,
-        "claimant_id": body.claimant_id or "",
-        "is_primary": True,
-        "created_at": datetime.now(timezone.utc)
-    })
-    
+    await db.profiles.insert_one(
+        {
+            "id": str(uuid.uuid4()),
+            "user_id": uid,
+            "full_name": f"{body.first_name} {body.last_name}".strip(),
+            "phone": body.phone,
+            "date_of_birth": body.dob,
+            "address": body.address,
+            "city": body.city,
+            "zip": body.zip,
+            "claimant_id": body.claimant_id or "",
+            "is_primary": True,
+            "created_at": datetime.now(timezone.utc),
+        }
+    )
+
     # After creating user, send verification email
     verification_token = secrets.token_urlsafe(32)
     await db.users.update_one(
         {"id": uid},
-        {"$set": {
-            "email_verified": False,
-            "verification_token": verification_token,
-            "verification_token_expires": datetime.now(timezone.utc) + timedelta(hours=24)
-        }}
+        {
+            "$set": {
+                "email_verified": False,
+                "verification_token": verification_token,
+                "verification_token_expires": datetime.now(timezone.utc)
+                + timedelta(hours=24),
+            }
+        },
     )
-    verify_url = f"{os.environ.get('FRONTEND_URL')}/verify-email?token={verification_token}"
+    verify_url = (
+        f"{os.environ.get('FRONTEND_URL')}/verify-email?token={verification_token}"
+    )
     await send_email(
         email,
         "Verify your Illinois UI Tracker email",
@@ -426,13 +469,14 @@ async def register(body: RegisterIn):
             Verify Email Address
         </a>
         <p>This link expires in 24 hours.</p>
-        """
+        """,
     )
-    
+
     await log_audit(uid, "REGISTER", "user", uid, f"Account created: {email}")
     token = create_token(uid, email)
-    return AuthOut(token=token, user=UserPublic(id=uid, email=email, name=body.name, role="user"))
-
+    return AuthOut(
+        token=token, user=UserPublic(id=uid, email=email, name=body.name, role="user")
+    )
 
 
 @api.post("/auth/login", response_model=AuthOut)
@@ -442,23 +486,39 @@ async def login(body: LoginIn):
     if not user or not verify_password(body.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     if not user.get("email_verified", False):
-        raise HTTPException(status_code=403, detail="Please verify your email address before logging in.")
+        raise HTTPException(
+            status_code=403,
+            detail="Please verify your email address before logging in.",
+        )
     token = create_token(user["id"], user["email"])
     await log_audit(user["id"], "LOGIN", "user", user["id"], f"Login successful")
-    return AuthOut(token=token, user=UserPublic(id=user["id"], email=user["email"], name=user.get("name", ""), role=user.get("role", "user")))
+    return AuthOut(
+        token=token,
+        user=UserPublic(
+            id=user["id"],
+            email=user["email"],
+            name=user.get("name", ""),
+            role=user.get("role", "user"),
+        ),
+    )
 
 
 @api.get("/auth/verify-email")
 async def verify_email(token: str):
     user = await db.users.find_one({"verification_token": token})
     if not user:
-        raise HTTPException(status_code=400, detail="Invalid or expired verification token")
+        raise HTTPException(
+            status_code=400, detail="Invalid or expired verification token"
+        )
     expires = user.get("verification_token_expires")
     if expires and datetime.now(timezone.utc) > expires:
         raise HTTPException(status_code=400, detail="Verification link has expired")
     await db.users.update_one(
         {"id": user["id"]},
-        {"$set": {"email_verified": True}, "$unset": {"verification_token": "", "verification_token_expires": ""}}
+        {
+            "$set": {"email_verified": True},
+            "$unset": {"verification_token": "", "verification_token_expires": ""},
+        },
     )
     return {"message": "Email verified successfully"}
 
@@ -471,7 +531,12 @@ async def logout(user=Depends(get_current_user)):
 
 @api.get("/auth/me", response_model=UserPublic)
 async def me(user=Depends(get_current_user)):
-    return UserPublic(id=user["id"], email=user["email"], name=user.get("name", ""), role=user.get("role", "user"))
+    return UserPublic(
+        id=user["id"],
+        email=user["email"],
+        name=user.get("name", ""),
+        role=user.get("role", "user"),
+    )
 
 
 # ============== Claimant Profiles (multi) ==============
@@ -490,25 +555,38 @@ async def upsert_profile(body: ProfileIn, user=Depends(get_current_user)):
     cid = await get_active_claimant_id(user["id"])
     now = datetime.now(timezone.utc).isoformat()
     if cid:
-        existing = await db.profiles.find_one({"id": cid, "user_id": user["id"]}, {"_id": 0}) or {}
+        existing = (
+            await db.profiles.find_one({"id": cid, "user_id": user["id"]}, {"_id": 0})
+            or {}
+        )
         update = body.model_dump()
         update["updated_at"] = now
-        await db.profiles.update_one({"id": cid, "user_id": user["id"]}, {"$set": update})
+        await db.profiles.update_one(
+            {"id": cid, "user_id": user["id"]}, {"$set": update}
+        )
         diff = diff_dict(existing, update, list(body.model_dump().keys()))
-        await log_audit(user["id"], "UPDATE", "claimant", cid, f"Claimant updated — {diff}")
+        await log_audit(
+            user["id"], "UPDATE", "claimant", cid, f"Claimant updated — {diff}"
+        )
         return {**existing, **update}
     pid = str(uuid.uuid4())
     doc = {"id": pid, "user_id": user["id"], "updated_at": now, **body.model_dump()}
     await db.profiles.insert_one(doc)
     await db.users.update_one({"id": user["id"]}, {"$set": {"active_claimant_id": pid}})
-    await log_audit(user["id"], "CREATE", "claimant", pid, f"Claimant created: {body.label}")
+    await log_audit(
+        user["id"], "CREATE", "claimant", pid, f"Claimant created: {body.label}"
+    )
     doc.pop("_id", None)
     return doc
 
 
 @api.get("/claimants")
 async def list_claimants(user=Depends(get_current_user)):
-    items = await db.profiles.find({"user_id": user["id"]}, {"_id": 0}).sort("label", 1).to_list(100)
+    items = (
+        await db.profiles.find({"user_id": user["id"]}, {"_id": 0})
+        .sort("label", 1)
+        .to_list(100)
+    )
     active = await get_active_claimant_id(user["id"])
     return {"items": items, "active_id": active}
 
@@ -522,22 +600,30 @@ async def create_claimant(body: ProfileIn, user=Depends(get_current_user)):
     # If user has no active, make this active
     u = await db.users.find_one({"id": user["id"]}, {"_id": 0, "active_claimant_id": 1})
     if not u or not u.get("active_claimant_id"):
-        await db.users.update_one({"id": user["id"]}, {"$set": {"active_claimant_id": pid}})
-    await log_audit(user["id"], "CREATE", "claimant", pid, f"Claimant created: {body.label}")
+        await db.users.update_one(
+            {"id": user["id"]}, {"$set": {"active_claimant_id": pid}}
+        )
+    await log_audit(
+        user["id"], "CREATE", "claimant", pid, f"Claimant created: {body.label}"
+    )
     doc.pop("_id", None)
     return doc
 
 
 @api.put("/claimants/{cid}")
 async def update_claimant(cid: str, body: ProfileIn, user=Depends(get_current_user)):
-    existing = await db.profiles.find_one({"id": cid, "user_id": user["id"]}, {"_id": 0})
+    existing = await db.profiles.find_one(
+        {"id": cid, "user_id": user["id"]}, {"_id": 0}
+    )
     if not existing:
         raise HTTPException(status_code=404, detail="Not found")
     update = body.model_dump()
     update["updated_at"] = datetime.now(timezone.utc).isoformat()
     await db.profiles.update_one({"id": cid, "user_id": user["id"]}, {"$set": update})
     diff = diff_dict(existing, update, list(body.model_dump().keys()))
-    await log_audit(user["id"], "UPDATE", "claimant", cid, f"Claimant '{body.label}' — {diff}")
+    await log_audit(
+        user["id"], "UPDATE", "claimant", cid, f"Claimant '{body.label}' — {diff}"
+    )
     return {**existing, **update}
 
 
@@ -552,8 +638,17 @@ async def delete_claimant(cid: str, user=Depends(get_current_user)):
     if u and u.get("active_claimant_id") == cid:
         # Reassign to any remaining claimant or clear
         nxt = await db.profiles.find_one({"user_id": user["id"]}, {"_id": 0, "id": 1})
-        await db.users.update_one({"id": user["id"]}, {"$set": {"active_claimant_id": nxt["id"] if nxt else None}})
-    await log_audit(user["id"], "DELETE", "claimant", cid, "Claimant + all its weeks/contacts deleted")
+        await db.users.update_one(
+            {"id": user["id"]},
+            {"$set": {"active_claimant_id": nxt["id"] if nxt else None}},
+        )
+    await log_audit(
+        user["id"],
+        "DELETE",
+        "claimant",
+        cid,
+        "Claimant + all its weeks/contacts deleted",
+    )
     return {"ok": True}
 
 
@@ -563,7 +658,13 @@ async def set_active_claimant(cid: str, user=Depends(get_current_user)):
     if not p:
         raise HTTPException(status_code=404, detail="Not found")
     await db.users.update_one({"id": user["id"]}, {"$set": {"active_claimant_id": cid}})
-    await log_audit(user["id"], "SWITCH", "claimant", cid, f"Switched to claimant: {p.get('label','')}")
+    await log_audit(
+        user["id"],
+        "SWITCH",
+        "claimant",
+        cid,
+        f"Switched to claimant: {p.get('label', '')}",
+    )
     return {"ok": True, "active_id": cid}
 
 
@@ -574,10 +675,14 @@ async def list_weeks(user=Depends(get_current_user)):
     q = {"user_id": user["id"]}
     if cid:
         q["$or"] = [{"claimant_id": cid}, {"claimant_id": {"$exists": False}}]
-    weeks = await db.benefit_weeks.find(q, {"_id": 0}).sort("week_start", -1).to_list(1000)
+    weeks = (
+        await db.benefit_weeks.find(q, {"_id": 0}).sort("week_start", -1).to_list(1000)
+    )
     # Attach contact count for each
     for w in weeks:
-        w["contact_count"] = await db.contacts.count_documents({"benefit_week_id": w["id"]})
+        w["contact_count"] = await db.contacts.count_documents(
+            {"benefit_week_id": w["id"]}
+        )
     return weeks
 
 
@@ -593,7 +698,13 @@ async def create_week(body: BenefitWeekIn, user=Depends(get_current_user)):
         **body.model_dump(),
     }
     await db.benefit_weeks.insert_one(doc)
-    await log_audit(user["id"], "CREATE", "benefit_week", wid, f"Week {body.week_start} – {body.week_end}")
+    await log_audit(
+        user["id"],
+        "CREATE",
+        "benefit_week",
+        wid,
+        f"Week {body.week_start} – {body.week_end}",
+    )
     doc.pop("_id", None)
     return doc
 
@@ -608,13 +719,23 @@ async def get_week(wid: str, user=Depends(get_current_user)):
 
 @api.put("/benefit-weeks/{wid}")
 async def update_week(wid: str, body: BenefitWeekIn, user=Depends(get_current_user)):
-    existing = await db.benefit_weeks.find_one({"id": wid, "user_id": user["id"]}, {"_id": 0})
+    existing = await db.benefit_weeks.find_one(
+        {"id": wid, "user_id": user["id"]}, {"_id": 0}
+    )
     if not existing:
         raise HTTPException(status_code=404, detail="Not found")
     update = body.model_dump()
-    await db.benefit_weeks.update_one({"id": wid, "user_id": user["id"]}, {"$set": update})
+    await db.benefit_weeks.update_one(
+        {"id": wid, "user_id": user["id"]}, {"$set": update}
+    )
     diff = diff_dict(existing, update, ["week_start", "week_end", "notes", "certified"])
-    await log_audit(user["id"], "UPDATE", "benefit_week", wid, f"Week {body.week_start}–{body.week_end} — {diff}")
+    await log_audit(
+        user["id"],
+        "UPDATE",
+        "benefit_week",
+        wid,
+        f"Week {body.week_start}–{body.week_end} — {diff}",
+    )
     w = await db.benefit_weeks.find_one({"id": wid}, {"_id": 0})
     return w
 
@@ -625,7 +746,9 @@ async def delete_week(wid: str, user=Depends(get_current_user)):
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Not found")
     await db.contacts.delete_many({"benefit_week_id": wid, "user_id": user["id"]})
-    await log_audit(user["id"], "DELETE", "benefit_week", wid, "Week deleted (cascaded contacts)")
+    await log_audit(
+        user["id"], "DELETE", "benefit_week", wid, "Week deleted (cascaded contacts)"
+    )
     return {"ok": True}
 
 
@@ -639,14 +762,18 @@ async def list_contacts(week_id: Optional[str] = None, user=Depends(get_current_
         cid = await get_active_claimant_id(user["id"])
         if cid:
             query["$or"] = [{"claimant_id": cid}, {"claimant_id": {"$exists": False}}]
-    items = await db.contacts.find(query, {"_id": 0}).sort("contact_date", -1).to_list(5000)
+    items = (
+        await db.contacts.find(query, {"_id": 0}).sort("contact_date", -1).to_list(5000)
+    )
     return items
 
 
 @api.post("/contacts")
 async def create_contact(body: ContactIn, user=Depends(get_current_user)):
     # Derive claimant_id from the week
-    w = await db.benefit_weeks.find_one({"id": body.benefit_week_id, "user_id": user["id"]}, {"_id": 0})
+    w = await db.benefit_weeks.find_one(
+        {"id": body.benefit_week_id, "user_id": user["id"]}, {"_id": 0}
+    )
     if not w:
         raise HTTPException(status_code=404, detail="Benefit week not found")
     cid = str(uuid.uuid4())
@@ -658,22 +785,37 @@ async def create_contact(body: ContactIn, user=Depends(get_current_user)):
         **body.model_dump(),
     }
     await db.contacts.insert_one(doc)
-    await log_audit(user["id"], "CREATE", "contact", cid, f"Contact: {body.employer_name}")
+    await log_audit(
+        user["id"], "CREATE", "contact", cid, f"Contact: {body.employer_name}"
+    )
     doc.pop("_id", None)
     return doc
 
 
 @api.put("/contacts/{cid}")
 async def update_contact(cid: str, body: ContactIn, user=Depends(get_current_user)):
-    existing = await db.contacts.find_one({"id": cid, "user_id": user["id"]}, {"_id": 0})
+    existing = await db.contacts.find_one(
+        {"id": cid, "user_id": user["id"]}, {"_id": 0}
+    )
     if not existing:
         raise HTTPException(status_code=404, detail="Not found")
     update = body.model_dump()
     await db.contacts.update_one({"id": cid, "user_id": user["id"]}, {"$set": update})
-    keys = ["contact_date", "employer_name", "employer_address", "contact_method",
-            "type_of_work", "position_applied", "person_contacted", "result", "source_url"]
+    keys = [
+        "contact_date",
+        "employer_name",
+        "employer_address",
+        "contact_method",
+        "type_of_work",
+        "position_applied",
+        "person_contacted",
+        "result",
+        "source_url",
+    ]
     diff = diff_dict(existing, update, keys)
-    await log_audit(user["id"], "UPDATE", "contact", cid, f"{body.employer_name} — {diff}")
+    await log_audit(
+        user["id"], "UPDATE", "contact", cid, f"{body.employer_name} — {diff}"
+    )
     c = await db.contacts.find_one({"id": cid}, {"_id": 0})
     return c
 
@@ -703,13 +845,21 @@ async def get_audit(
         query["entity"] = entity
     if q:
         query["detail"] = {"$regex": q, "$options": "i"}
-    items = await db.audit_log.find(query, {"_id": 0}).sort("timestamp", -1).to_list(min(max(limit, 1), 5000))
+    items = (
+        await db.audit_log.find(query, {"_id": 0})
+        .sort("timestamp", -1)
+        .to_list(min(max(limit, 1), 5000))
+    )
     return items
 
 
 # ============== Import: CSV ==============
 @api.post("/import/csv")
-async def import_csv(file: UploadFile = File(...), week_id: str = Form(...), user=Depends(get_current_user)):
+async def import_csv(
+    file: UploadFile = File(...),
+    week_id: str = Form(...),
+    user=Depends(get_current_user),
+):
     # Verify the benefit week exists for user
     w = await db.benefit_weeks.find_one({"id": week_id, "user_id": user["id"]})
     if not w:
@@ -725,31 +875,60 @@ async def import_csv(file: UploadFile = File(...), week_id: str = Form(...), use
             "user_id": user["id"],
             "benefit_week_id": week_id,
             "claimant_id": w.get("claimant_id"),
-            "contact_date": lc.get("date") or lc.get("contact_date") or lc.get("date applied") or w["week_start"],
-            "employer_name": lc.get("employer") or lc.get("company") or lc.get("employer_name") or lc.get("company name") or "",
+            "contact_date": lc.get("date")
+            or lc.get("contact_date")
+            or lc.get("date applied")
+            or w["week_start"],
+            "employer_name": lc.get("employer")
+            or lc.get("company")
+            or lc.get("employer_name")
+            or lc.get("company name")
+            or "",
             "employer_address": lc.get("address") or lc.get("location") or "",
-            "contact_method": (lc.get("method") or lc.get("contact_method") or "Online").title(),
+            "contact_method": (
+                lc.get("method") or lc.get("contact_method") or "Online"
+            ).title(),
             "type_of_work": lc.get("type_of_work") or lc.get("type") or "",
-            "position_applied": lc.get("position") or lc.get("job_title") or lc.get("title") or "",
+            "position_applied": lc.get("position")
+            or lc.get("job_title")
+            or lc.get("title")
+            or "",
             "person_contacted": lc.get("contact") or lc.get("person_contacted") or "",
             "result": lc.get("result") or lc.get("status") or "Applied",
             "source_url": lc.get("url") or lc.get("link") or "",
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
-        if contact["contact_method"] not in ["In Person", "Phone", "Email", "Online", "Mail", "Other"]:
+        if contact["contact_method"] not in [
+            "In Person",
+            "Phone",
+            "Email",
+            "Online",
+            "Mail",
+            "Other",
+        ]:
             contact["contact_method"] = "Online"
         if contact["employer_name"]:
             await db.contacts.insert_one(contact)
             contact.pop("_id", None)
             rows_out.append(contact)
             inserted += 1
-    await log_audit(user["id"], "IMPORT_CSV", "contact", week_id, f"Imported {inserted} contacts via CSV")
+    await log_audit(
+        user["id"],
+        "IMPORT_CSV",
+        "contact",
+        week_id,
+        f"Imported {inserted} contacts via CSV",
+    )
     return {"inserted": inserted, "contacts": rows_out}
 
 
 # ============== Import: Screenshot OCR (AI Vision) ==============
 @api.post("/import/screenshot")
-async def import_screenshot(file: UploadFile = File(...), week_id: str = Form(...), user=Depends(get_current_user)):
+async def import_screenshot(
+    file: UploadFile = File(...),
+    week_id: str = Form(...),
+    user=Depends(get_current_user),
+):
     w = await db.benefit_weeks.find_one({"id": week_id, "user_id": user["id"]})
     if not w:
         raise HTTPException(status_code=404, detail="Benefit week not found")
@@ -759,9 +938,15 @@ async def import_screenshot(file: UploadFile = File(...), week_id: str = Form(..
         raise HTTPException(status_code=400, detail="Empty file")
 
     # Save image to temp file (Gemini supports file path)
-    import base64, tempfile
+    import base64
+    import tempfile
+
     mime = file.content_type or "image/png"
-    suffix = ".png" if "png" in mime else (".jpg" if "jpe" in mime or "jpg" in mime else ".png")
+    suffix = (
+        ".png"
+        if "png" in mime
+        else (".jpg" if "jpe" in mime or "jpg" in mime else ".png")
+    )
 
     api_key = os.environ.get("GEMINI_API_KEY", "")
     if not api_key:
@@ -780,9 +965,13 @@ async def import_screenshot(file: UploadFile = File(...), week_id: str = Form(..
 
     try:
         import google.generativeai as genai
+
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel("gemini-2.0-flash")
-        import PIL.Image, io as _io
+        import io as _io
+
+        import PIL.Image
+
         pil_image = PIL.Image.open(_io.BytesIO(img_bytes))
         response = await asyncio.get_event_loop().run_in_executor(
             None, lambda: model.generate_content([prompt, pil_image])
@@ -792,7 +981,9 @@ async def import_screenshot(file: UploadFile = File(...), week_id: str = Form(..
         raise HTTPException(status_code=502, detail=f"Vision extraction failed: {e}")
 
     # Parse JSON from response
-    import json, re
+    import json
+    import re
+
     text = str(response)
     # Strip code fences if present
     m = re.search(r"\{[\s\S]*\}", text)
@@ -830,15 +1021,22 @@ async def import_screenshot(file: UploadFile = File(...), week_id: str = Form(..
         contact.pop("_id", None)
         inserted.append(contact)
 
-    await log_audit(user["id"], "IMPORT_OCR", "contact", week_id, f"Imported {len(inserted)} contacts via screenshot OCR")
+    await log_audit(
+        user["id"],
+        "IMPORT_OCR",
+        "contact",
+        week_id,
+        f"Imported {len(inserted)} contacts via screenshot OCR",
+    )
     return {"inserted": len(inserted), "contacts": inserted, "raw": text[:500]}
 
 
 # ============== Reports (PDF) ==============
 @api.get("/reports/benefit-week/{week_id}")
 async def report_pdf(week_id: str, user=Depends(get_current_user)):
-    from pypdf import PdfReader, PdfWriter
     import io
+
+    from pypdf import PdfReader, PdfWriter
 
     # Load the benefit week
     w = await db.benefit_weeks.find_one({"id": week_id, "user_id": user["id"]})
@@ -846,20 +1044,26 @@ async def report_pdf(week_id: str, user=Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="Week not found")
 
     # Load all contacts for this week
-    contacts = await db.contacts.find(
-        {"benefit_week_id": week_id}
-    ).sort("contact_date", 1).to_list(30)
+    contacts = (
+        await db.contacts.find({"benefit_week_id": week_id})
+        .sort("contact_date", 1)
+        .to_list(30)
+    )
 
     # Load claimant info
-    claimant = await db.profiles.find_one({"id": w.get("claimant_id"), "user_id": user["id"]})
-    claimant_name = claimant.get("full_name", "") if claimant else user.get("full_name", "")
-    claimant_id   = claimant.get("claimant_id", "") if claimant else ""
+    claimant = await db.profiles.find_one(
+        {"id": w.get("claimant_id"), "user_id": user["id"]}
+    )
+    claimant_name = (
+        claimant.get("full_name", "") if claimant else user.get("full_name", "")
+    )
+    claimant_id = claimant.get("claimant_id", "") if claimant else ""
 
     # Split name into first / last / MI
     name_parts = claimant_name.strip().split()
     first = name_parts[0] if len(name_parts) >= 1 else ""
-    last  = name_parts[-1] if len(name_parts) >= 2 else ""
-    mi    = name_parts[1][0] if len(name_parts) >= 3 else ""
+    last = name_parts[-1] if len(name_parts) >= 2 else ""
+    mi = name_parts[1][0] if len(name_parts) >= 3 else ""
 
     # Week ending date (Saturday of the benefit week)
     week_end = w.get("week_end", "")
@@ -867,9 +1071,9 @@ async def report_pdf(week_id: str, user=Depends(get_current_user)):
     # Map contacts to form field slots (form holds 30 max across 6 sections of 5)
     field_values = {
         "frstname": first,
-        "lstname":  last,
-        "mi":       mi,
-        "idssn":    claimant_id,
+        "lstname": last,
+        "mi": mi,
+        "idssn": claimant_id,
     }
 
     # Fill week-end date into whichever sections we need
@@ -879,29 +1083,32 @@ async def report_pdf(week_id: str, user=Depends(get_current_user)):
 
     # Fill contact rows
     for i, c in enumerate(contacts[:30], start=1):
-        employer    = c.get("employer_name", "")
-        address     = c.get("employer_address", "")
-        person      = c.get("person_contacted", "")
-        method      = c.get("contact_method", "")
-        work_type   = c.get("type_of_work", "")
-        result      = c.get("result", "")
-        cdate       = c.get("contact_date", "")
+        employer = c.get("employer_name", "")
+        address = c.get("employer_address", "")
+        person = c.get("person_contacted", "")
+        method = c.get("contact_method", "")
+        work_type = c.get("type_of_work", "")
+        result = c.get("result", "")
+        cdate = c.get("contact_date", "")
         if hasattr(cdate, "strftime"):
             cdate = cdate.strftime("%m/%d/%Y")
 
-        field_values[f"date{i}"]          = str(cdate)
-        field_values[f"name{i}"]          = employer
-        field_values[f"address{i}"]       = address
+        field_values[f"date{i}"] = str(cdate)
+        field_values[f"name{i}"] = employer
+        field_values[f"address{i}"] = address
         field_values[f"personcontact{i}"] = person
         field_values[f"methodcontact{i}"] = method
-        field_values[f"typework{i}"]      = work_type
-        field_values[f"result{i}"]        = result
+        field_values[f"typework{i}"] = work_type
+        field_values[f"result{i}"] = result
 
     # Fill the state PDF form
     try:
         template_path = ROOT_DIR / "assets" / "ADJ034F.pdf"
         if not template_path.exists():
-            raise HTTPException(status_code=500, detail="State form template not found in assets/ADJ034F.pdf")
+            raise HTTPException(
+                status_code=500,
+                detail="State form template not found in assets/ADJ034F.pdf",
+            )
 
         reader = PdfReader(str(template_path))
         writer = PdfWriter()
@@ -917,7 +1124,7 @@ async def report_pdf(week_id: str, user=Depends(get_current_user)):
         return StreamingResponse(
             buf,
             media_type="application/pdf",
-            headers={"Content-Disposition": f"attachment; filename={filename}"}
+            headers={"Content-Disposition": f"attachment; filename={filename}"},
         )
     except HTTPException:
         raise
@@ -939,7 +1146,11 @@ async def dashboard(user=Depends(get_current_user)):
     contacts = await db.contacts.count_documents(contact_q)
     compliant = 0
     non_compliant = 0
-    recent = await db.benefit_weeks.find(week_q, {"_id": 0}).sort("week_start", -1).to_list(100)
+    recent = (
+        await db.benefit_weeks.find(week_q, {"_id": 0})
+        .sort("week_start", -1)
+        .to_list(100)
+    )
     for w in recent:
         n = await db.contacts.count_documents({"benefit_week_id": w["id"]})
         if n >= 3:
@@ -948,20 +1159,26 @@ async def dashboard(user=Depends(get_current_user)):
             non_compliant += 1
     profile = None
     if cid:
-        profile = await db.profiles.find_one({"id": cid, "user_id": user["id"]}, {"_id": 0})
+        profile = await db.profiles.find_one(
+            {"id": cid, "user_id": user["id"]}, {"_id": 0}
+        )
     return {
         "total_weeks": weeks,
         "total_contacts": contacts,
         "compliant_weeks": compliant,
         "non_compliant_weeks": non_compliant,
-        "profile_complete": bool(profile and profile.get("first_name") and profile.get("last_name")),
+        "profile_complete": bool(
+            profile and profile.get("first_name") and profile.get("last_name")
+        ),
         "active_claimant_id": cid,
     }
 
 
 # ============== CSV Export ==============
 @api.get("/contacts/export.csv")
-async def export_contacts_csv(week_id: Optional[str] = None, user=Depends(get_current_user)):
+async def export_contacts_csv(
+    week_id: Optional[str] = None, user=Depends(get_current_user)
+):
     q = {"user_id": user["id"]}
     if week_id:
         q["benefit_week_id"] = week_id
@@ -969,16 +1186,33 @@ async def export_contacts_csv(week_id: Optional[str] = None, user=Depends(get_cu
         cid = await get_active_claimant_id(user["id"])
         if cid:
             q["$or"] = [{"claimant_id": cid}, {"claimant_id": {"$exists": False}}]
-    contacts = await db.contacts.find(q, {"_id": 0}).sort("contact_date", 1).to_list(10000)
+    contacts = (
+        await db.contacts.find(q, {"_id": 0}).sort("contact_date", 1).to_list(10000)
+    )
     buf = io.StringIO()
-    fields = ["contact_date", "employer_name", "employer_address", "contact_method",
-              "position_applied", "type_of_work", "person_contacted", "result", "source_url"]
+    fields = [
+        "contact_date",
+        "employer_name",
+        "employer_address",
+        "contact_method",
+        "position_applied",
+        "type_of_work",
+        "person_contacted",
+        "result",
+        "source_url",
+    ]
     writer = csv.DictWriter(buf, fieldnames=fields, extrasaction="ignore")
     writer.writeheader()
     for c in contacts:
         writer.writerow(c)
     buf.seek(0)
-    await log_audit(user["id"], "EXPORT_CSV", "contact", week_id, f"Exported {len(contacts)} contacts to CSV")
+    await log_audit(
+        user["id"],
+        "EXPORT_CSV",
+        "contact",
+        week_id,
+        f"Exported {len(contacts)} contacts to CSV",
+    )
     fname = f"contacts_{week_id or 'all'}.csv"
     return StreamingResponse(
         io.BytesIO(buf.getvalue().encode()),
@@ -995,13 +1229,15 @@ async def forgot_password(body: ForgotPwIn):
     if user:
         token = secrets.token_urlsafe(32)
         expires = datetime.now(timezone.utc) + timedelta(hours=1)
-        await db.password_resets.insert_one({
-            "token": token,
-            "user_id": user["id"],
-            "expires_at": expires,  # BSON datetime — TTL index will auto-clean
-            "used": False,
-            "created_at": datetime.now(timezone.utc),
-        })
+        await db.password_resets.insert_one(
+            {
+                "token": token,
+                "user_id": user["id"],
+                "expires_at": expires,  # BSON datetime — TTL index will auto-clean
+                "used": False,
+                "created_at": datetime.now(timezone.utc),
+            }
+        )
         link = f"{os.environ.get('FRONTEND_URL', 'http://localhost:3000')}/reset-password?token={token}"
         html = f"""
         <!DOCTYPE html>
@@ -1045,7 +1281,13 @@ async def forgot_password(body: ForgotPwIn):
         </html>
         """
         sent = await send_email(email, "Reset your Illinois UI Tracker password", html)
-        await log_audit(user["id"], "FORGOT_PW", "user", user["id"], f"Reset link sent (resend={'ok' if sent else 'fail'})")
+        await log_audit(
+            user["id"],
+            "FORGOT_PW",
+            "user",
+            user["id"],
+            f"Reset link sent (mailgun={'ok' if sent else 'fail'})",
+        )
     return {"ok": True, "message": "If that email exists, a reset link has been sent."}
 
 
@@ -1061,9 +1303,18 @@ async def reset_password(body: ResetPwIn):
         exp = exp.replace(tzinfo=timezone.utc)
     if datetime.now(timezone.utc) > exp:
         raise HTTPException(status_code=400, detail="Token expired")
-    await db.users.update_one({"id": rec["user_id"]}, {"$set": {"password_hash": hash_password(body.password)}})
+    await db.users.update_one(
+        {"id": rec["user_id"]},
+        {"$set": {"password_hash": hash_password(body.password)}},
+    )
     await db.password_resets.update_one({"token": body.token}, {"$set": {"used": True}})
-    await log_audit(rec["user_id"], "RESET_PW", "user", rec["user_id"], "Password reset via email link")
+    await log_audit(
+        rec["user_id"],
+        "RESET_PW",
+        "user",
+        rec["user_id"],
+        "Password reset via email link",
+    )
     return {"ok": True}
 
 
@@ -1076,7 +1327,11 @@ async def require_admin(user=Depends(get_current_user)):
 
 @api.get("/admin/users")
 async def admin_list_users(admin=Depends(require_admin)):
-    users = await db.users.find({}, {"_id": 0, "password_hash": 0}).sort("created_at", -1).to_list(500)
+    users = (
+        await db.users.find({}, {"_id": 0, "password_hash": 0})
+        .sort("created_at", -1)
+        .to_list(500)
+    )
     for u in users:
         u["claimants_count"] = await db.profiles.count_documents({"user_id": u["id"]})
         u["weeks_count"] = await db.benefit_weeks.count_documents({"user_id": u["id"]})
@@ -1090,9 +1345,15 @@ async def admin_user_detail(uid: str, admin=Depends(require_admin)):
     if not user:
         raise HTTPException(status_code=404, detail="Not found")
     claimants = await db.profiles.find({"user_id": uid}, {"_id": 0}).to_list(100)
-    weeks = await db.benefit_weeks.find({"user_id": uid}, {"_id": 0}).sort("week_start", -1).to_list(500)
+    weeks = (
+        await db.benefit_weeks.find({"user_id": uid}, {"_id": 0})
+        .sort("week_start", -1)
+        .to_list(500)
+    )
     for w in weeks:
-        w["contact_count"] = await db.contacts.count_documents({"benefit_week_id": w["id"]})
+        w["contact_count"] = await db.contacts.count_documents(
+            {"benefit_week_id": w["id"]}
+        )
     return {"user": user, "claimants": claimants, "weeks": weeks}
 
 
@@ -1170,22 +1431,36 @@ def _current_week_bounds(tz_str: str = "America/Chicago"):
 async def _send_user_reminder(user: dict, kind: str):
     """kind in: 'sunday','wednesday','friday','saturday'"""
     # iterate claimants that have reminders_enabled
-    claimants = await db.profiles.find({"user_id": user["id"], "reminders_enabled": {"$ne": False}}, {"_id": 0}).to_list(50)
+    claimants = await db.profiles.find(
+        {"user_id": user["id"], "reminders_enabled": {"$ne": False}}, {"_id": 0}
+    ).to_list(50)
     if not claimants:
         return 0
     sun, sat = _current_week_bounds()
     sent = 0
     for c in claimants:
         # Find this week's matching benefit week
-        w = await db.benefit_weeks.find_one({"user_id": user["id"], "claimant_id": c["id"], "week_start": sun, "week_end": sat}, {"_id": 0})
+        w = await db.benefit_weeks.find_one(
+            {
+                "user_id": user["id"],
+                "claimant_id": c["id"],
+                "week_start": sun,
+                "week_end": sat,
+            },
+            {"_id": 0},
+        )
         contacts_count = 0
         contacts_list = []
         if w:
-            contacts_list = await db.contacts.find({"benefit_week_id": w["id"]}, {"_id": 0}).to_list(50)
+            contacts_list = await db.contacts.find(
+                {"benefit_week_id": w["id"]}, {"_id": 0}
+            ).to_list(50)
             contacts_count = len(contacts_list)
 
         to_email = c.get("reminder_email") or user.get("email")
-        name = f"{c.get('first_name','')} {c.get('last_name','')}".strip() or c.get("label", "claimant")
+        name = f"{c.get('first_name', '')} {c.get('last_name', '')}".strip() or c.get(
+            "label", "claimant"
+        )
         deficit = max(0, 3 - contacts_count)
 
         if kind == "sunday":
@@ -1194,19 +1469,33 @@ async def _send_user_reminder(user: dict, kind: str):
         elif kind == "wednesday":
             if contacts_count >= 3:
                 continue
-            title = f"Mid-Week Check — {deficit} contact{'s' if deficit != 1 else ''} to go"
+            title = (
+                f"Mid-Week Check — {deficit} contact{'s' if deficit != 1 else ''} to go"
+            )
             body = f"<p>Hi {name}, you're at <b>{contacts_count} / 3</b> contacts for the week {sun} → {sat}. Keep going!</p>"
         elif kind == "friday":
             title = f"Friday Reminder — {contacts_count} / 3 contacts logged"
-            list_html = "".join(f"<li>{x.get('contact_date','')} — {x.get('employer_name','')} ({x.get('position_applied','') or x.get('type_of_work','')})</li>" for x in contacts_list)
-            body = f"<p>Hi {name}, you have <b>{contacts_count} / 3</b> contacts for {sun} → {sat}.</p>" + (f"<ul>{list_html}</ul>" if list_html else "")
+            list_html = "".join(
+                f"<li>{x.get('contact_date', '')} — {x.get('employer_name', '')} ({x.get('position_applied', '') or x.get('type_of_work', '')})</li>"
+                for x in contacts_list
+            )
+            body = (
+                f"<p>Hi {name}, you have <b>{contacts_count} / 3</b> contacts for {sun} → {sat}.</p>"
+                + (f"<ul>{list_html}</ul>" if list_html else "")
+            )
             if contacts_count < 3:
                 body += f"<p style='color:#DC2626; font-weight:600;'>Log {deficit} more before Saturday end-of-day to stay compliant.</p>"
         elif kind == "saturday":
             title = "End-of-Week Summary"
             status_txt = "✅ Compliant" if contacts_count >= 3 else "⚠️ Non-compliant"
-            list_html = "".join(f"<li>{x.get('contact_date','')} — {x.get('employer_name','')}</li>" for x in contacts_list)
-            body = f"<p>Hi {name}, here's your summary for {sun} → {sat}:</p><p><b>{contacts_count} contacts logged</b> — {status_txt}</p>" + (f"<ul>{list_html}</ul>" if list_html else "")
+            list_html = "".join(
+                f"<li>{x.get('contact_date', '')} — {x.get('employer_name', '')}</li>"
+                for x in contacts_list
+            )
+            body = (
+                f"<p>Hi {name}, here's your summary for {sun} → {sat}:</p><p><b>{contacts_count} contacts logged</b> — {status_txt}</p>"
+                + (f"<ul>{list_html}</ul>" if list_html else "")
+            )
         else:
             return 0
 
@@ -1214,25 +1503,43 @@ async def _send_user_reminder(user: dict, kind: str):
         ok = await send_email(to_email, title, html)
         if ok:
             sent += 1
-            await log_audit(user["id"], f"REMINDER_{kind.upper()}", "claimant", c["id"], f"Email sent to {to_email}")
+            await log_audit(
+                user["id"],
+                f"REMINDER_{kind.upper()}",
+                "claimant",
+                c["id"],
+                f"Email sent to {to_email}",
+            )
 
         # SMS reminder (optional + rate-limited + only if phone is verified)
         if c.get("sms_enabled") and c.get("sms_phone") and c.get("sms_verified"):
             sms_text = f"[IL UI Tracker] {title}: {contacts_count}/3 contacts for week {sun}–{sat}."
             if kind == "friday" and contacts_count < 3:
                 sms_text += f" Log {deficit} more by Sat."
-            ok_sms, reason = await send_sms_rate_limited(c["sms_phone"], sms_text, c["id"])
+            ok_sms, reason = await send_sms_rate_limited(
+                c["sms_phone"], sms_text, c["id"]
+            )
             if ok_sms:
-                await log_audit(user["id"], f"SMS_{kind.upper()}", "claimant", c["id"], f"SMS sent to {c['sms_phone']}")
+                await log_audit(
+                    user["id"],
+                    f"SMS_{kind.upper()}",
+                    "claimant",
+                    c["id"],
+                    f"SMS sent to {c['sms_phone']}",
+                )
             elif reason.startswith("rate-limited"):
-                await log_audit(user["id"], "SMS_SKIPPED", "claimant", c["id"], f"{kind}: {reason}")
+                await log_audit(
+                    user["id"], "SMS_SKIPPED", "claimant", c["id"], f"{kind}: {reason}"
+                )
     return sent
 
 
 @api.post("/reminders/test")
 async def reminder_test(kind: str = "friday", user=Depends(get_current_user)):
     if kind not in ("sunday", "wednesday", "friday", "saturday"):
-        raise HTTPException(status_code=400, detail="kind must be sunday|wednesday|friday|saturday")
+        raise HTTPException(
+            status_code=400, detail="kind must be sunday|wednesday|friday|saturday"
+        )
     n = await _send_user_reminder(user, kind)
     return {"sent": n, "kind": kind}
 
@@ -1253,18 +1560,24 @@ async def dashboard_trend(weeks: int = 12, user=Depends(get_current_user)):
     q = {"user_id": user["id"]}
     if cid:
         q["$or"] = [{"claimant_id": cid}, {"claimant_id": {"$exists": False}}]
-    recent = await db.benefit_weeks.find(q, {"_id": 0}).sort("week_start", -1).to_list(min(max(weeks, 1), 52))
+    recent = (
+        await db.benefit_weeks.find(q, {"_id": 0})
+        .sort("week_start", -1)
+        .to_list(min(max(weeks, 1), 52))
+    )
     recent.reverse()
     out = []
     for w in recent:
         n = await db.contacts.count_documents({"benefit_week_id": w["id"]})
-        out.append({
-            "week_start": w["week_start"],
-            "week_end": w["week_end"],
-            "contacts": n,
-            "target": 3,
-            "compliant": n >= 3,
-        })
+        out.append(
+            {
+                "week_start": w["week_start"],
+                "week_end": w["week_end"],
+                "contacts": n,
+                "target": 3,
+                "compliant": n >= 3,
+            }
+        )
     return out
 
 
@@ -1274,7 +1587,9 @@ async def create_invite(body: InviteCreate, admin=Depends(require_admin)):
     code = secrets.token_urlsafe(12)
     existing = await db.users.find_one({"email": body.email.lower()})
     if existing:
-        raise HTTPException(status_code=400, detail="A user with that email already exists")
+        raise HTTPException(
+            status_code=400, detail="A user with that email already exists"
+        )
     doc = {
         "code": code,
         "email": body.email.lower(),
@@ -1287,8 +1602,12 @@ async def create_invite(body: InviteCreate, admin=Depends(require_admin)):
         "used_at": None,
     }
     await db.invites.insert_one(doc)
-    await log_audit(admin["id"], "INVITE_CREATE", "invite", code, f"Invite for {body.email}")
-    invite_link = f"{os.environ.get('FRONTEND_URL', 'http://localhost:3000')}/invite/{code}"
+    await log_audit(
+        admin["id"], "INVITE_CREATE", "invite", code, f"Invite for {body.email}"
+    )
+    invite_link = (
+        f"{os.environ.get('FRONTEND_URL', 'http://localhost:3000')}/invite/{code}"
+    )
     # Send email
     html = f"""
     <div style="font-family:'IBM Plex Sans',Arial,sans-serif; max-width:560px; margin:auto; color:#09090B;">
@@ -1297,7 +1616,7 @@ async def create_invite(body: InviteCreate, admin=Depends(require_admin)):
       </div>
       <div style="border:1px solid #D4D4D8; border-top:none; padding:24px;">
         <p>A case worker has invited you to the Illinois UI Job Search Tracker.</p>
-        {f'<p style="background:#F4F4F5; padding:12px; border-left:3px solid #0033A0;">{body.note}</p>' if body.note else ''}
+        {f'<p style="background:#F4F4F5; padding:12px; border-left:3px solid #0033A0;">{body.note}</p>' if body.note else ""}
         <p><a href="{invite_link}" style="display:inline-block; background:#0033A0; color:#fff; padding:12px 20px; text-decoration:none; font-weight:600;">Accept Invite</a></p>
         <p style="font-size:12px; color:#52525B;">Link expires in 14 days.</p>
         <p style="font-size:12px; color:#52525B; word-break:break-all;">{invite_link}</p>
@@ -1314,7 +1633,9 @@ async def create_invite(body: InviteCreate, admin=Depends(require_admin)):
 async def list_invites(admin=Depends(require_admin)):
     items = await db.invites.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
     for it in items:
-        it["invite_link"] = f"{os.environ.get('FRONTEND_URL', 'http://localhost:3000')}/invite/{it['code']}"
+        it["invite_link"] = (
+            f"{os.environ.get('FRONTEND_URL', 'http://localhost:3000')}/invite/{it['code']}"
+        )
     return items
 
 
@@ -1342,7 +1663,11 @@ async def get_invite(code: str):
         exp = exp.replace(tzinfo=timezone.utc)
     if exp and datetime.now(timezone.utc) > exp:
         raise HTTPException(status_code=400, detail="Invite expired")
-    return {"email": inv["email"], "claimant_label": inv.get("claimant_label", "Primary"), "note": inv.get("note", "")}
+    return {
+        "email": inv["email"],
+        "claimant_label": inv.get("claimant_label", "Primary"),
+        "note": inv.get("note", ""),
+    }
 
 
 @api.post("/invite/redeem")
@@ -1361,39 +1686,67 @@ async def redeem_invite(body: InviteRedeem):
         raise HTTPException(status_code=400, detail="Invite expired")
     # Create user + claimant
     if await db.users.find_one({"email": inv["email"]}):
-        raise HTTPException(status_code=400, detail="Account already exists with this email")
+        raise HTTPException(
+            status_code=400, detail="Account already exists with this email"
+        )
     uid = str(uuid.uuid4())
-    await db.users.insert_one({
-        "id": uid,
-        "email": inv["email"],
-        "name": body.name,
-        "password_hash": hash_password(body.password),
-        "role": "user",
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "invited_by": inv.get("created_by"),
-    })
+    await db.users.insert_one(
+        {
+            "id": uid,
+            "email": inv["email"],
+            "name": body.name,
+            "password_hash": hash_password(body.password),
+            "role": "user",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "invited_by": inv.get("created_by"),
+        }
+    )
     pid = str(uuid.uuid4())
-    await db.profiles.insert_one({
-        "id": pid,
-        "user_id": uid,
-        "label": inv.get("claimant_label", "Primary"),
-        "first_name": "",
-        "last_name": "",
-        "middle_initial": "",
-        "claimant_id_last4": "",
-        "address": "", "city": "", "state": "IL", "zip_code": "",
-        "phone": "", "occupation": "",
-        "reminders_enabled": True,
-        "reminder_email": "",
-        "sms_enabled": False,
-        "sms_phone": "",
-        "updated_at": datetime.now(timezone.utc).isoformat(),
-    })
+    await db.profiles.insert_one(
+        {
+            "id": pid,
+            "user_id": uid,
+            "label": inv.get("claimant_label", "Primary"),
+            "first_name": "",
+            "last_name": "",
+            "middle_initial": "",
+            "claimant_id_last4": "",
+            "address": "",
+            "city": "",
+            "state": "IL",
+            "zip_code": "",
+            "phone": "",
+            "occupation": "",
+            "reminders_enabled": True,
+            "reminder_email": "",
+            "sms_enabled": False,
+            "sms_phone": "",
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+    )
     await db.users.update_one({"id": uid}, {"$set": {"active_claimant_id": pid}})
-    await db.invites.update_one({"code": body.code}, {"$set": {"used": True, "used_at": datetime.now(timezone.utc), "redeemed_user_id": uid}})
-    await log_audit(uid, "REGISTER_INVITE", "user", uid, f"Invited account created from {inv.get('created_by')}")
+    await db.invites.update_one(
+        {"code": body.code},
+        {
+            "$set": {
+                "used": True,
+                "used_at": datetime.now(timezone.utc),
+                "redeemed_user_id": uid,
+            }
+        },
+    )
+    await log_audit(
+        uid,
+        "REGISTER_INVITE",
+        "user",
+        uid,
+        f"Invited account created from {inv.get('created_by')}",
+    )
     token = create_token(uid, inv["email"])
-    return {"token": token, "user": {"id": uid, "email": inv["email"], "name": body.name, "role": "user"}}
+    return {
+        "token": token,
+        "user": {"id": uid, "email": inv["email"], "name": body.name, "role": "user"},
+    }
 
 
 # ============== SMS Phone OTP Verification ==============
@@ -1409,29 +1762,45 @@ class OtpVerifyIn(BaseModel):
 
 @api.post("/sms/send-otp")
 async def sms_send_otp(body: OtpSendIn, user=Depends(get_current_user)):
-    c = await db.profiles.find_one({"id": body.claimant_id, "user_id": user["id"]}, {"_id": 0})
+    c = await db.profiles.find_one(
+        {"id": body.claimant_id, "user_id": user["id"]}, {"_id": 0}
+    )
     if not c:
         raise HTTPException(status_code=404, detail="Claimant not found")
     phone = body.phone.strip()
     if not phone.startswith("+"):
-        raise HTTPException(status_code=400, detail="Phone must be E.164 (e.g. +13125550100)")
+        raise HTTPException(
+            status_code=400, detail="Phone must be E.164 (e.g. +13125550100)"
+        )
     # Generate 6-digit code
     import random
+
     code = f"{random.randint(0, 999999):06d}"
-    await db.otp_codes.insert_one({
-        "claimant_id": body.claimant_id,
-        "user_id": user["id"],
-        "phone": phone,
-        "code": code,
-        "expires_at": datetime.now(timezone.utc) + timedelta(minutes=10),
-        "used": False,
-        "created_at": datetime.now(timezone.utc),
-    })
+    await db.otp_codes.insert_one(
+        {
+            "claimant_id": body.claimant_id,
+            "user_id": user["id"],
+            "phone": phone,
+            "code": code,
+            "expires_at": datetime.now(timezone.utc) + timedelta(minutes=10),
+            "used": False,
+            "created_at": datetime.now(timezone.utc),
+        }
+    )
     msg = f"Illinois UI Tracker verification code: {code} (expires in 10 minutes)"
     sent, reason = await send_sms_rate_limited(phone, msg, body.claimant_id)
-    await log_audit(user["id"], "OTP_SEND", "claimant", body.claimant_id, f"OTP to {phone}: {'sent' if sent else reason}")
+    await log_audit(
+        user["id"],
+        "OTP_SEND",
+        "claimant",
+        body.claimant_id,
+        f"OTP to {phone}: {'sent' if sent else reason}",
+    )
     if not sent:
-        raise HTTPException(status_code=502, detail=f"Could not send SMS ({reason}). Make sure the number is verified in Twilio for trial accounts.")
+        raise HTTPException(
+            status_code=502,
+            detail=f"Could not send SMS ({reason}). Make sure the number is verified in Twilio for trial accounts.",
+        )
     return {"ok": True, "expires_in_minutes": 10}
 
 
@@ -1439,10 +1808,12 @@ async def sms_send_otp(body: OtpSendIn, user=Depends(get_current_user)):
 async def sms_verify_otp(body: OtpVerifyIn, user=Depends(get_current_user)):
     rec = await db.otp_codes.find_one(
         {"claimant_id": body.claimant_id, "user_id": user["id"], "used": False},
-        sort=[("created_at", -1)]
+        sort=[("created_at", -1)],
     )
     if not rec:
-        raise HTTPException(status_code=400, detail="No active OTP found. Request a new code.")
+        raise HTTPException(
+            status_code=400, detail="No active OTP found. Request a new code."
+        )
     exp = rec["expires_at"]
     if isinstance(exp, str):
         exp = datetime.fromisoformat(exp)
@@ -1455,9 +1826,21 @@ async def sms_verify_otp(body: OtpVerifyIn, user=Depends(get_current_user)):
     await db.otp_codes.update_one({"_id": rec["_id"]}, {"$set": {"used": True}})
     await db.profiles.update_one(
         {"id": body.claimant_id, "user_id": user["id"]},
-        {"$set": {"sms_verified": True, "sms_phone": rec["phone"], "sms_verified_at": datetime.now(timezone.utc).isoformat()}}
+        {
+            "$set": {
+                "sms_verified": True,
+                "sms_phone": rec["phone"],
+                "sms_verified_at": datetime.now(timezone.utc).isoformat(),
+            }
+        },
     )
-    await log_audit(user["id"], "OTP_VERIFY", "claimant", body.claimant_id, f"Phone {rec['phone']} verified")
+    await log_audit(
+        user["id"],
+        "OTP_VERIFY",
+        "claimant",
+        body.claimant_id,
+        f"Phone {rec['phone']} verified",
+    )
     return {"ok": True, "phone": rec["phone"]}
 
 
@@ -1498,9 +1881,13 @@ def _verify_mailgun_signature(payload: dict):
         token = signature_payload.get("token")
         signature = signature_payload.get("signature")
 
-    timestamp = timestamp or payload.get("timestamp") or payload.get("signature[timestamp]")
+    timestamp = (
+        timestamp or payload.get("timestamp") or payload.get("signature[timestamp]")
+    )
     token = token or payload.get("token") or payload.get("signature[token]")
-    signature = signature or payload.get("signature") or payload.get("signature[signature]")
+    signature = (
+        signature or payload.get("signature") or payload.get("signature[signature]")
+    )
 
     if not timestamp or not token or not signature:
         raise HTTPException(status_code=400, detail="Mailgun webhook signature missing")
@@ -1508,9 +1895,13 @@ def _verify_mailgun_signature(payload: dict):
     secret = os.environ.get("MAILGUN_API_KEY", "")
     if not secret:
         logging.warning("Mailgun webhook signature verification is not configured")
-        raise HTTPException(status_code=503, detail="Mailgun webhook verification is not configured")
+        raise HTTPException(
+            status_code=503, detail="Mailgun webhook verification is not configured"
+        )
 
-    expected = hmac.new(secret.encode("utf-8"), f"{timestamp}{token}".encode("utf-8"), hashlib.sha256).hexdigest()
+    expected = hmac.new(
+        secret.encode("utf-8"), f"{timestamp}{token}".encode("utf-8"), hashlib.sha256
+    ).hexdigest()
     if not hmac.compare_digest(expected, str(signature)):
         raise HTTPException(status_code=403, detail="Invalid Mailgun webhook signature")
 
@@ -1526,37 +1917,61 @@ async def mailgun_webhook(request: Request):
         except Exception:
             data = {}
     event_type = data.get("event") or payload.get("type", "")
-    to_emails = data.get("recipient") or data.get("recipients") or data.get("message", {}).get("headers", {}).get("to") or []
+    to_emails = (
+        data.get("recipient")
+        or data.get("recipients")
+        or data.get("message", {}).get("headers", {}).get("to")
+        or []
+    )
     if isinstance(to_emails, str):
         if "," in to_emails:
             to_emails = [addr.strip() for addr in to_emails.split(",") if addr.strip()]
         else:
             to_emails = [to_emails.strip()]
-    await db.email_events.insert_one({
-        "id": str(uuid.uuid4()),
-        "type": event_type,
-        "to": to_emails,
-        "received_at": datetime.now(timezone.utc),
-        "raw": data,
-    })
-    if event_type in ("email.bounced", "email.complained", "bounced", "complained", "complaint"):
+    await db.email_events.insert_one(
+        {
+            "id": str(uuid.uuid4()),
+            "type": event_type,
+            "to": to_emails,
+            "received_at": datetime.now(timezone.utc),
+            "raw": data,
+        }
+    )
+    if event_type in (
+        "email.bounced",
+        "email.complained",
+        "bounced",
+        "complained",
+        "complaint",
+    ):
         for addr in to_emails:
             await db.profiles.update_many(
                 {"reminder_email": addr},
-                {"$set": {"reminders_enabled": False, "email_bounced": True, "email_bounced_at": datetime.now(timezone.utc).isoformat()}}
+                {
+                    "$set": {
+                        "reminders_enabled": False,
+                        "email_bounced": True,
+                        "email_bounced_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                },
             )
-            users_with_email = await db.users.find({"email": addr.lower() if isinstance(addr, str) else ""}, {"_id": 0, "id": 1}).to_list(20)
+            users_with_email = await db.users.find(
+                {"email": addr.lower() if isinstance(addr, str) else ""},
+                {"_id": 0, "id": 1},
+            ).to_list(20)
             for u in users_with_email:
                 await db.profiles.update_many(
                     {"user_id": u["id"], "reminder_email": ""},
-                    {"$set": {"reminders_enabled": False, "email_bounced": True}}
+                    {"$set": {"reminders_enabled": False, "email_bounced": True}},
                 )
     return {"ok": True}
 
 
 @api.get("/admin/email-events")
 async def admin_email_events(admin=Depends(require_admin)):
-    items = await db.email_events.find({}, {"_id": 0}).sort("received_at", -1).to_list(500)
+    items = (
+        await db.email_events.find({}, {"_id": 0}).sort("received_at", -1).to_list(500)
+    )
     for it in items:
         if isinstance(it.get("received_at"), datetime):
             it["received_at"] = it["received_at"].isoformat()
@@ -1598,14 +2013,25 @@ async def bulk_invite(body: BulkInviteIn, admin=Depends(require_admin)):
             "used_at": None,
         }
         await db.invites.insert_one(doc)
-        link = f"{os.environ.get('FRONTEND_URL', 'http://localhost:3000')}/invite/{code}"
+        link = (
+            f"{os.environ.get('FRONTEND_URL', 'http://localhost:3000')}/invite/{code}"
+        )
         await send_email(
             email,
             "You're invited to Illinois UI Tracker",
-            _reminder_html("You're invited", f"<p>A case worker invited you. <a href='{link}'>Accept invite</a></p><p style='font-size:11px; color:#52525B; word-break:break-all;'>{link}</p>"),
+            _reminder_html(
+                "You're invited",
+                f"<p>A case worker invited you. <a href='{link}'>Accept invite</a></p><p style='font-size:11px; color:#52525B; word-break:break-all;'>{link}</p>",
+            ),
         )
         created.append({"email": email, "code": code, "invite_link": link})
-    await log_audit(admin["id"], "INVITE_BULK", "invite", None, f"Created {len(created)}, skipped {len(skipped)}")
+    await log_audit(
+        admin["id"],
+        "INVITE_BULK",
+        "invite",
+        None,
+        f"Created {len(created)}, skipped {len(skipped)}",
+    )
     return {"created": created, "skipped": skipped}
 
 
@@ -1613,7 +2039,11 @@ async def bulk_invite(body: BulkInviteIn, admin=Depends(require_admin)):
 @api.get("/admin/integrations/status")
 async def integrations_status(admin=Depends(require_admin)):
     has_mailgun = bool(os.environ.get("MAILGUN_API_KEY"))
-    has_twilio = bool(os.environ.get("TWILIO_ACCOUNT_SID") and os.environ.get("TWILIO_AUTH_TOKEN") and os.environ.get("TWILIO_FROM_NUMBER"))
+    has_twilio = bool(
+        os.environ.get("TWILIO_ACCOUNT_SID")
+        and os.environ.get("TWILIO_AUTH_TOKEN")
+        and os.environ.get("TWILIO_FROM_NUMBER")
+    )
     domain = os.environ.get("MAILGUN_VERIFIED_DOMAIN", "")
     from_addr = os.environ.get("MAILGUN_FROM", "")
     return {
@@ -1621,7 +2051,9 @@ async def integrations_status(admin=Depends(require_admin)):
             "configured": has_mailgun,
             "from": from_addr,
             "verified_domain": domain,
-            "fallback_from": os.environ.get("MAILGUN_FALLBACK_FROM", "onboarding@mailgun.com"),
+            "fallback_from": os.environ.get(
+                "MAILGUN_FALLBACK_FROM", "onboarding@mailgun.com"
+            ),
             "dns_records_url": "https://app.mailgun.com/mg/sending/domains",
         },
         "twilio": {
@@ -1661,46 +2093,61 @@ async def on_startup():
         logging.info(f"invites indexes: {e}")
 
     # Seed demo user only when explicitly enabled
-    demo_user_enabled = os.environ.get("ENABLE_DEMO_USER", "true").lower() in ("1", "true", "yes")
+    demo_user_enabled = os.environ.get("ENABLE_DEMO_USER", "true").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
     demo_email = os.environ.get("DEMO_USER_EMAIL", "demo@illinoistracker.test").lower()
     demo_password = os.environ.get("DEMO_USER_PASSWORD", "Demo1234!")
     if demo_user_enabled:
         existing = await db.users.find_one({"email": demo_email})
         if not existing:
             uid = str(uuid.uuid4())
-            await db.users.insert_one({
-                "id": uid,
-                "email": demo_email,
-                "name": "Demo Claimant",
-                "password_hash": hash_password(demo_password),
-                "role": "user",
-                "created_at": datetime.now(timezone.utc).isoformat(),
-            })
+            await db.users.insert_one(
+                {
+                    "id": uid,
+                    "email": demo_email,
+                    "name": "Demo Claimant",
+                    "password_hash": hash_password(demo_password),
+                    "role": "user",
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                }
+            )
             pid = str(uuid.uuid4())
-            await db.profiles.insert_one({
-                "id": pid,
-                "user_id": uid,
-                "label": "Primary",
-                "first_name": "Demo",
-                "last_name": "Claimant",
-                "middle_initial": "A",
-                "claimant_id_last4": "1234",
-                "address": "100 W Randolph St",
-                "city": "Chicago",
-                "state": "IL",
-                "zip_code": "60601",
-                "phone": "312-555-0100",
-                "occupation": "Software Developer",
-                "reminders_enabled": True,
-                "reminder_email": "kmgagen@gmail.com",
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-            })
-            await db.users.update_one({"id": uid}, {"$set": {"active_claimant_id": pid}})
+            await db.profiles.insert_one(
+                {
+                    "id": pid,
+                    "user_id": uid,
+                    "label": "Primary",
+                    "first_name": "Demo",
+                    "last_name": "Claimant",
+                    "middle_initial": "A",
+                    "claimant_id_last4": "1234",
+                    "address": "100 W Randolph St",
+                    "city": "Chicago",
+                    "state": "IL",
+                    "zip_code": "60601",
+                    "phone": "312-555-0100",
+                    "occupation": "Software Developer",
+                    "reminders_enabled": True,
+                    "reminder_email": "kmgagen@gmail.com",
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+            )
+            await db.users.update_one(
+                {"id": uid}, {"$set": {"active_claimant_id": pid}}
+            )
         else:
             if not verify_password(demo_password, existing["password_hash"]):
-                await db.users.update_one({"email": demo_email}, {"$set": {"password_hash": hash_password(demo_password)}})
+                await db.users.update_one(
+                    {"email": demo_email},
+                    {"$set": {"password_hash": hash_password(demo_password)}},
+                )
     else:
-        logging.info("Demo user seeding disabled. Set ENABLE_DEMO_USER=true to enable it.")
+        logging.info(
+            "Demo user seeding disabled. Set ENABLE_DEMO_USER=true to enable it."
+        )
 
     # Seed admin (case-worker) account only when configured explicitly
     admin_email = os.environ.get("ADMIN_EMAIL", "").strip().lower()
@@ -1708,23 +2155,36 @@ async def on_startup():
     if admin_email and admin_pw:
         existing_admin = await db.users.find_one({"email": admin_email})
         if not existing_admin:
-            await db.users.insert_one({
-                "id": str(uuid.uuid4()),
-                "email": admin_email,
-                "name": "Admin / Case Worker",
-                "password_hash": hash_password(admin_pw),
-                "role": "admin",
-                "created_at": datetime.now(timezone.utc).isoformat(),
-            })
-        elif existing_admin.get("role") == "admin" and not verify_password(admin_pw, existing_admin["password_hash"]):
-            await db.users.update_one({"email": admin_email}, {"$set": {"password_hash": hash_password(admin_pw)}})
+            await db.users.insert_one(
+                {
+                    "id": str(uuid.uuid4()),
+                    "email": admin_email,
+                    "name": "Admin / Case Worker",
+                    "password_hash": hash_password(admin_pw),
+                    "role": "admin",
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                }
+            )
+        elif existing_admin.get("role") == "admin" and not verify_password(
+            admin_pw, existing_admin["password_hash"]
+        ):
+            await db.users.update_one(
+                {"email": admin_email},
+                {"$set": {"password_hash": hash_password(admin_pw)}},
+            )
         elif existing_admin.get("role") != "admin":
-            logging.warning(f"Configured ADMIN_EMAIL {admin_email} already exists as non-admin. Skipping admin seed.")
+            logging.warning(
+                f"Configured ADMIN_EMAIL {admin_email} already exists as non-admin. Skipping admin seed."
+            )
     else:
-        logging.warning("ADMIN_EMAIL and ADMIN_PASSWORD are not configured; no admin account will be created automatically.")
+        logging.warning(
+            "ADMIN_EMAIL and ADMIN_PASSWORD are not configured; no admin account will be created automatically."
+        )
 
     # Data migration: backfill claimant_id and active_claimant_id
-    async for u in db.users.find({}, {"_id": 0, "id": 1, "active_claimant_id": 1, "role": 1}):
+    async for u in db.users.find(
+        {}, {"_id": 0, "id": 1, "active_claimant_id": 1, "role": 1}
+    ):
         if u.get("role") == "admin":
             continue
         active = u.get("active_claimant_id")
@@ -1732,25 +2192,47 @@ async def on_startup():
             p = await db.profiles.find_one({"user_id": u["id"]}, {"_id": 0, "id": 1})
             if p:
                 active = p["id"]
-                await db.users.update_one({"id": u["id"]}, {"$set": {"active_claimant_id": active}})
+                await db.users.update_one(
+                    {"id": u["id"]}, {"$set": {"active_claimant_id": active}}
+                )
         if active:
             await db.benefit_weeks.update_many(
                 {"user_id": u["id"], "claimant_id": {"$exists": False}},
-                {"$set": {"claimant_id": active}}
+                {"$set": {"claimant_id": active}},
             )
             await db.contacts.update_many(
                 {"user_id": u["id"], "claimant_id": {"$exists": False}},
-                {"$set": {"claimant_id": active}}
+                {"$set": {"claimant_id": active}},
             )
 
     # Reminder scheduler
     if os.environ.get("MAILGUN_API_KEY"):
         try:
             scheduler = AsyncIOScheduler(timezone=pytz.timezone("America/Chicago"))
-            scheduler.add_job(_broadcast_reminders, CronTrigger(day_of_week="sun", hour=9, minute=0), args=["sunday"], id="rem_sun")
-            scheduler.add_job(_broadcast_reminders, CronTrigger(day_of_week="wed", hour=9, minute=0), args=["wednesday"], id="rem_wed")
-            scheduler.add_job(_broadcast_reminders, CronTrigger(day_of_week="fri", hour=9, minute=0), args=["friday"], id="rem_fri")
-            scheduler.add_job(_broadcast_reminders, CronTrigger(day_of_week="sat", hour=9, minute=0), args=["saturday"], id="rem_sat")
+            scheduler.add_job(
+                _broadcast_reminders,
+                CronTrigger(day_of_week="sun", hour=9, minute=0),
+                args=["sunday"],
+                id="rem_sun",
+            )
+            scheduler.add_job(
+                _broadcast_reminders,
+                CronTrigger(day_of_week="wed", hour=9, minute=0),
+                args=["wednesday"],
+                id="rem_wed",
+            )
+            scheduler.add_job(
+                _broadcast_reminders,
+                CronTrigger(day_of_week="fri", hour=9, minute=0),
+                args=["friday"],
+                id="rem_fri",
+            )
+            scheduler.add_job(
+                _broadcast_reminders,
+                CronTrigger(day_of_week="sat", hour=9, minute=0),
+                args=["saturday"],
+                id="rem_sat",
+            )
             scheduler.start()
             logging.info("Reminder scheduler started (America/Chicago)")
         except Exception as e:
@@ -1761,21 +2243,23 @@ async def on_startup():
 async def on_shutdown():
     global scheduler
     if scheduler:
-        try: scheduler.shutdown(wait=False)
-        except Exception: pass
+        try:
+            scheduler.shutdown(wait=False)
+        except Exception:
+            pass
     client.close()
 
 
 app.include_router(api)
 
 # CORS - allow_origins must be explicit when allow_credentials=True
-origins_env = os.environ.get('CORS_ORIGINS', '*')
+origins_env = os.environ.get("CORS_ORIGINS", "*")
 allow_credentials = True
-if origins_env.strip() == '*':
-    allow_origins = ['*']
+if origins_env.strip() == "*":
+    allow_origins = ["*"]
     allow_credentials = False
 else:
-    allow_origins = [o.strip() for o in origins_env.split(',') if o.strip()]
+    allow_origins = [o.strip() for o in origins_env.split(",") if o.strip()]
 
 app.add_middleware(
     CORSMiddleware,
@@ -1785,5 +2269,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)

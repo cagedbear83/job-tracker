@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSearchParams, useNavigate, Link } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
 import { api, formatApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -7,8 +8,10 @@ import { toast } from "sonner";
 export default function VerifyEmail() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [status, setStatus] = useState("loading"); // loading, success, error
   const [message, setMessage] = useState("");
+  const [redirectTimer, setRedirectTimer] = useState(null);
   const token = searchParams.get("token");
 
   useEffect(() => {
@@ -24,7 +27,12 @@ export default function VerifyEmail() {
         setStatus("success");
         setMessage(response.data.message || "Email verified successfully!");
         toast.success("Your email has been verified");
-        setTimeout(() => navigate("/login"), 3000);
+        
+        // Only auto-redirect if user is not already authenticated
+        if (!user) {
+          const timer = setTimeout(() => navigate("/login"), 3000);
+          setRedirectTimer(timer);
+        }
       } catch (err) {
         setStatus("error");
         setMessage(formatApiError(err));
@@ -33,7 +41,14 @@ export default function VerifyEmail() {
     };
 
     verify();
-  }, [token, navigate]);
+
+    // Cleanup timer on unmount
+    return () => {
+      if (redirectTimer) {
+        clearTimeout(redirectTimer);
+      }
+    };
+  }, [token, navigate, user]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-zinc-50 to-zinc-100 p-4">
@@ -58,14 +73,16 @@ export default function VerifyEmail() {
             <div className="space-y-4 py-8">
               <div className="text-4xl">✓</div>
               <p className="text-sm text-zinc-700 font-medium">{message}</p>
-              <p className="text-xs text-zinc-500">
-                Redirecting to login in 3 seconds...
-              </p>
+              {!user && (
+                <p className="text-xs text-zinc-500">
+                  Redirecting to login in 3 seconds...
+                </p>
+              )}
               <Button
                 className="rounded-none bg-[#0033A0] hover:bg-[#002266] w-full mt-4"
-                onClick={() => navigate("/login")}
+                onClick={() => navigate(user ? "/dashboard" : "/login")}
               >
-                Go to Login
+                {user ? "Go to Dashboard" : "Go to Login"}
               </Button>
             </div>
           )}
@@ -77,15 +94,17 @@ export default function VerifyEmail() {
               <div className="space-y-2 mt-6">
                 <Button
                   className="rounded-none bg-[#0033A0] hover:bg-[#002266] w-full"
-                  onClick={() => navigate("/login")}
+                  onClick={() => navigate(user ? "/dashboard" : "/login")}
                 >
-                  Back to Login
+                  {user ? "Back to Dashboard" : "Back to Login"}
                 </Button>
-                <Link to="/register">
-                  <Button variant="outline" className="rounded-none w-full border-zinc-300">
-                    Create New Account
-                  </Button>
-                </Link>
+                {!user && (
+                  <Link to="/register">
+                    <Button variant="outline" className="rounded-none w-full border-zinc-300">
+                      Create New Account
+                    </Button>
+                  </Link>
+                )}
               </div>
             </div>
           )}
