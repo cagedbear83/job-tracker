@@ -39,7 +39,7 @@ const blank = () => ({
   first_name: "",
   last_name: "",
   middle_initial: "",
-  claimant_id_last4: "",
+  claimant_id: "",
   address: "",
   city: "",
   state: "IL",
@@ -247,11 +247,11 @@ export default function Claimants() {
                   />
                 </div>
                 <div className="col-span-6">
-                  <Label className="kbd-label">Claimant ID (last 4)</Label>
+                  <Label className="kbd-label">Claimant ID</Label>
                   <Input
-                    value={form.claimant_id_last4}
+                    value={form.claimant_id}
                     onChange={(e) =>
-                      setForm({ ...form, claimant_id_last4: e.target.value })
+                      setForm({ ...form, claimant_id: e.target.value })
                     }
                     className="rounded-none mt-2"
                   />
@@ -432,7 +432,7 @@ export default function Claimants() {
                   {c.first_name} {c.middle_initial} {c.last_name}
                 </div>
                 <div className="kbd-label mt-2">
-                  ID •••{c.claimant_id_last4} · {c.phone || "—"}
+                  ID •••{c.claimant_id} · {c.phone || "—"}
                 </div>
                 <div className="text-xs text-zinc-500 mt-1">{c.occupation}</div>
                 <div className="text-xs text-zinc-500 mt-1">

@@ -3,10 +3,14 @@ import { api, formatApiError } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { MagnifyingGlass } from "@phosphor-icons/react";
+import { MagnifyingGlassIcon } from "@phosphor-icons/react";
 
 const ACTION_COLORS = {
   LOGIN: "text-zinc-700",
@@ -35,7 +39,14 @@ const ACTION_COLORS = {
   SMS_SATURDAY: "text-zinc-600",
 };
 
-const ENTITY_OPTIONS = ["ALL", "user", "claimant", "benefit_week", "contact", "invite"];
+const ENTITY_OPTIONS = [
+  "ALL",
+  "user",
+  "claimant",
+  "benefit_week",
+  "contact",
+  "invite",
+];
 
 export default function AuditLog() {
   const [items, setItems] = useState([]);
@@ -53,23 +64,39 @@ export default function AuditLog() {
       if (entity !== "ALL") params.set("entity", entity);
       const { data } = await api.get(`/audit-log?${params.toString()}`);
       setItems(data);
-    } catch (e) { toast.error(formatApiError(e)); }
-    finally { setLoading(false); }
+    } catch (e) {
+      toast.error(formatApiError(e));
+    } finally {
+      setLoading(false);
+    }
   };
-// eslint-disable-next-line react-hooks/exhaustive-deps
-useEffect(() => { load(); /* eslint-disable-next-line */ }, [action, entity]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    load(); /* eslint-disable-next-line */
+  }, [action, entity]);
 
-  const onSearch = (e) => { e.preventDefault(); load(); };
+  const onSearch = (e) => {
+    e.preventDefault();
+    load();
+  };
 
   // gather unique actions from current results for filter pills
-  const actionOptions = ["ALL", ...Array.from(new Set(items.map((i) => i.action)))];
+  const actionOptions = [
+    "ALL",
+    ...Array.from(new Set(items.map((i) => i.action))),
+  ];
 
   return (
     <div className="space-y-6" data-testid="audit-page">
       <div>
         <div className="kbd-label">Activity Trail</div>
-        <h1 className="font-display font-black text-4xl tracking-tighter mt-1">Audit Log</h1>
-        <p className="text-sm text-zinc-600 mt-2">Every action you take is recorded for compliance. Edits include field-level old → new diffs.</p>
+        <h1 className="font-display font-black text-4xl tracking-tighter mt-1">
+          Audit Log
+        </h1>
+        <p className="text-sm text-zinc-600 mt-2">
+          Every action you take is recorded for compliance. Edits include
+          field-level old → new diffs.
+        </p>
       </div>
 
       <div className="border border-zinc-200 bg-white p-4 grid grid-cols-1 md:grid-cols-12 gap-3">
@@ -83,26 +110,48 @@ useEffect(() => { load(); /* eslint-disable-next-line */ }, [action, entity]);
               className="rounded-none"
               data-testid="audit-search-input"
             />
-            <button type="submit" className="px-4 border border-[#0033A0] bg-[#0033A0] text-white" data-testid="audit-search-button">
-              <MagnifyingGlass size={16} weight="bold" />
+            <button
+              type="submit"
+              className="px-4 border border-[#0033A0] bg-[#0033A0] text-white"
+              data-testid="audit-search-button"
+            >
+              <MagnifyingGlassIcon size={16} weight="bold" />
             </button>
           </div>
         </form>
         <div className="md:col-span-3">
           <Label className="kbd-label">Action</Label>
           <Select value={action} onValueChange={setAction}>
-            <SelectTrigger className="rounded-none mt-2" data-testid="audit-action-filter"><SelectValue /></SelectTrigger>
+            <SelectTrigger
+              className="rounded-none mt-2"
+              data-testid="audit-action-filter"
+            >
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
-              {actionOptions.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+              {actionOptions.map((a) => (
+                <SelectItem key={a} value={a}>
+                  {a}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
         <div className="md:col-span-3">
           <Label className="kbd-label">Entity</Label>
           <Select value={entity} onValueChange={setEntity}>
-            <SelectTrigger className="rounded-none mt-2" data-testid="audit-entity-filter"><SelectValue /></SelectTrigger>
+            <SelectTrigger
+              className="rounded-none mt-2"
+              data-testid="audit-entity-filter"
+            >
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
-              {ENTITY_OPTIONS.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+              {ENTITY_OPTIONS.map((a) => (
+                <SelectItem key={a} value={a}>
+                  {a}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -119,20 +168,38 @@ useEffect(() => { load(); /* eslint-disable-next-line */ }, [action, entity]);
             </tr>
           </thead>
           <tbody>
-            {loading && <tr><td colSpan={4} className="text-center text-zinc-500 py-12">Loading…</td></tr>}
+            {loading && (
+              <tr>
+                <td colSpan={4} className="text-center text-zinc-500 py-12">
+                  Loading…
+                </td>
+              </tr>
+            )}
             {!loading && items.length === 0 && (
-              <tr><td colSpan={4} className="text-center text-zinc-500 py-12">No audit entries match your filters.</td></tr>
+              <tr>
+                <td colSpan={4} className="text-center text-zinc-500 py-12">
+                  No audit entries match your filters.
+                </td>
+              </tr>
             )}
             {items.map((it) => (
-              <tr key={it.id} className="border-b border-zinc-100" data-testid={`audit-row-${it.id}`}>
+              <tr
+                key={it.id}
+                className="border-b border-zinc-100"
+                data-testid={`audit-row-${it.id}`}
+              >
                 <td className="font-mono-data text-xs text-zinc-600 whitespace-nowrap">
                   {new Date(it.timestamp).toLocaleString()}
                 </td>
-                <td className={`text-xs font-bold tracking-wider ${ACTION_COLORS[it.action] || "text-zinc-700"}`}>
+                <td
+                  className={`text-xs font-bold tracking-wider ${ACTION_COLORS[it.action] || "text-zinc-700"}`}
+                >
                   {it.action}
                 </td>
                 <td className="text-xs text-zinc-600">{it.entity}</td>
-                <td className="text-xs text-zinc-800 max-w-[600px]">{it.detail}</td>
+                <td className="text-xs text-zinc-800 max-w-[600px]">
+                  {it.detail}
+                </td>
               </tr>
             ))}
           </tbody>

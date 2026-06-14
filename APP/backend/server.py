@@ -94,7 +94,7 @@ class ProfileIn(BaseModel):
     first_name: str = ""
     last_name: str = ""
     middle_initial: str = ""
-    claimant_id_last4: str = ""
+    claimant_id: str = ""
     address: str = ""
     city: str = ""
     state: str = "IL"
@@ -1710,7 +1710,7 @@ async def redeem_invite(body: InviteRedeem):
             "first_name": "",
             "last_name": "",
             "middle_initial": "",
-            "claimant_id_last4": "",
+            "claimant_id": "",
             "address": "",
             "city": "",
             "state": "IL",
@@ -2123,15 +2123,15 @@ async def on_startup():
                     "first_name": "Demo",
                     "last_name": "Claimant",
                     "middle_initial": "A",
-                    "claimant_id_last4": "1234",
+                    "claimant_id": "1234567",
                     "address": "100 W Randolph St",
                     "city": "Chicago",
                     "state": "IL",
                     "zip_code": "60601",
-                    "phone": "312-555-0100",
+                    "phone": "312-555-1212",
                     "occupation": "Software Developer",
                     "reminders_enabled": True,
-                    "reminder_email": "kmgagen@gmail.com",
+                    "reminder_email": "democlaimant@example.com",
                     "updated_at": datetime.now(timezone.utc).isoformat(),
                 }
             )

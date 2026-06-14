@@ -3,34 +3,85 @@ import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import {
-  Sheet, SheetContent, SheetTrigger,
-} from "@/components/ui/sheet";
-import {
-  House, IdentificationCard, CalendarBlank, UploadSimple, ClockCounterClockwise,
-  SignOut, UsersThree, ShieldCheck, CalendarCheck, List,
+  HouseIcon,
+  IdentificationCardIcon,
+  CalendarBlankIcon,
+  UploadSimpleIcon,
+  ClockCounterClockwiseIcon,
+  SignOutIcon,
+  UsersThreeIcon,
+  ShieldCheckIcon,
+  CalendarCheckIcon,
+  ListIcon,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
 
 const userNav = [
-  { to: "/dashboard", label: "Dashboard", Icon: House, testid: "nav-dashboard" },
-  { to: "/claimants", label: "Claimants", Icon: UsersThree, testid: "nav-claimants" },
-  { to: "/profile", label: "Quick Profile", Icon: IdentificationCard, testid: "nav-profile" },
-  { to: "/weeks", label: "Benefit Weeks", Icon: CalendarBlank, testid: "nav-weeks" },
-  { to: "/calendar", label: "Calendar", Icon: CalendarCheck, testid: "nav-calendar" },
-  { to: "/import", label: "Import", Icon: UploadSimple, testid: "nav-import" },
-  { to: "/audit", label: "Audit Log", Icon: ClockCounterClockwise, testid: "nav-audit" },
+  {
+    to: "/dashboard",
+    label: "Dashboard",
+    Icon: HouseIcon,
+    testid: "nav-dashboard",
+  },
+  {
+    to: "/claimants",
+    label: "Claimants",
+    Icon: UsersThreeIcon,
+    testid: "nav-claimants",
+  },
+  {
+    to: "/profile",
+    label: "Quick Profile",
+    Icon: IdentificationCardIcon,
+    testid: "nav-profile",
+  },
+  {
+    to: "/weeks",
+    label: "Benefit Weeks",
+    Icon: CalendarBlankIcon,
+    testid: "nav-weeks",
+  },
+  {
+    to: "/calendar",
+    label: "Calendar",
+    Icon: CalendarCheckIcon,
+    testid: "nav-calendar",
+  },
+  {
+    to: "/import",
+    label: "Import",
+    Icon: UploadSimpleIcon,
+    testid: "nav-import",
+  },
+  {
+    to: "/audit",
+    label: "Audit Log",
+    Icon: ClockCounterClockwiseIcon,
+    testid: "nav-audit",
+  },
 ];
 
 const adminNav = [
-  { to: "/admin", label: "Admin", Icon: ShieldCheck, testid: "nav-admin" },
-  { to: "/audit", label: "Audit Log", Icon: ClockCounterClockwise, testid: "nav-audit" },
+  { to: "/admin", label: "Admin", Icon: ShieldCheckIcon, testid: "nav-admin" },
+  {
+    to: "/audit",
+    label: "Audit Log",
+    Icon: ClockCounterClockwiseIcon,
+    testid: "nav-audit",
+  },
 ];
 
 export default function Layout() {
-  const { user, logout, claimants, activeClaimantId, setActiveClaimant } = useAuth();
+  const { user, logout, claimants, activeClaimantId, setActiveClaimant } =
+    useAuth();
   const navigate = useNavigate();
   const isAdmin = user?.role === "admin";
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -61,14 +112,25 @@ export default function Layout() {
           <div className="flex items-center gap-3">
             <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
               <SheetTrigger asChild>
-                <Button variant="outline" size="icon" className="rounded-none border-zinc-300 md:hidden" data-testid="mobile-nav-trigger">
-                  <List size={18} weight="bold" />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="rounded-none border-zinc-300 md:hidden"
+                  data-testid="mobile-nav-trigger"
+                >
+                  <ListIcon size={18} weight="bold" />
                 </Button>
               </SheetTrigger>
-              <SheetContent side="left" className="w-[280px] rounded-none p-0" data-testid="mobile-nav-drawer">
+              <SheetContent
+                side="left"
+                className="w-[280px] rounded-none p-0"
+                data-testid="mobile-nav-drawer"
+              >
                 <div className="brand-bar" />
                 <div className="px-4 py-4 border-b border-zinc-200">
-                  <div className="font-display font-black text-base">Illinois UI Tracker</div>
+                  <div className="font-display font-black text-base">
+                    Illinois UI Tracker
+                  </div>
                   <div className="kbd-label mt-1">Work Search Compliance</div>
                 </div>
                 <nav className="border-b border-zinc-200">
@@ -80,7 +142,9 @@ export default function Layout() {
                       data-testid={`m-${testid}`}
                       className={({ isActive }) =>
                         `flex items-center gap-3 px-4 py-3 text-sm border-l-2 ${
-                          isActive ? "border-[#0033A0] bg-[#F4F4F5] text-zinc-900 font-semibold" : "border-transparent text-zinc-600"
+                          isActive
+                            ? "border-[#0033A0] bg-[#F4F4F5] text-zinc-900 font-semibold"
+                            : "border-transparent text-zinc-600"
                         }`
                       }
                     >
@@ -98,22 +162,36 @@ export default function Layout() {
               <div className="font-display font-black text-base leading-none tracking-tight text-zinc-900">
                 Illinois UI Tracker
               </div>
-              <div className="kbd-label mt-1">Work Search Compliance{isAdmin ? " · ADMIN" : ""}</div>
+              <div className="kbd-label mt-1">
+                Work Search Compliance{isAdmin ? " · ADMIN" : ""}
+              </div>
             </div>
           </div>
 
           {!isAdmin && claimants.length > 0 && (
-            <div className="flex items-center gap-2" data-testid="active-claimant-switcher">
+            <div
+              className="flex items-center gap-2"
+              data-testid="active-claimant-switcher"
+            >
               <span className="kbd-label">Claimant:</span>
               <Select value={activeClaimantId || ""} onValueChange={onSwitch}>
-                <SelectTrigger className="rounded-none border-zinc-300 min-w-[200px]" data-testid="claimant-select-trigger">
+                <SelectTrigger
+                  className="rounded-none border-zinc-300 min-w-[200px]"
+                  data-testid="claimant-select-trigger"
+                >
                   <SelectValue placeholder="Select claimant">
-                    {activeClaimant ? `${activeClaimant.label || "Untitled"} — ${activeClaimant.first_name} ${activeClaimant.last_name}` : "Select"}
+                    {activeClaimant
+                      ? `${activeClaimant.label || "Untitled"} — ${activeClaimant.first_name} ${activeClaimant.last_name}`
+                      : "Select"}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {claimants.map((c) => (
-                    <SelectItem key={c.id} value={c.id} data-testid={`claimant-option-${c.id}`}>
+                    <SelectItem
+                      key={c.id}
+                      value={c.id}
+                      data-testid={`claimant-option-${c.id}`}
+                    >
                       {c.label || "Untitled"} — {c.first_name} {c.last_name}
                     </SelectItem>
                   ))}
@@ -124,7 +202,12 @@ export default function Layout() {
 
           <div className="flex items-center gap-4">
             <div className="text-right hidden sm:block">
-              <div className="text-sm font-semibold text-zinc-900" data-testid="header-user-name">{user?.name}</div>
+              <div
+                className="text-sm font-semibold text-zinc-900"
+                data-testid="header-user-name"
+              >
+                {user?.name}
+              </div>
               <div className="kbd-label">{user?.email}</div>
             </div>
             <Button
@@ -133,7 +216,7 @@ export default function Layout() {
               onClick={onLogout}
               data-testid="logout-button"
             >
-              <SignOut className="mr-2" size={16} weight="bold" /> Logout
+              <SignOutIcon className="mr-2" size={16} weight="bold" /> Logout
             </Button>
           </div>
         </div>
@@ -165,7 +248,8 @@ export default function Layout() {
             <div className="mt-4 p-4 border border-zinc-200 bg-[#F4F4F5]">
               <div className="kbd-label mb-1">Reminder</div>
               <p className="text-xs text-zinc-700 leading-relaxed">
-                Illinois requires a minimum of <b>3 work-search contacts</b> per benefit week (Sun–Sat).
+                Illinois requires a minimum of <b>3 work-search contacts</b> per
+                benefit week (Sun–Sat).
               </p>
             </div>
           )}
