@@ -14,6 +14,7 @@ export default function VerifyEmail() {
   const [redirectTimer, setRedirectTimer] = useState(null);
   const token = searchParams.get("token");
 
+ // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const verify = async () => {
       if (!token) {
@@ -28,7 +29,6 @@ export default function VerifyEmail() {
         setMessage(response.data.message || "Email verified successfully!");
         toast.success("Your email has been verified");
         
-        // Only auto-redirect if user is not already authenticated
         if (!user) {
           const timer = setTimeout(() => navigate("/login"), 3000);
           setRedirectTimer(timer);
@@ -42,14 +42,13 @@ export default function VerifyEmail() {
 
     verify();
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     return () => {
       if (redirectTimer) {
         clearTimeout(redirectTimer);
       }
     };
   }, [token, navigate, user]);
-
+  
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-zinc-50 to-zinc-100 p-4">
       <div className="w-full max-w-md bg-white rounded-lg border border-zinc-200 shadow-sm p-8">
