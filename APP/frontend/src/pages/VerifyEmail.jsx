@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams, useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { api, formatApiError } from "@/lib/api";
@@ -9,12 +9,11 @@ export default function VerifyEmail() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [status, setStatus] = useState("loading"); // loading, success, error
+  const [status, setStatus] = useState("loading");
   const [message, setMessage] = useState("");
-  const [redirectTimer, setRedirectTimer] = useState(null);
+  const redirectTimer = useRef(null);
   const token = searchParams.get("token");
 
- // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const verify = async () => {
       if (!token) {
@@ -28,10 +27,9 @@ export default function VerifyEmail() {
         setStatus("success");
         setMessage(response.data.message || "Email verified successfully!");
         toast.success("Your email has been verified");
-        
+
         if (!user) {
-          const timer = setTimeout(() => navigate("/login"), 3000);
-          setRedirectTimer(timer);
+          redirectTimer.current = setTimeout(() => navigate("/login"), 3000);
         }
       } catch (err) {
         setStatus("error");
@@ -43,12 +41,12 @@ export default function VerifyEmail() {
     verify();
 
     return () => {
-      if (redirectTimer) {
-        clearTimeout(redirectTimer);
+      if (redirectTimer.current) {
+        clearTimeout(redirectTimer.current);
       }
     };
   }, [token, navigate, user]);
-  
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-zinc-50 to-zinc-100 p-4">
       <div className="w-full max-w-md bg-white rounded-lg border border-zinc-200 shadow-sm p-8">
