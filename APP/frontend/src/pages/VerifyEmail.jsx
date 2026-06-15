@@ -42,7 +42,7 @@ export default function VerifyEmail() {
 
     verify();
 
-    // Cleanup timer on unmount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     return () => {
       if (redirectTimer) {
         clearTimeout(redirectTimer);
