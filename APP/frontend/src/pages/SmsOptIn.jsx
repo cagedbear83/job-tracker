@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  DeviceMobileIcon,
-  CheckCircleIcon,
-  ShieldCheckIcon,
-  BellIcon,
-  ArrowRightIcon,
-  WarningIcon,
+  DeviceMobile,
+  CheckCircle,
+  ShieldCheck,
+  Bell,
+  ArrowRight,
+  Warning,
 } from "@phosphor-icons/react";
 
 export default function SmsOptIn() {
@@ -64,7 +64,7 @@ export default function SmsOptIn() {
         {/* Icon + Title */}
         <div className="flex items-center gap-4 mb-8">
           <div className="w-14 h-14 bg-[#0033A0] flex items-center justify-center flex-shrink-0">
-            <DeviceMobileIcon size={28} weight="bold" className="text-white" />
+            <DeviceMobile size={28} weight="bold" className="text-white" />
           </div>
           <div>
             <p className="text-xs font-bold tracking-widest text-zinc-500 uppercase mb-1">
@@ -113,14 +113,14 @@ export default function SmsOptIn() {
             {/* Key details */}
             <div className="grid grid-cols-3 gap-3 mb-6">
               {[
-                { icon: BellIcon, label: "Frequency", value: "1–3 per week" },
+                { icon: Bell, label: "Frequency", value: "1–3 per week" },
                 {
-                  icon: ShieldCheckIcon,
+                  icon: ShieldCheck,
                   label: "Opt-out anytime",
                   value: "Reply STOP",
                 },
                 {
-                  icon: WarningIcon,
+                  icon: Warning,
                   label: "Standard rates",
                   value: "May apply",
                 },
@@ -203,7 +203,7 @@ export default function SmsOptIn() {
               onClick={handleSubmit}
               className="w-full bg-[#0033A0] text-white font-bold py-3 flex items-center justify-center gap-2 hover:bg-[#002880] transition-colors"
             >
-              Confirm Opt-In <ArrowRightIcon size={16} weight="bold" />
+              Confirm Opt-In <ArrowRight size={16} weight="bold" />
             </button>
 
             <p className="text-xs text-zinc-500 text-center mt-4">
@@ -214,7 +214,7 @@ export default function SmsOptIn() {
         ) : (
           /* Success state */
           <div className="border border-zinc-200 p-12 text-center">
-            <CheckCircleIcon
+            <CheckCircle 
               size={48}
               weight="fill"
               className="text-green-600 mx-auto mb-4"
