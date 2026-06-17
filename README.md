@@ -52,7 +52,8 @@ python -m venv .venv
 .venv\Scripts\activate    # Windows
 # or
 source .venv/bin/activate  # macOS/Linux
-pip install -r requirements
+pip install -r requirements.txt
+# For running the test suite, also: pip install -r requirements-dev.txt
 # Ensure the correct JWT package is installed (PyJWT), not the unrelated jwt package.
 ```
 
@@ -186,7 +187,8 @@ job-tracker/
 │   ├── backend/
 │   │   ├── assets/
 │   │   ├── tests/
-│   │   ├── requirements
+│   │   ├── requirements.txt
+│   │   ├── requirements-dev.txt
 │   │   ├── server.py
 │   │   └── .env
 │   ├── frontend/
