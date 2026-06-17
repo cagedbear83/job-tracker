@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { api, formatApiError } from "@/lib/api";
+import { setToken } from "@/lib/tokenStorage";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -37,7 +38,7 @@ export default function InviteSignup() {
         password: form.password,
         name: form.name,
       });
-      localStorage.setItem("ides_token", data.token);
+      setToken(data.token);
       toast.success("Welcome to Illinois UI Tracker");
       window.location.href = "/dashboard";
     } catch (e) {

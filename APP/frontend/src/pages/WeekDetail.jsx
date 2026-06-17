@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { api, formatApiError, API } from "@/lib/api";
+import { getToken } from "@/lib/tokenStorage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -121,7 +122,7 @@ export default function WeekDetail() {
 
   const downloadPdf = async () => {
     try {
-      const token = localStorage.getItem("ides_token");
+      const token = getToken();
       const res = await fetch(`${API}/reports/benefit-week/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -141,7 +142,7 @@ export default function WeekDetail() {
 
   const downloadCsv = async () => {
     try {
-      const token = localStorage.getItem("ides_token");
+      const token = getToken();
       const res = await fetch(`${API}/contacts/export.csv?week_id=${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });

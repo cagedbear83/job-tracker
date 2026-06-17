@@ -6,6 +6,7 @@ import {
   useCallback,
 } from "react";
 import { api, formatApiError } from "../lib/api";
+import { getToken, setToken, clearToken } from "../lib/tokenStorage";
 
 const AuthCtx = createContext(null);
 
@@ -47,12 +48,12 @@ export function AuthProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    const t = sessionStorage.getItem("ides_token");
+    const t = getToken();
 
     // Check if token exists and is not expired before making API call
     if (!t || isTokenExpired(t)) {
       if (t) {
-        sessionStorage.removeItem("ides_token");
+        clearToken();
       }
       setLoading(false);
       return;
@@ -65,7 +66,7 @@ export function AuthProvider({ children }) {
         if (r.data.role !== "admin") await refreshClaimants();
       })
       .catch(() => {
-        sessionStorage.removeItem("ides_token");
+        clearToken();
         setUser(null);
       })
       .finally(() => setLoading(false));
@@ -73,7 +74,7 @@ export function AuthProvider({ children }) {
 
   const login = async (email, password) => {
     const { data } = await api.post("/auth/login", { email, password });
-    sessionStorage.setItem("ides_token", data.token);
+    setToken(data.token);
     setUser(data.user);
     if (data.user.role !== "admin") await refreshClaimants();
     return data.user;
@@ -81,7 +82,7 @@ export function AuthProvider({ children }) {
 
   const register = async (body) => {
     const { data } = await api.post("/auth/register", body);
-    sessionStorage.setItem("ides_token", data.token);
+    setToken(data.token);
     setUser(data.user);
     await refreshClaimants();
     return data.user;
@@ -91,7 +92,7 @@ export function AuthProvider({ children }) {
     try {
       await api.post("/auth/logout");
     } catch {}
-    sessionStorage.removeItem("ides_token");
+    clearToken();
     setUser(null);
     setClaimants([]);
     setActiveClaimantId(null);

@@ -1,4 +1,5 @@
 import axios from "axios";
+import { getToken } from "./tokenStorage";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;
@@ -6,7 +7,7 @@ export const API = `${BACKEND_URL}/api`;
 export const api = axios.create({ baseURL: API });
 
 api.interceptors.request.use((cfg) => {
-  const t = localStorage.getItem("ides_token");
+  const t = getToken();
   if (t) cfg.headers.Authorization = `Bearer ${t}`;
   return cfg;
 });
