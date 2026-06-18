@@ -19,10 +19,25 @@ if (config.enableHealthCheck) {
 let webpackConfig = {
   eslint: {
     configure: {
-      extends: ["plugin:react-hooks/recommended"],
+      extends: [
+        "plugin:react/recommended",
+        "plugin:react-hooks/recommended",
+      ],
+      settings: { react: { version: "detect" } },
       rules: {
         "react-hooks/rules-of-hooks": "error",
         "react-hooks/exhaustive-deps": "warn",
+        // Catch the undefined-component class of bug at build time. Without
+        // this, an icon used but not imported silently shipped to production
+        // and only surfaced as a runtime crash (e.g. "ArrowRight is not
+        // defined"). This rule turns that into a build failure.
+        "react/jsx-no-undef": "error",
+        // The React 17+ JSX transform + the new-JSX runtime mean these
+        // legacy/stylistic rules from plugin:react/recommended are noise here.
+        "react/react-in-jsx-scope": "off",
+        "react/prop-types": "off",
+        "react/no-unescaped-entities": "off",
+        "react/display-name": "off",
       },
     },
   },
