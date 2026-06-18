@@ -1,4 +1,4 @@
-"""Round 4 backend tests: SMS OTP, rate-limit, Resend webhook, email-events, bulk invite,
+"""Round 4 backend tests: SMS OTP, rate-limit, Mailgun webhook, email-events, bulk invite,
 dashboard trend range, PDF logo+UNOFFICIAL disclaimer."""
 import os
 import csv
@@ -167,8 +167,34 @@ def test_send_sms_rate_limited_blocks_second_call(mdb):
     assert count == 1
 
 
-# ---------- Resend Webhook ----------
-def test_resend_webhook_bounced_disables_reminders(H, primary_claimant, mdb):
+# ---------- Mailgun Webhook ----------
+def _mailgun_signed_payload(event_type: str, recipient: str) -> dict:
+    """Build a Mailgun webhook body with a valid HMAC signature.
+
+    The backend verifies signature = HMAC-SHA256(MAILGUN_API_KEY, timestamp + token),
+    so the test has to sign with the same secret the server uses.
+    """
+    import hmac
+    import hashlib
+    import time
+
+    secret = os.environ.get("MAILGUN_API_KEY", "")
+    timestamp = str(int(time.time()))
+    token = secrets.token_hex(16)
+    signature = hmac.new(
+        secret.encode("utf-8"),
+        f"{timestamp}{token}".encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    return {
+        "signature": {"timestamp": timestamp, "token": token, "signature": signature},
+        "data": {"event": event_type, "recipient": recipient},
+    }
+
+
+def test_mailgun_webhook_bounced_disables_reminders(H, primary_claimant, mdb):
+    if not os.environ.get("MAILGUN_API_KEY"):
+        pytest.skip("MAILGUN_API_KEY not configured; webhook signature cannot be verified")
     headers, _ = H
     # Set a known reminder_email on Primary
     body = {
@@ -190,9 +216,9 @@ def test_resend_webhook_bounced_disables_reminders(H, primary_claimant, mdb):
     }
     r = requests.put(f"{API}/claimants/{primary_claimant['id']}", json=body, headers=headers, timeout=30)
     assert r.status_code == 200
-    # Fire webhook (no auth)
-    w = requests.post(f"{API}/webhooks/resend",
-                     json={"type": "email.bounced", "data": {"to": "TEST_bounce@example.com"}},
+    # Fire signed Mailgun webhook (no bearer auth; HMAC signature instead)
+    w = requests.post(f"{API}/webhooks/mailgun",
+                     json=_mailgun_signed_payload("email.bounced", "TEST_bounce@example.com"),
                      timeout=30)
     assert w.status_code == 200
     assert w.json().get("ok") is True

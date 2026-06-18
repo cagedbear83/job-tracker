@@ -33,12 +33,12 @@ def test_integrations_status_admin(AH):
     r = requests.get(f"{API}/admin/integrations/status", headers=AH, timeout=30)
     assert r.status_code == 200
     d = r.json()
-    assert "resend" in d and "twilio" in d
-    assert d["resend"]["configured"] is True
-    assert "from" in d["resend"]
-    assert "verified_domain" in d["resend"]
-    assert "fallback_from" in d["resend"]
-    assert "dns_records_url" in d["resend"]
+    assert "mailgun" in d and "twilio" in d
+    assert d["mailgun"]["configured"] is True
+    assert "from" in d["mailgun"]
+    assert "verified_domain" in d["mailgun"]
+    assert "fallback_from" in d["mailgun"]
+    assert "dns_records_url" in d["mailgun"]
     assert d["twilio"]["configured"] is True
     assert d["twilio"]["from_number"]
 
@@ -199,7 +199,7 @@ def test_sms_code_path_via_friday_reminder(H):
     # trigger friday reminder — should NOT raise
     fr = requests.post(f"{API}/reminders/test?kind=friday", headers=H, timeout=60)
     assert fr.status_code == 200, fr.text
-    # confirm REMINDER_FRIDAY audit appears (email succeeded via Resend)
+    # confirm REMINDER_FRIDAY audit appears (email succeeded via Mailgun)
     items = requests.get(f"{API}/audit-log?action=REMINDER_FRIDAY&limit=5", headers=H, timeout=30).json()
     assert items, "expected REMINDER_FRIDAY audit entry"
     # turn SMS off again

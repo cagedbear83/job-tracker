@@ -1,5 +1,5 @@
 """Round 2 backend tests: claimants CRUD, CSV export, password reset, audit edit-diff,
-admin role, reminders. Conserves Resend quota (max 1 send)."""
+admin role, reminders. Conserves email quota (max 1 send)."""
 import os
 import time
 import pytest
