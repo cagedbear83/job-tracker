@@ -88,6 +88,19 @@ TWILIO_AUTH_TOKEN="<your-twilio-auth-token>"
 TWILIO_FROM_NUMBER="+12345678900"
 ```
 
+### Production hardening (all optional)
+
+```env
+# Error tracking — leave blank to disable Sentry
+SENTRY_DSN=""
+SENTRY_ENVIRONMENT="production"
+# Per-IP auth rate limits (set RATE_LIMIT_ENABLED=false for integration tests)
+RATE_LIMIT_ENABLED="true"
+RATE_LIMIT_STORAGE_URI=""   # e.g. redis://... to share limits across workers
+# Send HSTS header (only behind TLS)
+ENABLE_HSTS="true"
+```
+
 ### Development helper flags
 
 ```env
@@ -143,14 +156,44 @@ For production, run the backend without `--reload` and point it at a production 
 ```bash
 cd APP/backend
 .venv\Scripts\activate    # Windows
-uvicorn server:app --host 0.0.0.0 --port 8001 --workers 2
+uvicorn server:app --host 0.0.0.0 --port 8001 --workers 1
 ```
+
+> Use a single worker for now: the reminder scheduler (APScheduler) runs
+> in-process, so multiple workers would fire each cron job more than once.
+> Splitting the scheduler into its own worker is a planned follow-up.
 
 Set `CORS_ORIGINS` explicitly in `APP/backend/.env` for your frontend domain:
 
 ```env
 CORS_ORIGINS="https://yourdomain.com"
 ```
+
+### Docker (local full stack)
+
+```bash
+docker compose up --build
+```
+
+This starts MongoDB and the backend (on `:8001`). Run the React frontend
+separately with `yarn start`, or deploy it to Vercel.
+
+### Health checks
+
+The backend exposes probes for load balancers / uptime monitors (outside the
+`/api` prefix):
+
+- `GET /health/live` — process is up
+- `GET /health/ready` — dependencies reachable (pings MongoDB; `503` if not)
+
+### Hosted deploy
+
+- **Frontend → Vercel:** set the project root to `APP/frontend`; `vercel.json`
+  handles the SPA rewrite, security headers, and asset caching. Set
+  `REACT_APP_BACKEND_URL` (and optional `REACT_APP_SENTRY_DSN`) in the project.
+- **Backend → Render:** `render.yaml` is a Docker Blueprint with a
+  `/health/ready` health check. Provide `MONGO_URL` (e.g. MongoDB Atlas),
+  `FRONTEND_URL`, and `CORS_ORIGINS` as secrets.
 
 For email and SMS in production, configure:
 - `MAILGUN_API_KEY`
@@ -169,8 +212,13 @@ Protect your production secret values and never commit `.env` to source control.
 ```bash
 cd APP/backend
 .venv\Scripts\activate
+pip install -r requirements-dev.txt
 pytest
 ```
+
+> The Round 3/4 suites are integration tests that hit a running backend. Start
+> that backend with `RATE_LIMIT_ENABLED=false` so repeated logins during the
+> suite are not throttled by the new auth rate limits.
 
 ### Frontend tests
 

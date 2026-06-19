@@ -1,0 +1,26 @@
+# Keep the image small and free of secrets / dev cruft.
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.python-version
+
+# Tests and reports are not needed at runtime.
+tests/
+../test_reports/
+
+# Local dev / one-off helper scripts.
+simulate_login.py
+call_login_direct.py
+login_test.py
+check_*.py
+inspect_jwt.py
+test_jwt_encode*.py
+verify_routes.py
+manage_users.py
+update_admin_password.py
+Test Email.py
