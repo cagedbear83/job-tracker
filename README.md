@@ -188,6 +188,9 @@ The backend exposes probes for load balancers / uptime monitors (outside the
 
 ### Hosted deploy
 
+See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for the full MongoDB Atlas +
+staging/production runbook. In short:
+
 - **Frontend → Vercel:** set the project root to `APP/frontend`; `vercel.json`
   handles the SPA rewrite, security headers, and asset caching. Set
   `REACT_APP_BACKEND_URL` (and optional `REACT_APP_SENTRY_DSN`) in the project.

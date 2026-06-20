@@ -73,8 +73,27 @@ if SENTRY_DSN and sentry_sdk is not None:
         logging.warning(f"Sentry init failed: {e}")
 
 # ---- DB ----
+# Single-worker, long-running OLTP API (short CRUD queries) connecting to a
+# MongoDB Atlas replica set. The client is created once at import and reused
+# (correct for a long-running process — not a serverless handler). Values are
+# conservative for small Atlas tiers / a low-traffic launch and are all
+# overridable via env so production can be tuned without code changes.
 mongo_url = os.environ["MONGO_URL"]
-client = AsyncIOMotorClient(mongo_url)
+client = AsyncIOMotorClient(
+    mongo_url,
+    appname=os.environ.get("MONGO_APP_NAME", "ides-job-tracker"),
+    # One worker + low concurrency: a small ceiling is plenty and keeps the
+    # connection footprint tiny on shared/free Atlas tiers. Raise as traffic grows.
+    maxPoolSize=int(os.environ.get("MONGO_MAX_POOL_SIZE", "20")),
+    # No pre-warmed idle connections by default (each costs ~1 MB on the server).
+    minPoolSize=int(os.environ.get("MONGO_MIN_POOL_SIZE", "0")),
+    # Fail fast on topology/connection problems so /health/ready returns 503
+    # promptly instead of hanging on the ~30s default.
+    serverSelectionTimeoutMS=int(
+        os.environ.get("MONGO_SERVER_SELECTION_TIMEOUT_MS", "5000")
+    ),
+    connectTimeoutMS=int(os.environ.get("MONGO_CONNECT_TIMEOUT_MS", "10000")),
+)
 db = client[os.environ["DB_NAME"]]
 
 # ---- App ----
