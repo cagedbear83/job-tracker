@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend lint & build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: APP/frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: yarn
+          cache-dependency-path: APP/frontend/yarn.lock
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+      # `craco build` runs ESLint (incl. react/jsx-no-undef). With CI=true,
+      # warnings are treated as errors, so undefined components / bad imports
+      # fail the build instead of shipping a runtime crash.
+      - name: Build (lint + compile)
+        run: yarn build
+        env:
+          CI: "true"
+          REACT_APP_BACKEND_URL: http://localhost:8001
+
+  backend:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.adminCommand({ ping: 1 })' --quiet"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      MONGO_URL: mongodb://localhost:27017
+      DB_NAME: ci_test_db
+      JWT_SECRET: ci-secret-ci-secret-ci-secret-0123456789
+      FRONTEND_URL: http://localhost:3000
+      ENABLE_DEMO_USER: "true"
+      DEMO_USER_EMAIL: demo@illinoistracker.app
+      DEMO_USER_PASSWORD: Demo1234!
+      # Disable rate limiting so the suite's repeated logins are not throttled.
+      RATE_LIMIT_ENABLED: "false"
+      REACT_APP_BACKEND_URL: http://localhost:8001
+    defaults:
+      run:
+        working-directory: APP/backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: APP/backend/requirements.txt
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
+      - name: Start backend
+        run: |
+          uvicorn server:app --host 127.0.0.1 --port 8001 > /tmp/backend.log 2>&1 &
+          echo "started backend pid $!"
+      - name: Wait for readiness
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8001/health/ready; then
+              echo "backend ready"; exit 0
+            fi
+            sleep 2
+          done
+          echo "backend did not become ready; logs:"; cat /tmp/backend.log; exit 1
+      # Round 1 (backend_test.py) is self-contained: core auth/CRUD/CSV/PDF/
+      # dashboard with no external services. Rounds 2-4 require live Mailgun/
+      # Twilio/Gemini and are run manually until those are mocked.
+      - name: Run backend tests
+        run: pytest tests/backend_test.py -v
+      - name: Backend logs on failure
+        if: failure()
+        run: cat /tmp/backend.log || true
