@@ -2178,6 +2178,9 @@ async def on_startup():
                     "name": "Demo Claimant",
                     "password_hash": hash_password(demo_password),
                     "role": "user",
+                    # Seeded accounts skip the email-verification gate so they
+                    # can actually log in.
+                    "email_verified": True,
                     "created_at": datetime.now(timezone.utc).isoformat(),
                 }
             )
@@ -2206,11 +2209,10 @@ async def on_startup():
                 {"id": uid}, {"$set": {"active_claimant_id": pid}}
             )
         else:
+            update = {"email_verified": True}
             if not verify_password(demo_password, existing["password_hash"]):
-                await db.users.update_one(
-                    {"email": demo_email},
-                    {"$set": {"password_hash": hash_password(demo_password)}},
-                )
+                update["password_hash"] = hash_password(demo_password)
+            await db.users.update_one({"email": demo_email}, {"$set": update})
     else:
         logging.info(
             "Demo user seeding disabled. Set ENABLE_DEMO_USER=true to enable it."
@@ -2229,6 +2231,7 @@ async def on_startup():
                     "name": "Admin / Case Worker",
                     "password_hash": hash_password(admin_pw),
                     "role": "admin",
+                    "email_verified": True,
                     "created_at": datetime.now(timezone.utc).isoformat(),
                 }
             )
