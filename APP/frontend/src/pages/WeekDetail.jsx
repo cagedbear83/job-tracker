@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { api, formatApiError, API } from "@/lib/api";
+import { getToken } from "@/lib/tokenStorage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,10 +40,31 @@ import {
   CheckCircleIcon,
   WarningIcon,
   DownloadSimpleIcon,
+  CircleNotchIcon,
+  ClipboardTextIcon,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
 
 const METHODS = ["In Person", "Phone", "Email", "Online", "Mail", "Other"];
+
+const TYPE_OF_WORK_OPTIONS = [
+  "Full-time",
+  "Part-time",
+  "Independent Contractor",
+  "Temporary/Seasonal",
+  "Contract-to-hire",
+];
+
+const RESULT_OPTIONS = [
+  "Applied",
+  "Awaiting Outcome",
+  "Interview Scheduled",
+  "Interviewing",
+  "Hired",
+  "Networking",
+  "Not Hired",
+  "Not Hiring/Did not Apply",
+];
 
 const blank = (wid) => ({
   benefit_week_id: wid,
@@ -61,11 +83,19 @@ export default function WeekDetail() {
   const { id } = useParams();
   const [week, setWeek] = useState(null);
   const [contacts, setContacts] = useState([]);
+  const [pageLoading, setPageLoading] = useState(true);
+  const [pageError, setPageError] = useState("");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(blank(id));
 
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [downloadingCsv, setDownloadingCsv] = useState(false);
+
   const load = async () => {
+    setPageError("");
     try {
       const [w, c] = await Promise.all([
         api.get(`/benefit-weeks/${id}`),
@@ -74,12 +104,17 @@ export default function WeekDetail() {
       setWeek(w.data);
       setContacts(c.data);
     } catch (e) {
+      setPageError(formatApiError(e));
       toast.error(formatApiError(e));
+    } finally {
+      setPageLoading(false);
     }
   };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
   useEffect(() => {
-    load(); /* eslint-disable-next-line */
+    setPageLoading(true);
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const openNew = () => {
@@ -94,6 +129,7 @@ export default function WeekDetail() {
   };
 
   const save = async () => {
+    setSaving(true);
     try {
       if (editing) {
         await api.put(`/contacts/${editing.id}`, form);
@@ -106,22 +142,29 @@ export default function WeekDetail() {
       await load();
     } catch (e) {
       toast.error(formatApiError(e));
+    } finally {
+      setSaving(false);
     }
   };
 
   const remove = async (cid) => {
+    setDeletingId(cid);
     try {
       await api.delete(`/contacts/${cid}`);
-      toast.success("Deleted");
+      toast.success("Contact deleted");
       await load();
     } catch (e) {
       toast.error(formatApiError(e));
+    } finally {
+      setDeletingId(null);
     }
   };
 
   const downloadPdf = async () => {
+    setDownloadingPdf(true);
+    const toastId = toast.loading("Generating report...");
     try {
-      const token = localStorage.getItem("ides_token");
+      const token = getToken();
       const res = await fetch(`${API}/reports/benefit-week/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -133,15 +176,21 @@ export default function WeekDetail() {
       a.download = `BenefitWeek_${week.week_start}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
-      toast.success("PDF downloaded");
+      toast.success("Report downloaded", { id: toastId });
     } catch (e) {
-      toast.error("Failed to generate PDF");
+      toast.error("Failed to generate report. Please try again.", {
+        id: toastId,
+      });
+    } finally {
+      setDownloadingPdf(false);
     }
   };
 
   const downloadCsv = async () => {
+    setDownloadingCsv(true);
+    const toastId = toast.loading("Preparing CSV export...");
     try {
-      const token = localStorage.getItem("ides_token");
+      const token = getToken();
       const res = await fetch(`${API}/contacts/export.csv?week_id=${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -153,13 +202,66 @@ export default function WeekDetail() {
       a.download = `Contacts_${week.week_start}.csv`;
       a.click();
       URL.revokeObjectURL(url);
-      toast.success("CSV downloaded");
+      toast.success("CSV downloaded", { id: toastId });
     } catch (e) {
-      toast.error("Failed to export CSV");
+      toast.error("Failed to export CSV. Please try again.", { id: toastId });
+    } finally {
+      setDownloadingCsv(false);
     }
   };
 
-  if (!week) return <div className="kbd-label">Loading...</div>;
+  // ---------- Page-level loading state ----------
+  if (pageLoading) {
+    return (
+      <div className="space-y-6" data-testid="week-detail-page">
+        <div className="flex items-center gap-3 text-zinc-500 py-24 justify-center">
+          <CircleNotchIcon size={20} weight="bold" className="animate-spin" />
+          <span className="kbd-label">Loading benefit week...</span>
+        </div>
+      </div>
+    );
+  }
+
+  // ---------- Page-level error state ----------
+  if (pageError || !week) {
+    return (
+      <div className="space-y-6" data-testid="week-detail-page">
+        <div className="border border-red-200 bg-red-50 p-8 text-center">
+          <WarningIcon
+            size={28}
+            weight="fill"
+            className="text-[#DC2626] mx-auto mb-3"
+          />
+          <p className="text-sm text-red-700 font-semibold mb-1">
+            Couldn't load this benefit week
+          </p>
+          <p className="text-xs text-red-600 mb-4">
+            {pageError || "The week may not exist or you may not have access."}
+          </p>
+          <div className="flex gap-2 justify-center">
+            <Button
+              variant="outline"
+              className="rounded-none border-red-300 text-red-700 hover:bg-red-100"
+              onClick={() => {
+                setPageLoading(true);
+                load();
+              }}
+            >
+              Try Again
+            </Button>
+            <Link to="/weeks">
+              <Button
+                variant="outline"
+                className="rounded-none border-zinc-300"
+              >
+                Back to All Weeks
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const compliant = contacts.length >= 3;
 
@@ -199,20 +301,49 @@ export default function WeekDetail() {
         <div className="flex gap-2">
           <Button
             variant="outline"
-            className="rounded-none border-zinc-300"
+            className="rounded-none border-zinc-300 min-w-[110px]"
             onClick={downloadCsv}
+            disabled={downloadingCsv}
             data-testid="download-csv-button"
           >
-            <DownloadSimpleIcon size={16} weight="bold" className="mr-2" /> CSV
+            {downloadingCsv ? (
+              <>
+                <CircleNotchIcon
+                  size={16}
+                  weight="bold"
+                  className="mr-2 animate-spin"
+                />
+                Exporting...
+              </>
+            ) : (
+              <>
+                <DownloadSimpleIcon size={16} weight="bold" className="mr-2" />{" "}
+                CSV
+              </>
+            )}
           </Button>
           <Button
             variant="outline"
-            className="rounded-none border-zinc-300"
+            className="rounded-none border-zinc-300 min-w-[190px]"
             onClick={downloadPdf}
+            disabled={downloadingPdf}
             data-testid="download-pdf-button"
           >
-            <FilePdfIcon size={16} weight="bold" className="mr-2" /> Download
-            Report (PDF)
+            {downloadingPdf ? (
+              <>
+                <CircleNotchIcon
+                  size={16}
+                  weight="bold"
+                  className="mr-2 animate-spin"
+                />
+                Generating Report...
+              </>
+            ) : (
+              <>
+                <FilePdfIcon size={16} weight="bold" className="mr-2" />{" "}
+                Download Report (PDF)
+              </>
+            )}
           </Button>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
@@ -305,14 +436,24 @@ export default function WeekDetail() {
                 </div>
                 <div className="col-span-6">
                   <Label className="kbd-label">Type of Work</Label>
-                  <Input
+                  <Select
                     value={form.type_of_work}
-                    onChange={(e) =>
-                      setForm({ ...form, type_of_work: e.target.value })
-                    }
-                    className="rounded-none mt-2"
-                    data-testid="contact-type-input"
-                  />
+                    onValueChange={(v) => setForm({ ...form, type_of_work: v })}
+                  >
+                    <SelectTrigger
+                      className="rounded-none mt-2"
+                      data-testid="contact-type-select"
+                    >
+                      <SelectValue placeholder="Select type..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TYPE_OF_WORK_OPTIONS.map((t) => (
+                        <SelectItem key={t} value={t}>
+                          {t}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="col-span-6">
                   <Label className="kbd-label">Person Contacted</Label>
@@ -327,15 +468,24 @@ export default function WeekDetail() {
                 </div>
                 <div className="col-span-6">
                   <Label className="kbd-label">Result</Label>
-                  <Input
+                  <Select
                     value={form.result}
-                    onChange={(e) =>
-                      setForm({ ...form, result: e.target.value })
-                    }
-                    className="rounded-none mt-2"
-                    placeholder="e.g. Applied, Interview, No response"
-                    data-testid="contact-result-input"
-                  />
+                    onValueChange={(v) => setForm({ ...form, result: v })}
+                  >
+                    <SelectTrigger
+                      className="rounded-none mt-2"
+                      data-testid="contact-result-select"
+                    >
+                      <SelectValue placeholder="Select result..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {RESULT_OPTIONS.map((r) => (
+                        <SelectItem key={r} value={r}>
+                          {r}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="col-span-12">
                   <Label className="kbd-label">Source URL</Label>
@@ -355,15 +505,28 @@ export default function WeekDetail() {
                   variant="outline"
                   className="rounded-none"
                   onClick={() => setOpen(false)}
+                  disabled={saving}
                 >
                   Cancel
                 </Button>
                 <Button
-                  className="rounded-none bg-[#0033A0] hover:bg-[#002266]"
+                  className="rounded-none bg-[#0033A0] hover:bg-[#002266] min-w-[140px]"
                   onClick={save}
+                  disabled={saving}
                   data-testid="contact-save-button"
                 >
-                  Save Contact
+                  {saving ? (
+                    <>
+                      <CircleNotchIcon
+                        size={16}
+                        weight="bold"
+                        className="mr-2 animate-spin"
+                      />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Contact"
+                  )}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -394,8 +557,31 @@ export default function WeekDetail() {
           <tbody>
             {contacts.length === 0 && (
               <tr>
-                <td colSpan={7} className="text-center text-zinc-500 py-12">
-                  No contacts yet — log your first work-search contact.
+                <td colSpan={7} className="py-16">
+                  <div className="flex flex-col items-center justify-center text-center gap-3">
+                    <ClipboardTextIcon
+                      size={32}
+                      weight="light"
+                      className="text-zinc-300"
+                    />
+                    <div>
+                      <p className="text-sm font-semibold text-zinc-600">
+                        No contacts logged yet
+                      </p>
+                      <p className="text-xs text-zinc-400 mt-1">
+                        Illinois requires at least 3 work-search contacts for
+                        this benefit week.
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      className="rounded-none bg-[#0033A0] hover:bg-[#002266] mt-1"
+                      onClick={openNew}
+                    >
+                      <PlusIcon size={14} weight="bold" className="mr-2" />
+                      Log Your First Contact
+                    </Button>
+                  </div>
                 </td>
               </tr>
             )}
@@ -434,6 +620,7 @@ export default function WeekDetail() {
                       variant="outline"
                       className="rounded-none border-zinc-300"
                       onClick={() => openEdit(c)}
+                      disabled={deletingId === c.id}
                       data-testid={`edit-contact-${c.id}`}
                     >
                       <PencilSimpleIcon size={14} weight="bold" />
@@ -444,9 +631,18 @@ export default function WeekDetail() {
                           size="sm"
                           variant="outline"
                           className="rounded-none border-zinc-300 hover:bg-red-50 hover:text-[#DC2626]"
+                          disabled={deletingId === c.id}
                           data-testid={`delete-contact-${c.id}`}
                         >
-                          <TrashIcon size={14} weight="bold" />
+                          {deletingId === c.id ? (
+                            <CircleNotchIcon
+                              size={14}
+                              weight="bold"
+                              className="animate-spin"
+                            />
+                          ) : (
+                            <TrashIcon size={14} weight="bold" />
+                          )}
                         </Button>
                       </AlertDialogTrigger>
                       <AlertDialogContent className="rounded-none">
