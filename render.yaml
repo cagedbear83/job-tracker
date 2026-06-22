@@ -81,13 +81,20 @@ services:
         sync: false
       - key: CORS_ORIGINS
         sync: false
-      # --- Staging defaults: demo account on, rate limits off for QA ---
+      # --- Staging defaults ---
+      # Rate limiting stays ON even in staging: this is a real, internet-
+      # reachable deployment, and disabling it removes brute-force/
+      # credential-stuffing protection from /login, /register, and
+      # /forgot-password for every account on the service (not just the demo
+      # one). If QA needs higher throughput, raise RATE_LIMIT_LOGIN /
+      # RATE_LIMIT_REGISTER / RATE_LIMIT_FORGOT in the dashboard instead of
+      # disabling the limiter outright.
       - key: ENABLE_DEMO_USER
         value: "true"
       - key: ENABLE_HSTS
         value: "true"
       - key: RATE_LIMIT_ENABLED
-        value: "false"
+        value: "true"
       - key: WEB_CONCURRENCY
         value: "1"
       # --- Error tracking (optional) ---
