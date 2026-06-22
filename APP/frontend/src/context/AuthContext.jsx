@@ -81,10 +81,9 @@ export function AuthProvider({ children }) {
   };
 
   const register = async (body) => {
+    // Registration no longer returns a session token — the account must be
+    // verified via email before it can log in (see /auth/login).
     const { data } = await api.post("/auth/register", body);
-    setToken(data.token);
-    setUser(data.user);
-    await refreshClaimants();
     return data.user;
   };
 

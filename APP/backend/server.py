@@ -9,6 +9,7 @@ import asyncio
 import csv
 import hashlib
 import hmac
+import html
 import io
 import json
 import logging
@@ -111,6 +112,19 @@ RATE_LIMIT_ENABLED = os.environ.get("RATE_LIMIT_ENABLED", "true").lower() in (
 RATE_LIMIT_LOGIN = os.environ.get("RATE_LIMIT_LOGIN", "5/minute")
 RATE_LIMIT_REGISTER = os.environ.get("RATE_LIMIT_REGISTER", "3/hour")
 RATE_LIMIT_FORGOT = os.environ.get("RATE_LIMIT_FORGOT", "3/hour")
+RATE_LIMIT_REMINDER_TEST = os.environ.get("RATE_LIMIT_REMINDER_TEST", "10/hour")
+
+# ---- Import upload limits ----
+# Unbounded uploads let any authenticated user exhaust memory/DB storage
+# (CSV) or rack up Gemini API cost (screenshot OCR). Keep generous but finite
+# caps; override via env if a deployment legitimately needs more headroom.
+MAX_CSV_IMPORT_BYTES = int(os.environ.get("MAX_CSV_IMPORT_BYTES", 2 * 1024 * 1024))
+MAX_CSV_IMPORT_ROWS = int(os.environ.get("MAX_CSV_IMPORT_ROWS", "500"))
+MAX_SCREENSHOT_IMPORT_BYTES = int(
+    os.environ.get("MAX_SCREENSHOT_IMPORT_BYTES", 8 * 1024 * 1024)
+)
+ALLOWED_SCREENSHOT_MIME_TYPES = {"image/png", "image/jpeg", "image/jpg", "image/webp"}
+MAX_SCREENSHOT_PIXELS = 25_000_000  # ~5000x5000; blocks decompression-bomb-style images
 if _SLOWAPI_AVAILABLE:
     _storage_uri = os.environ.get("RATE_LIMIT_STORAGE_URI", "").strip() or None
     limiter = Limiter(
@@ -172,6 +186,11 @@ class AuthOut(BaseModel):
     user: UserPublic
 
 
+class RegisterOut(BaseModel):
+    message: str
+    user: UserPublic
+
+
 class ProfileIn(BaseModel):
     label: str = "Primary"
     first_name: str = ""
@@ -187,14 +206,18 @@ class ProfileIn(BaseModel):
     reminders_enabled: bool = True
     reminder_email: str = ""
     sms_enabled: bool = False
-    sms_phone: str = ""  # E.164 format e.g. +13125550100
-    sms_verified: bool = False
 
 
 class Profile(ProfileIn):
     id: str
     user_id: str
     updated_at: datetime
+    # sms_phone/sms_verified are set only by the /sms/verify-otp flow, never
+    # accepted as direct input — otherwise a client could mark any phone
+    # number "verified" and trigger SMS sends to it without proving it
+    # belongs to them. See sms_send_otp / sms_verify_otp.
+    sms_phone: str = ""  # E.164 format e.g. +13125550100
+    sms_verified: bool = False
 
 
 class ForgotPwIn(BaseModel):
@@ -406,9 +429,6 @@ async def get_active_claimant_id(user_id: str) -> Optional[str]:
 
 
 async def send_email(to_email: str, subject: str, html: str) -> bool:
-    logging.info(
-        f"MAILGUN DEBUG key={os.environ.get('MAILGUN_API_KEY', 'MISSING')} domain={os.environ.get('MAILGUN_DOMAIN', 'MISSING')}"
-    )
     api_key = os.environ.get("MAILGUN_API_KEY", "")
     domain = os.environ.get("MAILGUN_DOMAIN", "")
     sender = os.environ.get("MAILGUN_FROM", "")
@@ -494,7 +514,7 @@ def to_public_user(u: dict) -> UserPublic:
 
 
 # ============== Auth Endpoints ==============
-@api.post("/auth/register", response_model=AuthOut)
+@api.post("/auth/register", response_model=RegisterOut)
 @rate_limit(RATE_LIMIT_REGISTER)
 async def register(request: Request, body: RegisterIn):
     email = body.email.lower()
@@ -557,9 +577,14 @@ async def register(request: Request, body: RegisterIn):
     )
 
     await log_audit(uid, "REGISTER", "user", uid, f"Account created: {email}")
-    token = create_token(uid, email)
-    return AuthOut(
-        token=token, user=UserPublic(id=uid, email=email, name=body.name, role="user")
+    # No session token is issued here: the account is unverified, and the
+    # only way to obtain a token is /auth/login, which rejects unverified
+    # accounts. This prevents an attacker from registering a victim's email
+    # and using an authenticated session before the victim ever sees the
+    # verification email (account pre-hijacking).
+    return RegisterOut(
+        message="Account created. Please check your email to verify your address before logging in.",
+        user=UserPublic(id=uid, email=email, name=body.name, role="user"),
     )
 
 
@@ -949,11 +974,19 @@ async def import_csv(
     w = await db.benefit_weeks.find_one({"id": week_id, "user_id": user["id"]})
     if not w:
         raise HTTPException(status_code=404, detail="Benefit week not found")
-    raw = (await file.read()).decode("utf-8", errors="ignore")
+    raw_bytes = await file.read()
+    if len(raw_bytes) > MAX_CSV_IMPORT_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"CSV file too large (max {MAX_CSV_IMPORT_BYTES // 1024} KB)",
+        )
+    raw = raw_bytes.decode("utf-8", errors="ignore")
     reader = csv.DictReader(io.StringIO(raw))
     inserted = 0
     rows_out = []
-    for row in reader:
+    for row_num, row in enumerate(reader, start=1):
+        if row_num > MAX_CSV_IMPORT_ROWS:
+            break
         lc = {k.strip().lower(): (v or "").strip() for k, v in row.items() if k}
         contact = {
             "id": str(uuid.uuid4()),
@@ -1021,23 +1054,22 @@ async def import_screenshot(
     img_bytes = await file.read()
     if not img_bytes:
         raise HTTPException(status_code=400, detail="Empty file")
+    if len(img_bytes) > MAX_SCREENSHOT_IMPORT_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Image too large (max {MAX_SCREENSHOT_IMPORT_BYTES // (1024 * 1024)} MB)",
+        )
 
-    # Save image to temp file (Gemini supports file path)
-    import base64
-    import tempfile
-
-    mime = file.content_type or "image/png"
-    suffix = (
-        ".png"
-        if "png" in mime
-        else (".jpg" if "jpe" in mime or "jpg" in mime else ".png")
-    )
+    mime = (file.content_type or "").lower()
+    if mime not in ALLOWED_SCREENSHOT_MIME_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail="Unsupported image type. Upload a PNG, JPEG, or WEBP screenshot.",
+        )
 
     api_key = os.environ.get("GEMINI_API_KEY", "")
     if not api_key:
         raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured")
-
-    image_b64 = base64.b64encode(img_bytes).decode()
 
     prompt = (
         "You extract job posting details from screenshots of job boards like Indeed, LinkedIn, "
@@ -1048,16 +1080,23 @@ async def import_screenshot(
         f"If date unclear use {w['week_start']}. If multiple jobs visible include each as an entry."
     )
 
+    import io as _io
+
+    import PIL.Image
+
+    try:
+        pil_image = PIL.Image.open(_io.BytesIO(img_bytes))
+        pil_image.load()  # force decode now so malformed/oversized images fail here
+    except Exception:
+        raise HTTPException(status_code=400, detail="Could not read image file")
+    if pil_image.width * pil_image.height > MAX_SCREENSHOT_PIXELS:
+        raise HTTPException(status_code=400, detail="Image resolution too large")
+
     try:
         import google.generativeai as genai
 
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel("gemini-2.0-flash")
-        import io as _io
-
-        import PIL.Image
-
-        pil_image = PIL.Image.open(_io.BytesIO(img_bytes))
         response = await asyncio.get_event_loop().run_in_executor(
             None, lambda: model.generate_content([prompt, pil_image])
         )
@@ -1516,6 +1555,12 @@ def _current_week_bounds(tz_str: str = "America/Chicago"):
 
 async def _send_user_reminder(user: dict, kind: str):
     """kind in: 'sunday','wednesday','friday','saturday'"""
+    # Defense in depth: only send outbound mail/SMS for accounts that have
+    # proven ownership of their email. Registration no longer issues a
+    # session token before verification, but this keeps it true even if a
+    # token were ever minted for an unverified account some other way.
+    if not user.get("email_verified", False):
+        return 0
     # iterate claimants that have reminders_enabled
     claimants = await db.profiles.find(
         {"user_id": user["id"], "reminders_enabled": {"$ne": False}}, {"_id": 0}
@@ -1543,11 +1588,25 @@ async def _send_user_reminder(user: dict, kind: str):
             ).to_list(50)
             contacts_count = len(contacts_list)
 
+        # reminder_email/name/employer fields are user-controlled (set via
+        # the profile/contact forms); escape before interpolating into the
+        # HTML email body to prevent HTML/markup injection in outbound mail.
         to_email = c.get("reminder_email") or user.get("email")
-        name = f"{c.get('first_name', '')} {c.get('last_name', '')}".strip() or c.get(
-            "label", "claimant"
+        name = html.escape(
+            f"{c.get('first_name', '')} {c.get('last_name', '')}".strip()
+            or c.get("label", "claimant")
         )
         deficit = max(0, 3 - contacts_count)
+
+        def _contact_line(x, with_position=False):
+            date_ = html.escape(str(x.get("contact_date", "")))
+            employer = html.escape(str(x.get("employer_name", "")))
+            if with_position:
+                position = html.escape(
+                    str(x.get("position_applied", "") or x.get("type_of_work", ""))
+                )
+                return f"<li>{date_} — {employer} ({position})</li>"
+            return f"<li>{date_} — {employer}</li>"
 
         if kind == "sunday":
             title = "New Benefit Week Starting"
@@ -1562,8 +1621,7 @@ async def _send_user_reminder(user: dict, kind: str):
         elif kind == "friday":
             title = f"Friday Reminder — {contacts_count} / 3 contacts logged"
             list_html = "".join(
-                f"<li>{x.get('contact_date', '')} — {x.get('employer_name', '')} ({x.get('position_applied', '') or x.get('type_of_work', '')})</li>"
-                for x in contacts_list
+                _contact_line(x, with_position=True) for x in contacts_list
             )
             body = (
                 f"<p>Hi {name}, you have <b>{contacts_count} / 3</b> contacts for {sun} → {sat}.</p>"
@@ -1574,10 +1632,7 @@ async def _send_user_reminder(user: dict, kind: str):
         elif kind == "saturday":
             title = "End-of-Week Summary"
             status_txt = "✅ Compliant" if contacts_count >= 3 else "⚠️ Non-compliant"
-            list_html = "".join(
-                f"<li>{x.get('contact_date', '')} — {x.get('employer_name', '')}</li>"
-                for x in contacts_list
-            )
+            list_html = "".join(_contact_line(x) for x in contacts_list)
             body = (
                 f"<p>Hi {name}, here's your summary for {sun} → {sat}:</p><p><b>{contacts_count} contacts logged</b> — {status_txt}</p>"
                 + (f"<ul>{list_html}</ul>" if list_html else "")
@@ -1585,8 +1640,8 @@ async def _send_user_reminder(user: dict, kind: str):
         else:
             return 0
 
-        html = _reminder_html(title, body)
-        ok = await send_email(to_email, title, html)
+        html_body = _reminder_html(title, body)
+        ok = await send_email(to_email, title, html_body)
         if ok:
             sent += 1
             await log_audit(
@@ -1621,7 +1676,10 @@ async def _send_user_reminder(user: dict, kind: str):
 
 
 @api.post("/reminders/test")
-async def reminder_test(kind: str = "friday", user=Depends(get_current_user)):
+@rate_limit(RATE_LIMIT_REMINDER_TEST)
+async def reminder_test(
+    request: Request, kind: str = "friday", user=Depends(get_current_user)
+):
     if kind not in ("sunday", "wednesday", "friday", "saturday"):
         raise HTTPException(
             status_code=400, detail="kind must be sunday|wednesday|friday|saturday"

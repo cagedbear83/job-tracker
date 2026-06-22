@@ -48,9 +48,7 @@ const blank = () => ({
   occupation: "",
   reminders_enabled: true,
   reminder_email: "",
-  sms_enabled: true,
-  sms_phone: "+14423321758",
-  sms_verified: true,
+  sms_enabled: false,
 });
 
 export default function Claimants() {
@@ -348,19 +346,7 @@ export default function Claimants() {
                   </label>
                 </div>
                 <div className="col-span-12 border-t pt-3 mt-2">
-                  <Label className="kbd-label">
-                    SMS Phone (E.164 format, e.g. +13125550100)
-                  </Label>
-                  <Input
-                    value={form.sms_phone}
-                    onChange={(e) =>
-                      setForm({ ...form, sms_phone: e.target.value })
-                    }
-                    placeholder="+13125550100"
-                    className="rounded-none mt-2"
-                    data-testid="claimant-sms-phone"
-                  />
-                  <label className="flex items-center gap-2 text-sm mt-3">
+                  <label className="flex items-center gap-2 text-sm">
                     <input
                       type="checkbox"
                       checked={form.sms_enabled}
@@ -373,7 +359,9 @@ export default function Claimants() {
                   </label>
                   <p className="text-xs text-zinc-500 mt-2">
                     Standard message rates may apply. SMS is sent alongside
-                    email reminders.
+                    email reminders. After saving, use "Verify phone" on the
+                    claimant card to confirm a number with a one-time code —
+                    no SMS is sent until it's verified.
                   </p>
                 </div>
               </div>
