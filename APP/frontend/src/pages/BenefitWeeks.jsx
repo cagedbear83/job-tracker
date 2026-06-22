@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, formatApiError } from "@/lib/api";
+import { api, formatApiError, API } from "@/lib/api";
+import { getToken } from "@/lib/tokenStorage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -123,7 +124,7 @@ export default function BenefitWeeks() {
 
   const exportAll = async () => {
     try {
-      const token = localStorage.getItem("ides_token");
+      const token = getToken();
       const res = await fetch(`${API}/contacts/export.csv`, {
         headers: { Authorization: `Bearer ${token}` },
       });

@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Deployment &amp; Environments | job-tracker</title>
+<meta name="generator" content="Jekyll v3.10.0" />
+<meta property="og:title" content="Deployment &amp; Environments" />
+<meta property="og:locale" content="en_US" />
+<link rel="canonical" href="https://cagedbear83.github.io/job-tracker/docs/DEPLOYMENT.html" />
+<meta property="og:url" content="https://cagedbear83.github.io/job-tracker/docs/DEPLOYMENT.html" />
+<meta property="og:site_name" content="job-tracker" />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Deployment &amp; Environments" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebPage","headline":"Deployment &amp; Environments","url":"https://cagedbear83.github.io/job-tracker/docs/DEPLOYMENT.html"}</script>
+<!-- End Jekyll SEO tag -->
+
+    <link rel="stylesheet" href="/job-tracker/assets/css/style.css?v=71a6bbf71192800828aa0a8c6928cb2a606e4c08">
+    <!-- start custom head snippets, customize with your own _includes/head-custom.html file -->
+
+<!-- Setup Google Analytics -->
+
+
+
+<!-- You can set your favicon here -->
+<!-- link rel="shortcut icon" type="image/x-icon" href="/job-tracker/favicon.ico" -->
+
+<!-- end custom head snippets -->
+
+  </head>
+  <body>
+    <div class="container-lg px-3 my-5 markdown-body">
+      
+      <h1><a href="https://cagedbear83.github.io/job-tracker/">job-tracker</a></h1>
+      
+
+      <h1 id="deployment--environments">Deployment &amp; Environments</h1>
+
+<p>This guide sets up <strong>MongoDB Atlas</strong> plus separate <strong>staging</strong> and <strong>production</strong>
+environments for the backend (Render) and frontend (Vercel).</p>
+
+<h2 id="environment-overview">Environment overview</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Concern</th>
+      <th>Staging</th>
+      <th>Production</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Git branch</td>
+      <td><code class="language-plaintext highlighter-rouge">staging</code></td>
+      <td><code class="language-plaintext highlighter-rouge">main</code></td>
+    </tr>
+    <tr>
+      <td>Backend (Render)</td>
+      <td><code class="language-plaintext highlighter-rouge">ides-job-tracker-api-staging</code></td>
+      <td><code class="language-plaintext highlighter-rouge">ides-job-tracker-api</code></td>
+    </tr>
+    <tr>
+      <td>Database (Atlas)</td>
+      <td><code class="language-plaintext highlighter-rouge">ides_tracker_staging</code></td>
+      <td><code class="language-plaintext highlighter-rouge">ides_tracker_prod</code></td>
+    </tr>
+    <tr>
+      <td>Demo user</td>
+      <td>enabled</td>
+      <td>disabled</td>
+    </tr>
+    <tr>
+      <td>Rate limiting</td>
+      <td>off (for QA)</td>
+      <td>on</td>
+    </tr>
+    <tr>
+      <td>Integrations</td>
+      <td>sandbox/test credentials</td>
+      <td>live credentials</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Promotion flow: merge work to <code class="language-plaintext highlighter-rouge">staging</code> → verify on the staging URLs → open a
+PR from <code class="language-plaintext highlighter-rouge">staging</code> to <code class="language-plaintext highlighter-rouge">main</code> → merge to ship to production.</p>
+
+<hr />
+
+<h2 id="1-mongodb-atlas">1. MongoDB Atlas</h2>
+
+<ol>
+  <li>Create a free account at <a href="https://www.mongodb.com/atlas">https://www.mongodb.com/atlas</a> and a new <strong>Project</strong>
+(e.g. <code class="language-plaintext highlighter-rouge">illinois-job-tracker</code>).</li>
+  <li><strong>Create a cluster.</strong> An <code class="language-plaintext highlighter-rouge">M0</code> (free) cluster is fine to start; move to <code class="language-plaintext highlighter-rouge">M10+</code>
+for production backups and better performance when you have real users.
+    <ul>
+      <li>Strongest isolation: one cluster for staging, one for production.</li>
+      <li>Cheapest acceptable: a single cluster with two <strong>databases</strong>
+(<code class="language-plaintext highlighter-rouge">ides_tracker_staging</code> and <code class="language-plaintext highlighter-rouge">ides_tracker_prod</code>). This Blueprint assumes
+the two-database approach but works either way — it only depends on
+<code class="language-plaintext highlighter-rouge">MONGO_URL</code> + <code class="language-plaintext highlighter-rouge">DB_NAME</code> per environment.</li>
+    </ul>
+  </li>
+  <li><strong>Database user:</strong> Atlas → <em>Database Access</em> → add a user with a strong
+password and the <code class="language-plaintext highlighter-rouge">readWrite</code> role on the relevant database(s).</li>
+  <li><strong>Network access:</strong> Atlas → <em>Network Access</em> → add the egress IPs of your
+Render services. For an initial setup you may temporarily allow <code class="language-plaintext highlighter-rouge">0.0.0.0/0</code>,
+but lock this down to Render’s static outbound IPs before launch.</li>
+  <li><strong>Connection string:</strong> Atlas → <em>Connect</em> → <em>Drivers</em> → copy the SRV string:
+    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>mongodb+srv://USER:PASS@cluster0.xxxx.mongodb.net/?retryWrites=true&amp;w=majority
+</code></pre></div>    </div>
+    <p>Use this as <code class="language-plaintext highlighter-rouge">MONGO_URL</code>. Do <strong>not</strong> put the database name in the URL — it is
+provided separately via <code class="language-plaintext highlighter-rouge">DB_NAME</code>.</p>
+  </li>
+  <li><strong>Backups (production):</strong> on <code class="language-plaintext highlighter-rouge">M10+</code>, enable continuous/cloud backups and run
+one test restore so you know the recovery path works.</li>
+</ol>
+
+<p>The backend tunes its Atlas connection via these env vars (defaults shown);
+they rarely need changing at launch:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>MONGO_APP_NAME=ides-job-tracker
+MONGO_MAX_POOL_SIZE=20            # one worker, low concurrency
+MONGO_MIN_POOL_SIZE=0            # no idle connections on small tiers
+MONGO_SERVER_SELECTION_TIMEOUT_MS=5000   # fail fast -&gt; /health/ready returns 503 quickly
+MONGO_CONNECT_TIMEOUT_MS=10000
+</code></pre></div></div>
+
+<hr />
+
+<h2 id="2-backend--render-docker">2. Backend → Render (Docker)</h2>
+
+<p>The repo ships <code class="language-plaintext highlighter-rouge">render.yaml</code>, a Blueprint defining <strong>both</strong> services.</p>
+
+<ol>
+  <li>Push a <code class="language-plaintext highlighter-rouge">staging</code> branch (production deploys from <code class="language-plaintext highlighter-rouge">main</code>):
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>git checkout main <span class="o">&amp;&amp;</span> git pull
+git checkout <span class="nt">-b</span> staging <span class="o">&amp;&amp;</span> git push <span class="nt">-u</span> origin staging
+</code></pre></div>    </div>
+  </li>
+  <li>Render dashboard → <em>New</em> → <em>Blueprint</em> → pick this repo. Render reads
+<code class="language-plaintext highlighter-rouge">render.yaml</code> and proposes the two web services.</li>
+  <li>For <strong>each</strong> service, fill in the <code class="language-plaintext highlighter-rouge">sync: false</code> secrets:
+    <ul>
+      <li><code class="language-plaintext highlighter-rouge">MONGO_URL</code> — the Atlas SRV string (staging and prod can differ).</li>
+      <li><code class="language-plaintext highlighter-rouge">FRONTEND_URL</code> — that environment’s frontend URL (used for verification /
+reset / invite links and CORS).</li>
+      <li><code class="language-plaintext highlighter-rouge">CORS_ORIGINS</code> — the exact frontend origin(s), comma-separated. <strong>Never use
+<code class="language-plaintext highlighter-rouge">*</code> in production.</strong></li>
+      <li>Optional: <code class="language-plaintext highlighter-rouge">SENTRY_DSN</code>, Mailgun/Twilio/Gemini keys (use sandbox creds for
+staging).</li>
+      <li><code class="language-plaintext highlighter-rouge">JWT_SECRET</code> is auto-generated per service; <code class="language-plaintext highlighter-rouge">DB_NAME</code> is preset.</li>
+    </ul>
+  </li>
+  <li>Deploy. Render runs the container’s <code class="language-plaintext highlighter-rouge">HEALTHCHECK</code> and routes the
+<code class="language-plaintext highlighter-rouge">healthCheckPath</code> (<code class="language-plaintext highlighter-rouge">/health/ready</code>) so traffic only flows once Mongo is
+reachable.</li>
+</ol>
+
+<blockquote>
+  <p>Keep <code class="language-plaintext highlighter-rouge">WEB_CONCURRENCY=1</code> for now: the reminder scheduler (APScheduler) runs
+in-process, so multiple workers would duplicate cron jobs. Splitting the
+scheduler into its own worker is the prerequisite for scaling out.</p>
+</blockquote>
+
+<hr />
+
+<h2 id="3-frontend--vercel">3. Frontend → Vercel</h2>
+
+<ol>
+  <li>Vercel → <em>Add New Project</em> → import this repo.</li>
+  <li><strong>Root Directory:</strong> <code class="language-plaintext highlighter-rouge">APP/frontend</code> (so Vercel builds the React app, not the
+repo root). <code class="language-plaintext highlighter-rouge">vercel.json</code> handles the SPA rewrite, security headers, and
+asset caching.</li>
+  <li><strong>Environment variables</strong> (Project → Settings → Environment Variables):
+    <ul>
+      <li><code class="language-plaintext highlighter-rouge">REACT_APP_BACKEND_URL</code>
+        <ul>
+          <li><em>Production</em> → your production Render URL (e.g.
+<code class="language-plaintext highlighter-rouge">https://ides-job-tracker-api.onrender.com</code>)</li>
+          <li><em>Preview</em> → your staging Render URL</li>
+        </ul>
+      </li>
+      <li>Optional: <code class="language-plaintext highlighter-rouge">REACT_APP_SENTRY_DSN</code>, <code class="language-plaintext highlighter-rouge">REACT_APP_SENTRY_ENVIRONMENT</code>.</li>
+    </ul>
+  </li>
+  <li>Production deploys from <code class="language-plaintext highlighter-rouge">main</code>; Preview deployments are created per branch/PR
+(point these at the staging backend). For a stable staging URL, you can also
+assign a domain alias to the <code class="language-plaintext highlighter-rouge">staging</code> branch deployment.</li>
+</ol>
+
+<p>After both sides are up, set each backend’s <code class="language-plaintext highlighter-rouge">CORS_ORIGINS</code> to the matching
+frontend origin and redeploy.</p>
+
+<hr />
+
+<h2 id="4-smoke-test-a-deploy">4. Smoke test a deploy</h2>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Liveness + readiness (readiness pings MongoDB)</span>
+curl <span class="nt">-fsS</span> https://&lt;backend-host&gt;/health/live
+curl <span class="nt">-fsS</span> https://&lt;backend-host&gt;/health/ready
+
+<span class="c"># App boots and talks to the API</span>
+open https://&lt;frontend-host&gt;
+</code></pre></div></div>
+
+<p>A <code class="language-plaintext highlighter-rouge">503</code> from <code class="language-plaintext highlighter-rouge">/health/ready</code> means the backend is up but cannot reach MongoDB —
+check <code class="language-plaintext highlighter-rouge">MONGO_URL</code>, the Atlas database user, and the Network Access allowlist.</p>
+
+
+      
+      <div class="footer border-top border-gray-light mt-5 pt-3 text-right text-gray">
+        This site is open source. <a href="https://github.com/cagedbear83/job-tracker/edit/main/docs/DEPLOYMENT.md">Improve this page</a>.
+      </div>
+      
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/anchor-js/4.1.0/anchor.min.js" integrity="sha256-lZaRhKri35AyJSypXXs4o6OPFTbTmUoltBbDCbdzegg=" crossorigin="anonymous"></script>
+    <script>anchors.add();</script>
+  </body>
+</html>

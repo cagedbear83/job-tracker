@@ -34,20 +34,103 @@ from fastapi import (
     Request,
     UploadFile,
 )
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from starlette.middleware.cors import CORSMiddleware
 from twilio.rest import Client as TwilioClient
 
+# Optional production dependencies — degrade gracefully if a deploy has not
+# reinstalled requirements yet, rather than crashing the whole API.
+try:
+    import sentry_sdk
+except ImportError:  # pragma: no cover
+    sentry_sdk = None
+
+try:
+    from slowapi import Limiter, _rate_limit_exceeded_handler
+    from slowapi.errors import RateLimitExceeded
+    from slowapi.util import get_remote_address
+
+    _SLOWAPI_AVAILABLE = True
+except ImportError:  # pragma: no cover
+    _SLOWAPI_AVAILABLE = False
+
+# ---- Error tracking (Sentry) ----
+# No-op unless SENTRY_DSN is set, so local/dev runs are unaffected.
+SENTRY_DSN = os.environ.get("SENTRY_DSN", "").strip()
+if SENTRY_DSN and sentry_sdk is not None:
+    try:
+        sentry_sdk.init(
+            dsn=SENTRY_DSN,
+            environment=os.environ.get("SENTRY_ENVIRONMENT", "production"),
+            traces_sample_rate=float(
+                os.environ.get("SENTRY_TRACES_SAMPLE_RATE", "0.1")
+            ),
+            send_default_pii=False,
+        )
+    except Exception as e:  # pragma: no cover - never let monitoring break boot
+        logging.warning(f"Sentry init failed: {e}")
+
 # ---- DB ----
+# Single-worker, long-running OLTP API (short CRUD queries) connecting to a
+# MongoDB Atlas replica set. The client is created once at import and reused
+# (correct for a long-running process — not a serverless handler). Values are
+# conservative for small Atlas tiers / a low-traffic launch and are all
+# overridable via env so production can be tuned without code changes.
 mongo_url = os.environ["MONGO_URL"]
-client = AsyncIOMotorClient(mongo_url)
+client = AsyncIOMotorClient(
+    mongo_url,
+    appname=os.environ.get("MONGO_APP_NAME", "ides-job-tracker"),
+    # One worker + low concurrency: a small ceiling is plenty and keeps the
+    # connection footprint tiny on shared/free Atlas tiers. Raise as traffic grows.
+    maxPoolSize=int(os.environ.get("MONGO_MAX_POOL_SIZE", "20")),
+    # No pre-warmed idle connections by default (each costs ~1 MB on the server).
+    minPoolSize=int(os.environ.get("MONGO_MIN_POOL_SIZE", "0")),
+    # Fail fast on topology/connection problems so /health/ready returns 503
+    # promptly instead of hanging on the ~30s default.
+    serverSelectionTimeoutMS=int(
+        os.environ.get("MONGO_SERVER_SELECTION_TIMEOUT_MS", "5000")
+    ),
+    connectTimeoutMS=int(os.environ.get("MONGO_CONNECT_TIMEOUT_MS", "10000")),
+)
 db = client[os.environ["DB_NAME"]]
 
 # ---- App ----
 app = FastAPI(title="Illinois UI Job Search Tracker")
 api = APIRouter(prefix="/api")
+
+# ---- Rate limiting ----
+# Per-IP limits on abuse-prone auth endpoints. In-memory by default; set
+# RATE_LIMIT_STORAGE_URI (e.g. a Redis URL) for a shared store across workers.
+RATE_LIMIT_ENABLED = os.environ.get("RATE_LIMIT_ENABLED", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+RATE_LIMIT_LOGIN = os.environ.get("RATE_LIMIT_LOGIN", "5/minute")
+RATE_LIMIT_REGISTER = os.environ.get("RATE_LIMIT_REGISTER", "3/hour")
+RATE_LIMIT_FORGOT = os.environ.get("RATE_LIMIT_FORGOT", "3/hour")
+if _SLOWAPI_AVAILABLE:
+    _storage_uri = os.environ.get("RATE_LIMIT_STORAGE_URI", "").strip() or None
+    limiter = Limiter(
+        key_func=get_remote_address,
+        enabled=RATE_LIMIT_ENABLED,
+        storage_uri=_storage_uri,
+    )
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+    def rate_limit(spec: str):
+        return limiter.limit(spec)
+
+else:  # pragma: no cover - slowapi missing; limits become no-ops
+
+    def rate_limit(spec: str):
+        def _decorator(func):
+            return func
+
+        return _decorator
 
 JWT_ALGO = "HS256"
 JWT_SECRET = os.environ.get("JWT_SECRET")
@@ -412,7 +495,8 @@ def to_public_user(u: dict) -> UserPublic:
 
 # ============== Auth Endpoints ==============
 @api.post("/auth/register", response_model=AuthOut)
-async def register(body: RegisterIn):
+@rate_limit(RATE_LIMIT_REGISTER)
+async def register(request: Request, body: RegisterIn):
     email = body.email.lower()
     if await db.users.find_one({"email": email}):
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -480,7 +564,8 @@ async def register(body: RegisterIn):
 
 
 @api.post("/auth/login", response_model=AuthOut)
-async def login(body: LoginIn):
+@rate_limit(RATE_LIMIT_LOGIN)
+async def login(request: Request, body: LoginIn):
     email = body.email.lower()
     user = await db.users.find_one({"email": email})
     if not user or not verify_password(body.password, user["password_hash"]):
@@ -1223,7 +1308,8 @@ async def export_contacts_csv(
 
 # ============== Password Reset ==============
 @api.post("/auth/forgot-password")
-async def forgot_password(body: ForgotPwIn):
+@rate_limit(RATE_LIMIT_FORGOT)
+async def forgot_password(request: Request, body: ForgotPwIn):
     email = body.email.lower()
     user = await db.users.find_one({"email": email})
     if user:
@@ -2111,6 +2197,9 @@ async def on_startup():
                     "name": "Demo Claimant",
                     "password_hash": hash_password(demo_password),
                     "role": "user",
+                    # Seeded accounts skip the email-verification gate so they
+                    # can actually log in.
+                    "email_verified": True,
                     "created_at": datetime.now(timezone.utc).isoformat(),
                 }
             )
@@ -2139,11 +2228,10 @@ async def on_startup():
                 {"id": uid}, {"$set": {"active_claimant_id": pid}}
             )
         else:
+            update = {"email_verified": True}
             if not verify_password(demo_password, existing["password_hash"]):
-                await db.users.update_one(
-                    {"email": demo_email},
-                    {"$set": {"password_hash": hash_password(demo_password)}},
-                )
+                update["password_hash"] = hash_password(demo_password)
+            await db.users.update_one({"email": demo_email}, {"$set": update})
     else:
         logging.info(
             "Demo user seeding disabled. Set ENABLE_DEMO_USER=true to enable it."
@@ -2162,6 +2250,7 @@ async def on_startup():
                     "name": "Admin / Case Worker",
                     "password_hash": hash_password(admin_pw),
                     "role": "admin",
+                    "email_verified": True,
                     "created_at": datetime.now(timezone.utc).isoformat(),
                 }
             )
@@ -2250,7 +2339,49 @@ async def on_shutdown():
     client.close()
 
 
+# ============== Health / readiness probes ==============
+# Kept off the /api prefix so load balancers and uptime monitors can hit them
+# directly. /health/live = process is up; /health/ready = dependencies (Mongo)
+# are reachable so the instance can receive traffic.
+@app.get("/health/live")
+async def health_live():
+    return {"status": "ok"}
+
+
+@app.get("/health/ready")
+async def health_ready():
+    try:
+        await client.admin.command("ping")
+        return {"status": "ready", "mongo": "ok"}
+    except Exception as e:
+        logging.warning(f"Readiness check failed: {e}")
+        return JSONResponse(
+            status_code=503,
+            content={"status": "not ready", "mongo": "error"},
+        )
+
+
 app.include_router(api)
+
+
+# ============== Security headers ==============
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault(
+        "Permissions-Policy", "geolocation=(), microphone=(), camera=()"
+    )
+    # HSTS only makes sense behind TLS; enable explicitly in production.
+    if os.environ.get("ENABLE_HSTS", "false").lower() in ("1", "true", "yes"):
+        response.headers.setdefault(
+            "Strict-Transport-Security",
+            "max-age=63072000; includeSubDomains",
+        )
+    return response
+
 
 # CORS - allow_origins must be explicit when allow_credentials=True
 origins_env = os.environ.get("CORS_ORIGINS", "*")

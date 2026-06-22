@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Illinois UI Job Tracker | job-tracker</title>
+<meta name="generator" content="Jekyll v3.10.0" />
+<meta property="og:title" content="Illinois UI Job Tracker" />
+<meta property="og:locale" content="en_US" />
+<link rel="canonical" href="https://cagedbear83.github.io/job-tracker/" />
+<meta property="og:url" content="https://cagedbear83.github.io/job-tracker/" />
+<meta property="og:site_name" content="job-tracker" />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Illinois UI Job Tracker" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebSite","headline":"Illinois UI Job Tracker","name":"job-tracker","url":"https://cagedbear83.github.io/job-tracker/"}</script>
+<!-- End Jekyll SEO tag -->
+
+    <link rel="stylesheet" href="/job-tracker/assets/css/style.css?v=71a6bbf71192800828aa0a8c6928cb2a606e4c08">
+    <!-- start custom head snippets, customize with your own _includes/head-custom.html file -->
+
+<!-- Setup Google Analytics -->
+
+
+
+<!-- You can set your favicon here -->
+<!-- link rel="shortcut icon" type="image/x-icon" href="/job-tracker/favicon.ico" -->
+
+<!-- end custom head snippets -->
+
+  </head>
+  <body>
+    <div class="container-lg px-3 my-5 markdown-body">
+      
+      <h1><a href="https://cagedbear83.github.io/job-tracker/">job-tracker</a></h1>
+      
+
+      <h1 id="illinois-ui-job-tracker">Illinois UI Job Tracker</h1>
+
+<p>Illinois UI Job Tracker is a full-stack app designed to help people manage their unemployment insurance work-search contacts and job applications. It includes a FastAPI backend, a React/Tailwind frontend, and MongoDB storage.</p>
+
+<h2 id="overview">Overview</h2>
+
+<p>This project supports:</p>
+<ul>
+  <li>authenticated caseworkers and claimants</li>
+  <li>claimant profiles and active claimant selection</li>
+  <li>benefit week tracking</li>
+  <li>work-search contact logging</li>
+  <li>CSV import/export of contacts</li>
+  <li>screenshot text extraction via AI vision</li>
+  <li>PDF report generation for benefit-week forms</li>
+  <li>email reminders and SMS notifications</li>
+  <li>admin invite and audit tooling</li>
+</ul>
+
+<h2 id="architecture">Architecture</h2>
+
+<ul>
+  <li>Backend: <code class="language-plaintext highlighter-rouge">APP/backend/server.py</code>
+    <ul>
+      <li>FastAPI + Motor (async MongoDB)</li>
+      <li>JWT auth and role-based admin protection</li>
+      <li>Mailgun and Twilio integration points</li>
+      <li>APScheduler-driven reminder scheduler</li>
+    </ul>
+  </li>
+  <li>Frontend: <code class="language-plaintext highlighter-rouge">APP/frontend</code>
+    <ul>
+      <li>React application with Tailwind UI</li>
+      <li>Pages for login, dashboard, claimants, weeks, and more</li>
+    </ul>
+  </li>
+  <li>Database: MongoDB
+    <ul>
+      <li>collections include <code class="language-plaintext highlighter-rouge">users</code>, <code class="language-plaintext highlighter-rouge">profiles</code>, <code class="language-plaintext highlighter-rouge">benefit_weeks</code>, <code class="language-plaintext highlighter-rouge">contacts</code>, <code class="language-plaintext highlighter-rouge">invites</code>, <code class="language-plaintext highlighter-rouge">audit_log</code>, and more</li>
+    </ul>
+  </li>
+</ul>
+
+<h2 id="prerequisites">Prerequisites</h2>
+
+<ul>
+  <li>Python 3.11+</li>
+  <li>Node.js 18+</li>
+  <li>Yarn</li>
+  <li>MongoDB</li>
+</ul>
+
+<h2 id="setup">Setup</h2>
+
+<h3 id="1-clone-the-repository">1. Clone the repository</h3>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>git clone https://github.com/cagedbear83/job-tracker.git
+<span class="nb">cd </span>job-tracker
+</code></pre></div></div>
+
+<h3 id="2-backend-setup">2. Backend setup</h3>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">cd </span>APP/backend
+python <span class="nt">-m</span> venv .venv
+.venv<span class="se">\S</span>cripts<span class="se">\a</span>ctivate    <span class="c"># Windows</span>
+<span class="c"># or</span>
+<span class="nb">source</span> .venv/bin/activate  <span class="c"># macOS/Linux</span>
+pip <span class="nb">install</span> <span class="nt">-r</span> requirements.txt
+<span class="c"># For running the test suite, also: pip install -r requirements-dev.txt</span>
+<span class="c"># Ensure the correct JWT package is installed (PyJWT), not the unrelated jwt package.</span>
+</code></pre></div></div>
+
+<h3 id="3-frontend-setup">3. Frontend setup</h3>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">cd </span>APP/frontend
+yarn <span class="nb">install</span>
+</code></pre></div></div>
+
+<h2 id="environment-variables">Environment variables</h2>
+
+<p>Create a <code class="language-plaintext highlighter-rouge">.env</code> file in <code class="language-plaintext highlighter-rouge">APP/backend</code> with the following values.</p>
+
+<h3 id="required-for-backend-startup">Required for backend startup</h3>
+
+<pre><code class="language-env">MONGO_URL="mongodb://localhost:27017"
+DB_NAME="ides_tracker_db"
+JWT_SECRET="&lt;strong-random-secret&gt;"
+FRONTEND_URL="http://localhost:3000"
+</code></pre>
+
+<h3 id="optional-integrations">Optional integrations</h3>
+
+<pre><code class="language-env">MAILGUN_API_KEY="&lt;your-mailgun-api-key&gt;"
+MAILGUN_DOMAIN="&lt;your-mailgun-domain&gt;"
+MAILGUN_FROM="Illinois UI Tracker &lt;noreply@yourdomain.com&gt;"
+TWILIO_ACCOUNT_SID="&lt;your-twilio-sid&gt;"
+TWILIO_AUTH_TOKEN="&lt;your-twilio-auth-token&gt;"
+TWILIO_FROM_NUMBER="+12345678900"
+</code></pre>
+
+<h3 id="production-hardening-all-optional">Production hardening (all optional)</h3>
+
+<pre><code class="language-env"># Error tracking — leave blank to disable Sentry
+SENTRY_DSN=""
+SENTRY_ENVIRONMENT="production"
+# Per-IP auth rate limits (set RATE_LIMIT_ENABLED=false for integration tests)
+RATE_LIMIT_ENABLED="true"
+RATE_LIMIT_STORAGE_URI=""   # e.g. redis://... to share limits across workers
+# Send HSTS header (only behind TLS)
+ENABLE_HSTS="true"
+</code></pre>
+
+<h3 id="development-helper-flags">Development helper flags</h3>
+
+<pre><code class="language-env">ENABLE_DEMO_USER="true"
+ADMIN_EMAIL=""
+ADMIN_PASSWORD=""
+</code></pre>
+
+<blockquote>
+  <p>Security notes</p>
+  <ul>
+    <li><code class="language-plaintext highlighter-rouge">JWT_SECRET</code> is required and has no fallback in production.</li>
+    <li><code class="language-plaintext highlighter-rouge">ADMIN_EMAIL</code> / <code class="language-plaintext highlighter-rouge">ADMIN_PASSWORD</code> are only created when explicitly configured.</li>
+    <li>Demo seeding is disabled unless <code class="language-plaintext highlighter-rouge">ENABLE_DEMO_USER=true</code>.</li>
+  </ul>
+</blockquote>
+
+<h2 id="local-development-env-example">Local development .env example</h2>
+
+<pre><code class="language-env">MONGO_URL="mongodb://localhost:27017"
+DB_NAME="ides_tracker_db"
+JWT_SECRET="dev-secret-change-me"
+FRONTEND_URL="http://localhost:3000"
+MAILGUN_API_KEY=""
+MAILGUN_DOMAIN=""
+MAILGUN_FROM=""
+TWILIO_ACCOUNT_SID=""
+TWILIO_AUTH_TOKEN=""
+TWILIO_FROM_NUMBER=""
+ENABLE_DEMO_USER="true"
+ADMIN_EMAIL=""
+ADMIN_PASSWORD=""
+</code></pre>
+
+<h2 id="running-the-app">Running the app</h2>
+
+<h3 id="backend">Backend</h3>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">cd </span>APP/backend
+.venv<span class="se">\S</span>cripts<span class="se">\a</span>ctivate    <span class="c"># Windows</span>
+uvicorn server:app <span class="nt">--reload</span> <span class="nt">--port</span> 8001
+</code></pre></div></div>
+
+<h3 id="frontend">Frontend</h3>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">cd </span>APP/frontend
+yarn start
+</code></pre></div></div>
+
+<h2 id="deployment">Deployment</h2>
+
+<p>For production, run the backend without <code class="language-plaintext highlighter-rouge">--reload</code> and point it at a production MongoDB instance.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">cd </span>APP/backend
+.venv<span class="se">\S</span>cripts<span class="se">\a</span>ctivate    <span class="c"># Windows</span>
+uvicorn server:app <span class="nt">--host</span> 0.0.0.0 <span class="nt">--port</span> 8001 <span class="nt">--workers</span> 1
+</code></pre></div></div>
+
+<blockquote>
+  <p>Use a single worker for now: the reminder scheduler (APScheduler) runs
+in-process, so multiple workers would fire each cron job more than once.
+Splitting the scheduler into its own worker is a planned follow-up.</p>
+</blockquote>
+
+<p>Set <code class="language-plaintext highlighter-rouge">CORS_ORIGINS</code> explicitly in <code class="language-plaintext highlighter-rouge">APP/backend/.env</code> for your frontend domain:</p>
+
+<pre><code class="language-env">CORS_ORIGINS="https://yourdomain.com"
+</code></pre>
+
+<h3 id="docker-local-full-stack">Docker (local full stack)</h3>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>docker compose up <span class="nt">--build</span>
+</code></pre></div></div>
+
+<p>This starts MongoDB and the backend (on <code class="language-plaintext highlighter-rouge">:8001</code>). Run the React frontend
+separately with <code class="language-plaintext highlighter-rouge">yarn start</code>, or deploy it to Vercel.</p>
+
+<h3 id="health-checks">Health checks</h3>
+
+<p>The backend exposes probes for load balancers / uptime monitors (outside the
+<code class="language-plaintext highlighter-rouge">/api</code> prefix):</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">GET /health/live</code> — process is up</li>
+  <li><code class="language-plaintext highlighter-rouge">GET /health/ready</code> — dependencies reachable (pings MongoDB; <code class="language-plaintext highlighter-rouge">503</code> if not)</li>
+</ul>
+
+<h3 id="hosted-deploy">Hosted deploy</h3>
+
+<p>See <a href="/job-tracker/docs/DEPLOYMENT.html"><code class="language-plaintext highlighter-rouge">docs/DEPLOYMENT.md</code></a> for the full MongoDB Atlas +
+staging/production runbook. In short:</p>
+
+<ul>
+  <li><strong>Frontend → Vercel:</strong> set the project root to <code class="language-plaintext highlighter-rouge">APP/frontend</code>; <code class="language-plaintext highlighter-rouge">vercel.json</code>
+handles the SPA rewrite, security headers, and asset caching. Set
+<code class="language-plaintext highlighter-rouge">REACT_APP_BACKEND_URL</code> (and optional <code class="language-plaintext highlighter-rouge">REACT_APP_SENTRY_DSN</code>) in the project.</li>
+  <li><strong>Backend → Render:</strong> <code class="language-plaintext highlighter-rouge">render.yaml</code> is a Docker Blueprint with a
+<code class="language-plaintext highlighter-rouge">/health/ready</code> health check. Provide <code class="language-plaintext highlighter-rouge">MONGO_URL</code> (e.g. MongoDB Atlas),
+<code class="language-plaintext highlighter-rouge">FRONTEND_URL</code>, and <code class="language-plaintext highlighter-rouge">CORS_ORIGINS</code> as secrets.</li>
+</ul>
+
+<p>For email and SMS in production, configure:</p>
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">MAILGUN_API_KEY</code></li>
+  <li><code class="language-plaintext highlighter-rouge">MAILGUN_DOMAIN</code></li>
+  <li><code class="language-plaintext highlighter-rouge">MAILGUN_FROM</code></li>
+  <li><code class="language-plaintext highlighter-rouge">TWILIO_ACCOUNT_SID</code></li>
+  <li><code class="language-plaintext highlighter-rouge">TWILIO_AUTH_TOKEN</code></li>
+  <li><code class="language-plaintext highlighter-rouge">TWILIO_FROM_NUMBER</code></li>
+</ul>
+
+<p>Protect your production secret values and never commit <code class="language-plaintext highlighter-rouge">.env</code> to source control.</p>
+
+<h2 id="running-tests">Running tests</h2>
+
+<h3 id="backend-tests">Backend tests</h3>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">cd </span>APP/backend
+.venv<span class="se">\S</span>cripts<span class="se">\a</span>ctivate
+pip <span class="nb">install</span> <span class="nt">-r</span> requirements-dev.txt
+pytest
+</code></pre></div></div>
+
+<blockquote>
+  <p>The Round 3/4 suites are integration tests that hit a running backend. Start
+that backend with <code class="language-plaintext highlighter-rouge">RATE_LIMIT_ENABLED=false</code> so repeated logins during the
+suite are not throttled by the new auth rate limits.</p>
+</blockquote>
+
+<h3 id="frontend-tests">Frontend tests</h3>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">cd </span>APP/frontend
+yarn <span class="nb">test</span>
+</code></pre></div></div>
+
+<h2 id="project-structure">Project structure</h2>
+
+<div class="language-text highlighter-rouge"><div class="highlight"><pre class="highlight"><code>job-tracker/
+├── APP/
+│   ├── backend/
+│   │   ├── assets/
+│   │   ├── tests/
+│   │   ├── requirements.txt
+│   │   ├── requirements-dev.txt
+│   │   ├── server.py
+│   │   └── .env
+│   ├── frontend/
+│   │   ├── public/
+│   │   ├── src/
+│   │   ├── package.json
+│   │   └── README.md
+│   └── memory/
+├── design_guidelines.json
+├── requirements.txt
+└── README.md
+</code></pre></div></div>
+
+<h2 id="features">Features</h2>
+
+<ul>
+  <li>User registration, login, and JWT authentication</li>
+  <li>Claimant profile management</li>
+  <li>Benefit week tracking and work-search contact logging</li>
+  <li>CSV import/export for contacts</li>
+  <li>Screenshot OCR import via AI vision</li>
+  <li>PDF report generation for benefit-week reports</li>
+  <li>Dashboard summaries and trend analytics</li>
+  <li>Admin-only invite, user, and integration management</li>
+  <li>Mailgun webhook processing with signature verification</li>
+</ul>
+
+<h2 id="notes">Notes</h2>
+
+<ul>
+  <li>The backend includes an admin guard for <code class="language-plaintext highlighter-rouge">/api/admin/*</code> routes.</li>
+  <li>Mailgun webhook requests are verified before updating reminder settings.</li>
+  <li>CORS origins are configurable via <code class="language-plaintext highlighter-rouge">CORS_ORIGINS</code> in <code class="language-plaintext highlighter-rouge">APP/backend/.env</code>.</li>
+</ul>
+
+<h2 id="license">License</h2>
+
+<p>This project is available under the MIT License.</p>
+
+<p>Add screenshots or a short demo GIF here once the interface is ready.</p>
+
+<div class="language-md highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">![</span><span class="nv">Dashboard screenshot</span><span class="p">](</span><span class="sx">path/to/screenshot.png</span><span class="p">)</span>
+</code></pre></div></div>
+
+<h2 id="roadmap">Roadmap</h2>
+
+<ul>
+  <li>Add authentication.</li>
+  <li>Add filtering and search.</li>
+  <li>Add dashboard analytics.</li>
+  <li>Add reminders for follow-ups.</li>
+  <li>Add export/import support.</li>
+</ul>
+
+<h2 id="contributing">Contributing</h2>
+
+<p>Contributions, ideas, and improvements are welcome. Open an issue to discuss changes or submit a pull request when the contribution workflow is ready.</p>
+
+<h2 id="license-1">License</h2>
+
+<p>MIT License</p>
+
+<p>Copyright (c) 2026 Kyle Gagen</p>
+
+<p>Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the “Software”), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:</p>
+
+<p>The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.</p>
+
+<p>THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.</p>
+
+
+
+      
+      <div class="footer border-top border-gray-light mt-5 pt-3 text-right text-gray">
+        This site is open source. <a href="https://github.com/cagedbear83/job-tracker/edit/main/README.md">Improve this page</a>.
+      </div>
+      
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/anchor-js/4.1.0/anchor.min.js" integrity="sha256-lZaRhKri35AyJSypXXs4o6OPFTbTmUoltBbDCbdzegg=" crossorigin="anonymous"></script>
+    <script>anchors.add();</script>
+  </body>
+</html>

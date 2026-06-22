@@ -235,7 +235,7 @@ export default function SmsOptIn() {
               to="/login"
               className="inline-flex items-center gap-2 bg-[#0033A0] text-white font-bold px-6 py-3 hover:bg-[#002880] transition-colors"
             >
-              Log In to Your Account <ArrowRightIcon size={16} weight="bold" />
+              Log In to Your Account <ArrowRight size={16} weight="bold" />
             </Link>
           </div>
         )}

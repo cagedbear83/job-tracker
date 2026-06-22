@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Job Tracker | job-tracker</title>
+<meta name="generator" content="Jekyll v3.10.0" />
+<meta property="og:title" content="Job Tracker" />
+<meta property="og:locale" content="en_US" />
+<link rel="canonical" href="https://cagedbear83.github.io/job-tracker/APP/" />
+<meta property="og:url" content="https://cagedbear83.github.io/job-tracker/APP/" />
+<meta property="og:site_name" content="job-tracker" />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Job Tracker" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebPage","headline":"Job Tracker","url":"https://cagedbear83.github.io/job-tracker/APP/"}</script>
+<!-- End Jekyll SEO tag -->
+
+    <link rel="stylesheet" href="/job-tracker/assets/css/style.css?v=71a6bbf71192800828aa0a8c6928cb2a606e4c08">
+    <!-- start custom head snippets, customize with your own _includes/head-custom.html file -->
+
+<!-- Setup Google Analytics -->
+
+
+
+<!-- You can set your favicon here -->
+<!-- link rel="shortcut icon" type="image/x-icon" href="/job-tracker/favicon.ico" -->
+
+<!-- end custom head snippets -->
+
+  </head>
+  <body>
+    <div class="container-lg px-3 my-5 markdown-body">
+      
+      <h1><a href="https://cagedbear83.github.io/job-tracker/">job-tracker</a></h1>
+      
+
+      <h1 id="job-tracker">Job Tracker</h1>
+
+<p>A simple application for tracking job applications, organizing opportunities, and keeping the search process in one place.</p>
+
+<h2 id="overview">Overview</h2>
+
+<p>Job Tracker is designed to help manage the job search workflow by storing application details, tracking statuses, and keeping related information organized in a single project.</p>
+
+<h2 id="features">Features</h2>
+
+<ul>
+  <li>Track job applications in one place.</li>
+  <li>Organize companies, roles, and application dates.</li>
+  <li>Monitor progress through stages such as applied, interview, offer, or rejected.</li>
+  <li>Keep notes and follow-up details for each opportunity.</li>
+  <li>Reduce reliance on spreadsheets for job search management.</li>
+</ul>
+
+<h2 id="tech-stack">Tech Stack</h2>
+
+<ul>
+  <li><strong>Backend:</strong> FastAPI, Uvicorn, Motor/PyMongo (MongoDB), Pydantic</li>
+  <li><strong>Auth:</strong> PyJWT, bcrypt</li>
+  <li><strong>Scheduling:</strong> APScheduler</li>
+  <li><strong>Integrations:</strong> Mailgun (email, via REST), Twilio (SMS), Google Gemini (screenshot OCR)</li>
+  <li><strong>Reporting:</strong> pypdf (fills the IDES ADJ034F form)</li>
+  <li><strong>Frontend:</strong> React 19, React Router, Tailwind CSS, shadcn/ui, Recharts</li>
+</ul>
+
+<blockquote>
+  <p>The full, pinned dependency list lives in <code class="language-plaintext highlighter-rouge">backend/requirements.txt</code>
+(runtime) and <code class="language-plaintext highlighter-rouge">backend/requirements-dev.txt</code> (tests). It is intentionally
+not duplicated here so the two cannot drift apart.</p>
+</blockquote>
+
+<h2 id="getting-started">Getting Started</h2>
+
+<h3 id="prerequisites">Prerequisites</h3>
+
+<ul>
+  <li>Python</li>
+  <li>Node.js</li>
+  <li>MongoDB</li>
+  <li>npm</li>
+</ul>
+
+<h3 id="installation">Installation</h3>
+
+<p>Step 1. Install Python 3.11+ - make sure to check “Add Python to PATH” during install on Windows. Open your terminal and navigate to your project folder and run the following commands:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>apt update
+<span class="nb">sudo </span>apt <span class="nb">install </span>python3
+python3 <span class="nt">--version</span>
+</code></pre></div></div>
+
+<p>Step 2. Install Node.js (v18 or later) + Yarn. Download Node from nodejs.org, then install Yarn by running in your terminal:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>npm <span class="nb">install</span> <span class="nt">-g</span> yarn
+</code></pre></div></div>
+
+<p>Step 3. For the database, download from mongodb.com/try/download/community - the free Community edition is all you need. Install it and let it run as a service (it’ll start automatically in the background).</p>
+
+<p>Optionally grab MongoDB Compass (a visual GUI for the database) - very helpful for a beginner to see what’s actually stored.</p>
+
+<p>Step 4. Clone the repository. In your terminal run the following command:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>git clone https://github.com/cagedbear83/job-tracker.git
+<span class="nb">cd </span>job-tracker
+</code></pre></div></div>
+
+<p>Step 5. Create the environment. Open your terminal, navigate to your project folder, and run the following command:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Replace ".venv" with any name you prefer for your environment folder</span>
+python <span class="nt">-m</span> venv .venv
+</code></pre></div></div>
+
+<p>Step 6. Create the app running. Open two terminal windows - one for the backend, one for the frontend.</p>
+
+<p>Terminal 1 - Backend:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">cd</span> <span class="s2">"job-tracker/APP/backend"</span>
+pip <span class="nb">install</span> <span class="nt">-r</span> requirements.txt
+uvicorn server:app <span class="nt">--reload</span> <span class="nt">--port</span> 8001
+</code></pre></div></div>
+
+<p>Terminal 2 - Frontend:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">cd</span> <span class="s2">"job-tracker/APP/frontend"</span>
+yarn <span class="nb">install
+</span>yarn start
+</code></pre></div></div>
+
+<h2 id="usage">Usage</h2>
+
+<ol>
+  <li>Create or sign-in to an account.</li>
+  <li>Add a new job application.</li>
+  <li>Update the application status as the process moves forward.</li>
+  <li>Review saved opportunities, notes, and follow-up items.</li>
+  <li>Print or save PDF that adhere to IDES requirements.</li>
+</ol>
+
+<h2 id="project-structure">Project Structure</h2>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>job-tracker/
+├── APP/
+│   ├── backend/
+│   │   ├── assets/
+│   │   ├── tests/
+│   │   ├── requirements.txt
+│   │   ├── requirements-dev.txt
+│   │   └── server.py
+│   └── frontend/
+│       ├── src/
+│       │   └── pages/
+│       ├── components.json
+│       ├── craco.config.js
+│       ├── jsconfig.json
+│       ├── package.json
+│       ├── postcss.config.js
+│       ├── README.md
+│       ├── tailwind.config.js
+│       └── yarn.lock
+├── design_guidelines.json
+└── README.md
+</code></pre></div></div>
+
+<h2 id="screenshots">Screenshots</h2>
+
+<p>Add screenshots or a short demo GIF here once the interface is ready.</p>
+
+<div class="language-md highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">![</span><span class="nv">Dashboard screenshot</span><span class="p">](</span><span class="sx">path/to/screenshot.png</span><span class="p">)</span>
+</code></pre></div></div>
+
+<h2 id="roadmap">Roadmap</h2>
+
+<ul>
+  <li>Add authentication.</li>
+  <li>Add filtering and search.</li>
+  <li>Add dashboard analytics.</li>
+  <li>Add reminders for follow-ups.</li>
+  <li>Add export/import support.</li>
+</ul>
+
+<h2 id="contributing">Contributing</h2>
+
+<p>Contributions, ideas, and improvements are welcome. Open an issue to discuss changes or submit a pull request when the contribution workflow is ready.</p>
+
+<h2 id="license">License</h2>
+
+<p>MIT License</p>
+
+<p>Copyright (c) 2026 Kyle Gagen</p>
+
+<p>Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the “Software”), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:</p>
+
+<p>The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.</p>
+
+<p>THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.</p>
+
+
+      
+      <div class="footer border-top border-gray-light mt-5 pt-3 text-right text-gray">
+        This site is open source. <a href="https://github.com/cagedbear83/job-tracker/edit/main/APP/README.md">Improve this page</a>.
+      </div>
+      
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/anchor-js/4.1.0/anchor.min.js" integrity="sha256-lZaRhKri35AyJSypXXs4o6OPFTbTmUoltBbDCbdzegg=" crossorigin="anonymous"></script>
+    <script>anchors.add();</script>
+  </body>
+</html>

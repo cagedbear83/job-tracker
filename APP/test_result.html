@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>job-tracker</title>
+<meta name="generator" content="Jekyll v3.10.0" />
+<meta property="og:title" content="job-tracker" />
+<meta property="og:locale" content="en_US" />
+<link rel="canonical" href="https://cagedbear83.github.io/job-tracker/APP/test_result.html" />
+<meta property="og:url" content="https://cagedbear83.github.io/job-tracker/APP/test_result.html" />
+<meta property="og:site_name" content="job-tracker" />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="job-tracker" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebPage","headline":"job-tracker","url":"https://cagedbear83.github.io/job-tracker/APP/test_result.html"}</script>
+<!-- End Jekyll SEO tag -->
+
+    <link rel="stylesheet" href="/job-tracker/assets/css/style.css?v=71a6bbf71192800828aa0a8c6928cb2a606e4c08">
+    <!-- start custom head snippets, customize with your own _includes/head-custom.html file -->
+
+<!-- Setup Google Analytics -->
+
+
+
+<!-- You can set your favicon here -->
+<!-- link rel="shortcut icon" type="image/x-icon" href="/job-tracker/favicon.ico" -->
+
+<!-- end custom head snippets -->
+
+  </head>
+  <body>
+    <div class="container-lg px-3 my-5 markdown-body">
+      
+      <h1><a href="https://cagedbear83.github.io/job-tracker/">job-tracker</a></h1>
+      
+
+      <p>#====================================================================================================</p>
+<h1 id="start---testing-protocol---do-not-edit-or-remove-this-section">START - Testing Protocol - DO NOT EDIT OR REMOVE THIS SECTION</h1>
+<p>#====================================================================================================</p>
+
+<h1 id="this-section-contains-critical-testing-instructions-for-both-agents">THIS SECTION CONTAINS CRITICAL TESTING INSTRUCTIONS FOR BOTH AGENTS</h1>
+<h1 id="both-main_agent-and-testing_agent-must-preserve-this-entire-block">BOTH MAIN_AGENT AND TESTING_AGENT MUST PRESERVE THIS ENTIRE BLOCK</h1>
+
+<h1 id="communication-protocol">Communication Protocol:</h1>
+<h1 id="if-the-testing_agent-is-available-main-agent-should-delegate-all-testing-tasks-to-it">If the <code class="language-plaintext highlighter-rouge">testing_agent</code> is available, main agent should delegate all testing tasks to it.</h1>
+<p>#</p>
+<h1 id="you-have-access-to-a-file-called-test_resultmd-this-file-contains-the-complete-testing-state">You have access to a file called <code class="language-plaintext highlighter-rouge">test_result.md</code>. This file contains the complete testing state</h1>
+<h1 id="and-history-and-is-the-primary-means-of-communication-between-main-and-the-testing-agent">and history, and is the primary means of communication between main and the testing agent.</h1>
+<p>#</p>
+<h1 id="main-and-testing-agents-must-follow-this-exact-format-to-maintain-testing-data">Main and testing agents must follow this exact format to maintain testing data.</h1>
+<h1 id="the-testing-data-must-be-entered-in-yaml-format-below-is-the-data-structure">The testing data must be entered in yaml format Below is the data structure:</h1>
+<p>#</p>
+<h2 id="user_problem_statement-problem_statement">user_problem_statement: {problem_statement}</h2>
+<h2 id="backend">backend:</h2>
+<h2 id="--task-task-name">- task: “Task name”</h2>
+<h2 id="implemented-true">implemented: true</h2>
+<h2 id="working-true---or-false-or-na">working: true  # or false or “NA”</h2>
+<h2 id="file-file_pathpy">file: “file_path.py”</h2>
+<h2 id="stuck_count-0">stuck_count: 0</h2>
+<h2 id="priority-high---or-medium-or-low">priority: “high”  # or “medium” or “low”</h2>
+<h2 id="needs_retesting-false">needs_retesting: false</h2>
+<h2 id="status_history">status_history:</h2>
+<h2 id="-working-true---or-false-or-na">-working: true  # or false or “NA”</h2>
+<h2 id="-agent-main---or-testing-or-user">-agent: “main”  # or “testing” or “user”</h2>
+<h2 id="-comment-detailed-comment-about-status">-comment: “Detailed comment about status”</h2>
+<p>##</p>
+<h2 id="frontend">frontend:</h2>
+<h2 id="--task-task-name-1">- task: “Task name”</h2>
+<h2 id="implemented-true-1">implemented: true</h2>
+<h2 id="working-true---or-false-or-na-1">working: true  # or false or “NA”</h2>
+<h2 id="file-file_pathjs">file: “file_path.js”</h2>
+<h2 id="stuck_count-0-1">stuck_count: 0</h2>
+<h2 id="priority-high---or-medium-or-low-1">priority: “high”  # or “medium” or “low”</h2>
+<h2 id="needs_retesting-false-1">needs_retesting: false</h2>
+<h2 id="status_history-1">status_history:</h2>
+<h2 id="-working-true---or-false-or-na-1">-working: true  # or false or “NA”</h2>
+<h2 id="-agent-main---or-testing-or-user-1">-agent: “main”  # or “testing” or “user”</h2>
+<h2 id="-comment-detailed-comment-about-status-1">-comment: “Detailed comment about status”</h2>
+<p>##</p>
+<h2 id="metadata">metadata:</h2>
+<h2 id="created_by-main_agent">created_by: “main_agent”</h2>
+<h2 id="version-10">version: “1.0”</h2>
+<h2 id="test_sequence-0">test_sequence: 0</h2>
+<h2 id="run_ui-false">run_ui: false</h2>
+<p>##</p>
+<h2 id="test_plan">test_plan:</h2>
+<h2 id="current_focus">current_focus:</h2>
+<h2 id="--task-name-1">- “Task name 1”</h2>
+<h2 id="--task-name-2">- “Task name 2”</h2>
+<h2 id="stuck_tasks">stuck_tasks:</h2>
+<h2 id="--task-name-with-persistent-issues">- “Task name with persistent issues”</h2>
+<h2 id="test_all-false">test_all: false</h2>
+<h2 id="test_priority-high_first---or-sequential-or-stuck_first">test_priority: “high_first”  # or “sequential” or “stuck_first”</h2>
+<p>##</p>
+<h2 id="agent_communication">agent_communication:</h2>
+<h2 id="-agent-main---or-testing-or-user-2">-agent: “main”  # or “testing” or “user”</h2>
+<h2 id="-message-communication-message-between-agents">-message: “Communication message between agents”</h2>
+
+<h1 id="protocol-guidelines-for-main-agent">Protocol Guidelines for Main agent</h1>
+<p>#</p>
+<h1 id="1-update-test-result-file-before-testing">1. Update Test Result File Before Testing:</h1>
+<h1 id="--main-agent-must-always-update-the-test_resultmd-file-before-calling-the-testing-agent">- Main agent must always update the <code class="language-plaintext highlighter-rouge">test_result.md</code> file before calling the testing agent</h1>
+<h1 id="--add-implementation-details-to-the-status_history">- Add implementation details to the status_history</h1>
+<h1 id="--set-needs_retesting-to-true-for-tasks-that-need-testing">- Set <code class="language-plaintext highlighter-rouge">needs_retesting</code> to true for tasks that need testing</h1>
+<h1 id="--update-the-test_plan-section-to-guide-testing-priorities">- Update the <code class="language-plaintext highlighter-rouge">test_plan</code> section to guide testing priorities</h1>
+<h1 id="--add-a-message-to-agent_communication-explaining-what-youve-done">- Add a message to <code class="language-plaintext highlighter-rouge">agent_communication</code> explaining what you’ve done</h1>
+<p>#</p>
+<h1 id="2-incorporate-user-feedback">2. Incorporate User Feedback:</h1>
+<h1 id="--when-a-user-provides-feedback-that-something-is-or-isnt-working-add-this-information-to-the-relevant-tasks-status_history">- When a user provides feedback that something is or isn’t working, add this information to the relevant task’s status_history</h1>
+<h1 id="--update-the-working-status-based-on-user-feedback">- Update the working status based on user feedback</h1>
+<h1 id="--if-a-user-reports-an-issue-with-a-task-that-was-marked-as-working-increment-the-stuck_count">- If a user reports an issue with a task that was marked as working, increment the stuck_count</h1>
+<h1 id="--whenever-user-reports-issue-in-the-app-if-we-have-testing-agent-and-task_resultmd-file-so-find-the-appropriate-task-for-that-and-append-in-status_history-of-that-task-to-contain-the-user-concern-and-problem-as-well">- Whenever user reports issue in the app, if we have testing agent and task_result.md file so find the appropriate task for that and append in status_history of that task to contain the user concern and problem as well</h1>
+<p>#</p>
+<h1 id="3-track-stuck-tasks">3. Track Stuck Tasks:</h1>
+<h1 id="--monitor-which-tasks-have-high-stuck_count-values-or-where-you-are-fixing-same-issue-again-and-again-analyze-that-when-you-read-task_resultmd">- Monitor which tasks have high stuck_count values or where you are fixing same issue again and again, analyze that when you read task_result.md</h1>
+<h1 id="--for-persistent-issues-use-websearch-tool-to-find-solutions">- For persistent issues, use websearch tool to find solutions</h1>
+<h1 id="--pay-special-attention-to-tasks-in-the-stuck_tasks-list">- Pay special attention to tasks in the stuck_tasks list</h1>
+<h1 id="--when-you-fix-an-issue-with-a-stuck-task-dont-reset-the-stuck_count-until-the-testing-agent-confirms-its-working">- When you fix an issue with a stuck task, don’t reset the stuck_count until the testing agent confirms it’s working</h1>
+<p>#</p>
+<h1 id="4-provide-context-to-testing-agent">4. Provide Context to Testing Agent:</h1>
+<h1 id="--when-calling-the-testing-agent-provide-clear-instructions-about">- When calling the testing agent, provide clear instructions about:</h1>
+<h1 id="--which-tasks-need-testing-reference-the-test_plan">- Which tasks need testing (reference the test_plan)</h1>
+<h1 id="--any-authentication-details-or-configuration-needed">- Any authentication details or configuration needed</h1>
+<h1 id="--specific-test-scenarios-to-focus-on">- Specific test scenarios to focus on</h1>
+<h1 id="--any-known-issues-or-edge-cases-to-verify">- Any known issues or edge cases to verify</h1>
+<p>#</p>
+<h1 id="5-call-the-testing-agent-with-specific-instructions-referring-to-test_resultmd">5. Call the testing agent with specific instructions referring to test_result.md</h1>
+<p>#</p>
+<h1 id="important-main-agent-must-always-update-test_resultmd-before-calling-the-testing-agent-as-it-relies-on-this-file-to-understand-what-to-test-next">IMPORTANT: Main agent must ALWAYS update test_result.md BEFORE calling the testing agent, as it relies on this file to understand what to test next.</h1>
+
+<p>#====================================================================================================</p>
+<h1 id="end---testing-protocol---do-not-edit-or-remove-this-section">END - Testing Protocol - DO NOT EDIT OR REMOVE THIS SECTION</h1>
+<p>#====================================================================================================</p>
+
+<p>#====================================================================================================</p>
+<h1 id="testing-data---main-agent-and-testing-sub-agent-both-should-log-testing-data-below-this-section">Testing Data - Main Agent and testing sub agent both should log testing data below this section</h1>
+<p>#====================================================================================================</p>
+
+
+      
+      <div class="footer border-top border-gray-light mt-5 pt-3 text-right text-gray">
+        This site is open source. <a href="https://github.com/cagedbear83/job-tracker/edit/main/APP/test_result.md">Improve this page</a>.
+      </div>
+      
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/anchor-js/4.1.0/anchor.min.js" integrity="sha256-lZaRhKri35AyJSypXXs4o6OPFTbTmUoltBbDCbdzegg=" crossorigin="anonymous"></script>
+    <script>anchors.add();</script>
+  </body>
+</html>

@@ -85,7 +85,7 @@ export default function Landing() {
                   data-testid="hero-cta-signup"
                 >
                   Create free account{" "}
-                  <ArrowRight size={16} weight="bold" className="ml-2" />
+                  <ArrowRightIcon size={16} weight="bold" className="ml-2" />
                 </Button>
               </Link>
               <Link to="/login">

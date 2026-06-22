@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>PRD — Illinois UI Job Search Tracker | job-tracker</title>
+<meta name="generator" content="Jekyll v3.10.0" />
+<meta property="og:title" content="PRD — Illinois UI Job Search Tracker" />
+<meta property="og:locale" content="en_US" />
+<link rel="canonical" href="https://cagedbear83.github.io/job-tracker/APP/memory/PRD.html" />
+<meta property="og:url" content="https://cagedbear83.github.io/job-tracker/APP/memory/PRD.html" />
+<meta property="og:site_name" content="job-tracker" />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="PRD — Illinois UI Job Search Tracker" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebPage","headline":"PRD — Illinois UI Job Search Tracker","url":"https://cagedbear83.github.io/job-tracker/APP/memory/PRD.html"}</script>
+<!-- End Jekyll SEO tag -->
+
+    <link rel="stylesheet" href="/job-tracker/assets/css/style.css?v=71a6bbf71192800828aa0a8c6928cb2a606e4c08">
+    <!-- start custom head snippets, customize with your own _includes/head-custom.html file -->
+
+<!-- Setup Google Analytics -->
+
+
+
+<!-- You can set your favicon here -->
+<!-- link rel="shortcut icon" type="image/x-icon" href="/job-tracker/favicon.ico" -->
+
+<!-- end custom head snippets -->
+
+  </head>
+  <body>
+    <div class="container-lg px-3 my-5 markdown-body">
+      
+      <h1><a href="https://cagedbear83.github.io/job-tracker/">job-tracker</a></h1>
+      
+
+      <h1 id="prd--illinois-ui-job-search-tracker">PRD — Illinois UI Job Search Tracker</h1>
+
+<h2 id="original-problem-statement">Original Problem Statement</h2>
+<p>Build a job search tracker app aligned with Illinois Unemployment Insurance laws.
+Needs: Claimant Profile, Benefit Week, Work Search Contact (all editable/deletable),
+audit log of user interactions, CSV + screenshot import (Indeed etc.), and a
+Benefit-Week PDF report mirroring the IDES Work Search form (ADJ034F).</p>
+
+<h2 id="user-choices">User Choices</h2>
+<ul>
+  <li>Auth: JWT custom auth (bcrypt)</li>
+  <li>Screenshot import: Gemini 2.5 Pro via Emergent LLM Key</li>
+  <li>Report: PDF download (ADJ034F-style)</li>
+  <li>IL rules: ≥3 contacts/week, Sun–Sat</li>
+  <li>Email reminders: Mailgun (Sun/Wed/Fri/Sat 9 AM CT) on verified domain</li>
+  <li>SMS reminders: Twilio (opt-in per claimant)</li>
+  <li>Public landing + invite-code signup (case-worker driven growth)</li>
+</ul>
+
+<h2 id="architecture">Architecture</h2>
+<ul>
+  <li><strong>Backend</strong>: FastAPI single-file <code class="language-plaintext highlighter-rouge">/app/backend/server.py</code>, MongoDB via motor.
+All routes under <code class="language-plaintext highlighter-rouge">/api</code>. JWT Bearer auth. APScheduler runs cron jobs in
+America/Chicago. Mailgun + Twilio integrations with graceful fallback.</li>
+  <li><strong>Frontend</strong>: React + react-router + Tailwind + shadcn/ui + Phosphor icons + Recharts.
+Auth context tracks claimants + activeClaimantId. Header claimant switcher.
+Mobile drawer via Sheet.</li>
+  <li><strong>PDF</strong>: reportlab platypus, mirrors IDES ADJ034F columns.</li>
+  <li><strong>AI Vision</strong>: emergentintegrations LlmChat (gemini-2.5-pro).</li>
+  <li><strong>Email</strong>: Mailgun HTTP API. Verified domain <code class="language-plaintext highlighter-rouge">kmg123enterprises.com</code> + sandbox fallback.</li>
+  <li><strong>SMS</strong>: Twilio REST client, E.164 format, send-on-success audit logging.</li>
+</ul>
+
+<h2 id="personas">Personas</h2>
+<ul>
+  <li><strong>Claimant</strong> — manages one or many claimant profiles, weeks, contacts.</li>
+  <li><strong>Admin / Case-Worker</strong> — read-only across users, sends invites, monitors integrations.</li>
+</ul>
+
+<h2 id="implemented-rounds">Implemented Rounds</h2>
+
+<h3 id="round-1--core-mvp">Round 1 — Core MVP</h3>
+<ul>
+  <li>JWT auth, single Claimant Profile upsert, Benefit Weeks CRUD (Sun–Sat),
+Work Search Contacts CRUD, audit log, CSV import, screenshot OCR (Gemini),
+PDF report (ADJ034F), dashboard, demo seed.</li>
+</ul>
+
+<h3 id="round-2--reminders--p1p2">Round 2 — Reminders + P1/P2</h3>
+<ul>
+  <li>Multi-claimant per user + active-claimant scoping everywhere</li>
+  <li>Admin / case-worker role with <code class="language-plaintext highlighter-rouge">/admin</code> UI</li>
+  <li>CSV export of contacts (per week or all)</li>
+  <li>Password reset flow (Mailgun token email)</li>
+  <li>Audit edit-diff: <code class="language-plaintext highlighter-rouge">field: old → new</code> on UPDATEs</li>
+  <li>Calendar month-grid view with compliance chips</li>
+  <li>Email reminders (4 cron jobs) + per-claimant opt-in + 4 test buttons</li>
+</ul>
+
+<h3 id="round-3--domain--sms--invites--charts--polish">Round 3 — Domain + SMS + Invites + Charts + Polish</h3>
+<ul>
+  <li>Verified Mailgun domain <code class="language-plaintext highlighter-rouge">kmg123enterprises.com</code> as active sender with sandbox fallback</li>
+  <li>Twilio SMS reminders (opt-in per claimant, E.164 phone)</li>
+  <li>Invite-code flow: admin creates → email link → claimant signs up with pre-attached claimant</li>
+  <li>Public landing page at <code class="language-plaintext highlighter-rouge">/</code> with hero, feature grid, case-worker workflow</li>
+  <li>Mobile drawer nav via Sheet</li>
+  <li>Audit log search + action + entity filters</li>
+  <li>Dashboard compliance-trend BarChart (Recharts)</li>
+  <li>BSON datetime + TTL indexes on password_resets and invites</li>
+  <li>Admin Console split into 3 tabs (Users, Invites, Integrations) with DNS instructions</li>
+</ul>
+
+<h2 id="testing">Testing</h2>
+<ul>
+  <li>Round 1: 16/16 backend pytest</li>
+  <li>Round 2: 17/17 backend pytest</li>
+  <li>Round 3: 16/16 backend pytest</li>
+  <li><strong>Total: 49/49 backend tests passing</strong> + full frontend e2e verified</li>
+</ul>
+
+<h2 id="backlog">Backlog</h2>
+<ul>
+  <li>P1: Split <code class="language-plaintext highlighter-rouge">server.py</code> into routers (currently ~1370 lines)</li>
+  <li>P1: Escape regex special chars in audit <code class="language-plaintext highlighter-rouge">?q=</code> parameter (low priority — auth-scoped)</li>
+  <li>P1: SMS rate limiting / abuse protection</li>
+  <li>P2: Twilio phone-number verification UX (OTP confirm before enabling SMS)</li>
+  <li>P2: Search by Twilio phone in claimant table</li>
+  <li>P2: Webhooks for Mailgun bounces (auto-disable invalid emails)</li>
+  <li>P2: Bulk invite (CSV upload of emails)</li>
+  <li>P2: Dashboard timeline filter (last 4/12/52 weeks)</li>
+  <li>P3: Native mobile app</li>
+</ul>
+
+<h2 id="next-steps">Next Steps</h2>
+<ol>
+  <li>Wait for kmg123enterprises.com DNS to fully propagate; verify Mailgun domain status.</li>
+  <li>In Twilio console, verify recipient phone numbers (trial limitation).</li>
+  <li>Split <code class="language-plaintext highlighter-rouge">server.py</code> into router modules for maintainability.</li>
+</ol>
+
+
+      
+      <div class="footer border-top border-gray-light mt-5 pt-3 text-right text-gray">
+        This site is open source. <a href="https://github.com/cagedbear83/job-tracker/edit/main/APP/memory/PRD.md">Improve this page</a>.
+      </div>
+      
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/anchor-js/4.1.0/anchor.min.js" integrity="sha256-lZaRhKri35AyJSypXXs4o6OPFTbTmUoltBbDCbdzegg=" crossorigin="anonymous"></script>
+    <script>anchors.add();</script>
+  </body>
+</html>
