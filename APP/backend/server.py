@@ -1155,26 +1155,21 @@ async def import_screenshot(
     return {"inserted": len(inserted), "contacts": inserted, "raw": text[:500]}
 
 
-# ============== Reports (PDF) ==============
 @api.get("/reports/benefit-week/{week_id}")
 async def report_pdf(week_id: str, user=Depends(get_current_user)):
     import io
-
     from pypdf import PdfReader, PdfWriter
 
-    # Load the benefit week
     w = await db.benefit_weeks.find_one({"id": week_id, "user_id": user["id"]})
     if not w:
         raise HTTPException(status_code=404, detail="Week not found")
 
-    # Load all contacts for this week
     contacts = (
         await db.contacts.find({"benefit_week_id": week_id})
         .sort("contact_date", 1)
         .to_list(30)
     )
 
-    # Load claimant info
     claimant = await db.profiles.find_one(
         {"id": w.get("claimant_id"), "user_id": user["id"]}
     )
@@ -1183,49 +1178,46 @@ async def report_pdf(week_id: str, user=Depends(get_current_user)):
     )
     claimant_id = claimant.get("claimant_id", "") if claimant else ""
 
-    # Split name into first / last / MI
     name_parts = claimant_name.strip().split()
     first = name_parts[0] if len(name_parts) >= 1 else ""
     last = name_parts[-1] if len(name_parts) >= 2 else ""
     mi = name_parts[1][0] if len(name_parts) >= 3 else ""
 
-    # Week ending date (Saturday of the benefit week)
     week_end = w.get("week_end", "")
+    if hasattr(week_end, "strftime"):
+        week_end = week_end.strftime("%m/%d/%Y")
 
-    # Map contacts to form field slots (form holds 30 max across 6 sections of 5)
+    # ── Exact field names from the PDF ──────────────────────────────────────
     field_values = {
-        "frstname": first,
-        "lstname": last,
-        "mi": mi,
-        "idssn": claimant_id,
+        "Last Name": last,
+        "First Name": first,
+        "Middle Initial": mi,
+        "ID or SSN": claimant_id,
     }
 
-    # Fill week-end date into whichever sections we need
-    sections_needed = max(1, -(-len(contacts) // 5))  # ceiling division
-    for s in range(1, sections_needed + 1):
-        field_values[f"weekend{s}"] = week_end
+    # The PDF has 5 week-sections; we only fill Week Ending 1 (one week per report)
+    field_values["Week Ending 1"] = week_end
 
-    # Fill contact rows
-    for i, c in enumerate(contacts[:30], start=1):
-        employer = c.get("employer_name", "")
-        address = c.get("employer_address", "")
-        person = c.get("person_contacted", "")
-        method = c.get("contact_method", "")
-        work_type = c.get("type_of_work", "")
-        result = c.get("result", "")
+    # Row letters a-e, one section (week 1), up to 5 contacts
+    row_letters = ["a", "b", "c", "d", "e"]
+    for i, c in enumerate(contacts[:5]):
+        row = row_letters[i]
         cdate = c.get("contact_date", "")
         if hasattr(cdate, "strftime"):
             cdate = cdate.strftime("%m/%d/%Y")
 
-        field_values[f"date{i}"] = str(cdate)
-        field_values[f"name{i}"] = employer
-        field_values[f"address{i}"] = address
-        field_values[f"personcontact{i}"] = person
-        field_values[f"methodcontact{i}"] = method
-        field_values[f"typework{i}"] = work_type
-        field_values[f"result{i}"] = result
+        employer = c.get("employer_name", "")
+        address = c.get("employer_address", "")
+        name_addr = f"{employer}\n{address}".strip() if address else employer
 
-    # Fill the state PDF form
+        field_values[f"Contact Date 1{row}"]     = str(cdate)
+        field_values[f"Name and Address 1{row}"] = name_addr
+        field_values[f"Person Contacted 1{row}"] = c.get("person_contacted", "")
+        field_values[f"Method of Contact 1{row}"]= c.get("contact_method", "")
+        field_values[f"Type of Work 1{row}"]     = c.get("type_of_work", "")
+        field_values[f"Results 1{row}"]          = c.get("result", "")
+
+    # ── Fill the form ────────────────────────────────────────────────────────
     try:
         template_path = ROOT_DIR / "assets" / "ADJ034F.pdf"
         if not template_path.exists():
@@ -1238,7 +1230,6 @@ async def report_pdf(week_id: str, user=Depends(get_current_user)):
         writer = PdfWriter()
         writer.append(reader)
         writer.update_page_form_field_values(writer.pages[0], field_values)
-        writer.update_page_form_field_values(writer.pages[1], field_values)
 
         buf = io.BytesIO()
         writer.write(buf)
@@ -1255,7 +1246,6 @@ async def report_pdf(week_id: str, user=Depends(get_current_user)):
     except Exception as e:
         logging.error(f"PDF generation failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to generate report: {e}")
-
 
 # ============== Dashboard summary ==============
 @api.get("/dashboard")
