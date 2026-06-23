@@ -1252,12 +1252,12 @@ for i, c in enumerate(contacts[:10]):
             buf,
             media_type="application/pdf",
             headers={"Content-Disposition": f"attachment; filename={filename}"},
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logging.error(f"PDF generation failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to generate report: {e}")
+            )
+        except HTTPException:
+            raise
+        except Exception as e:
+            logging.error(f"PDF generation failed: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Failed to generate report: {e}")
 
 
 # ============== Dashboard summary ==============
