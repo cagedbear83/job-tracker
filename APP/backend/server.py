@@ -1179,44 +1179,53 @@ async def report_pdf(week_id: str, user=Depends(get_current_user)):
     )
     claimant_id = claimant.get("claimant_id", "") if claimant else ""
 
-    name_parts = claimant_name.strip().split()
-    first = name_parts[0] if len(name_parts) >= 1 else ""
-    last = name_parts[-1] if len(name_parts) >= 2 else ""
-    mi = name_parts[1][0] if len(name_parts) >= 3 else ""
+logging.info(f"claimant doc: {claimant}")
+logging.info(f"claimant_name: '{claimant_name}', claimant_id: '{claimant_id}'")
 
-    week_end = w.get("week_end", "")
-    if hasattr(week_end, "strftime"):
-        week_end = week_end.strftime("%m/%d/%Y")
+name_parts = claimant_name.strip().split()
+first = name_parts[0] if len(name_parts) >= 1 else ""
+last = name_parts[-1] if len(name_parts) >= 2 else ""
+mi = name_parts[1][0] if len(name_parts) >= 3 else ""
 
-    # == Exact field names from the PDF ====================
-    field_values = {
-        "Last Name": last,
-        "First Name": first,
-        "Middle Initial": mi,
-        "ID or SSN": claimant_id,
-    }
+week_end = w.get("week_end", "")
+if hasattr(week_end, "strftime"):
+    week_end = week_end.strftime("%m/%d/%Y")
 
-    # The PDF has 5 week-sections; we only fill Week Ending 1 (one week per report)
-    field_values["Week Ending 1"] = week_end
+field_values = {
+    "Last Name": last,
+    "First Name": first,
+    "Middle Initial": mi,
+    "ID or SSN": claimant_id,
+}
 
-    # Row letters a-e, one section (week 1), up to 5 contacts
-    row_letters = ["a", "b", "c", "d", "e"]
-    for i, c in enumerate(contacts[:5]):
-        row = row_letters[i]
-        cdate = c.get("contact_date", "")
-        if hasattr(cdate, "strftime"):
-            cdate = cdate.strftime("%m/%d/%Y")
+row_letters = ["a", "b", "c", "d", "e"]
 
-        employer = c.get("employer_name", "")
-        address = c.get("employer_address", "")
-        name_addr = f"{employer}\n{address}".strip() if address else employer
+for i, c in enumerate(contacts[:10]):
+    section = (i // 5) + 1      # 1 for contacts 0-4, 2 for contacts 5-9
+    row = row_letters[i % 5]    # a, b, c, d, e cycling
 
-        field_values[f"Contact Date 1{row}"]     = str(cdate)
-        field_values[f"Name and Address 1{row}"] = name_addr
-        field_values[f"Person Contacted 1{row}"] = c.get("person_contacted", "")
-        field_values[f"Method of Contact 1{row}"]= c.get("contact_method", "")
-        field_values[f"Type of Work 1{row}"]     = c.get("type_of_work", "")
-        field_values[f"Results 1{row}"]          = c.get("result", "")
+    cdate = c.get("contact_date", "")
+    if hasattr(cdate, "strftime"):
+        cdate = cdate.strftime("%m/%d")  # mm/dd only, no year
+    else:
+        # If it's a string like "2025-06-15", parse and reformat
+        try:
+            from datetime import datetime
+            cdate = datetime.strptime(str(cdate)[:10], "%Y-%m-%d").strftime("%m/%d")
+        except Exception:
+            cdate = str(cdate)
+
+    employer = c.get("employer_name", "")
+    address = c.get("employer_address", "")
+    name_addr = f"{employer}, {address}".strip(", ") if address else employer
+
+    field_values[f"Week Ending {section}"] = week_end
+    field_values[f"Contact Date {section}{row}"]      = str(cdate)
+    field_values[f"Name and Address {section}{row}"]  = name_addr
+    field_values[f"Person Contacted {section}{row}"]  = c.get("person_contacted", "")
+    field_values[f"Method of Contact {section}{row}"] = c.get("contact_method", "")
+    field_values[f"Type of Work {section}{row}"]      = c.get("type_of_work", "")
+    field_values[f"Results {section}{row}"]           = c.get("result", "")
 
     # == Fill the form ===============================
     try:
@@ -1231,6 +1240,7 @@ async def report_pdf(week_id: str, user=Depends(get_current_user)):
         writer = PdfWriter()
         writer.append(reader)
         writer.update_page_form_field_values(writer.pages[0], field_values)
+        writer.update_page_form_field_values(writer.pages[1], field_values)
         writer.set_need_appearances_writer()
 
         buf = io.BytesIO()
