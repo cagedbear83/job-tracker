@@ -1231,6 +1231,7 @@ async def report_pdf(week_id: str, user=Depends(get_current_user)):
         writer = PdfWriter()
         writer.append(reader)
         writer.update_page_form_field_values(writer.pages[0], field_values)
+        writer.set_need_appearances_writer()
 
         buf = io.BytesIO()
         writer.write(buf)
