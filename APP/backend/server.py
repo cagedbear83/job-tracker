@@ -1239,8 +1239,8 @@ for i, c in enumerate(contacts[:10]):
         reader = PdfReader(str(template_path))
         writer = PdfWriter()
         writer.append(reader)
-        writer.update_page_form_field_values(writer.pages[0], field_values)
-        writer.update_page_form_field_values(writer.pages[1], field_values)
+        writer.update_page_form_field_values(writer.pages[0], field_values, autogenerate=True)
+        writer.update_page_form_field_values(writer.pages[1], field_values, autogenerate=True)
         writer.set_need_appearances_writer()
 
         buf = io.BytesIO()
