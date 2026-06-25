@@ -58,7 +58,6 @@ except ImportError:  # pragma: no cover
     _SLOWAPI_AVAILABLE = False
 
 # ---- Error tracking (Sentry) ----
-# No-op unless SENTRY_DSN is set, so local/dev runs are unaffected.
 SENTRY_DSN = os.environ.get("SENTRY_DSN", "").strip()
 if SENTRY_DSN and sentry_sdk is not None:
     try:
@@ -70,26 +69,16 @@ if SENTRY_DSN and sentry_sdk is not None:
             ),
             send_default_pii=False,
         )
-    except Exception as e:  # pragma: no cover - never let monitoring break boot
+    except Exception as e:  # pragma: no cover
         logging.warning(f"Sentry init failed: {e}")
 
 # ---- DB ----
-# Single-worker, long-running OLTP API (short CRUD queries) connecting to a
-# MongoDB Atlas replica set. The client is created once at import and reused
-# (correct for a long-running process — not a serverless handler). Values are
-# conservative for small Atlas tiers / a low-traffic launch and are all
-# overridable via env so production can be tuned without code changes.
 mongo_url = os.environ["MONGO_URL"]
 client = AsyncIOMotorClient(
     mongo_url,
     appname=os.environ.get("MONGO_APP_NAME", "ides-job-tracker"),
-    # One worker + low concurrency: a small ceiling is plenty and keeps the
-    # connection footprint tiny on shared/free Atlas tiers. Raise as traffic grows.
     maxPoolSize=int(os.environ.get("MONGO_MAX_POOL_SIZE", "20")),
-    # No pre-warmed idle connections by default (each costs ~1 MB on the server).
     minPoolSize=int(os.environ.get("MONGO_MIN_POOL_SIZE", "0")),
-    # Fail fast on topology/connection problems so /health/ready returns 503
-    # promptly instead of hanging on the ~30s default.
     serverSelectionTimeoutMS=int(
         os.environ.get("MONGO_SERVER_SELECTION_TIMEOUT_MS", "5000")
     ),
@@ -102,8 +91,6 @@ app = FastAPI(title="Illinois UI Job Search Tracker")
 api = APIRouter(prefix="/api")
 
 # ---- Rate limiting ----
-# Per-IP limits on abuse-prone auth endpoints. In-memory by default; set
-# RATE_LIMIT_STORAGE_URI (e.g. a Redis URL) for a shared store across workers.
 RATE_LIMIT_ENABLED = os.environ.get("RATE_LIMIT_ENABLED", "true").lower() in (
     "1",
     "true",
@@ -114,17 +101,35 @@ RATE_LIMIT_REGISTER = os.environ.get("RATE_LIMIT_REGISTER", "3/hour")
 RATE_LIMIT_FORGOT = os.environ.get("RATE_LIMIT_FORGOT", "3/hour")
 RATE_LIMIT_REMINDER_TEST = os.environ.get("RATE_LIMIT_REMINDER_TEST", "10/hour")
 
+# ---- Account lockout settings ----
+# After this many consecutive failed login attempts, the account is locked
+# for LOCKOUT_DURATION_MINUTES. Both values are overridable via env.
+LOGIN_MAX_ATTEMPTS = int(os.environ.get("LOGIN_MAX_ATTEMPTS", "5"))
+LOCKOUT_DURATION_MINUTES = int(os.environ.get("LOCKOUT_DURATION_MINUTES", "15"))
+
+# ---- Password policy ----
+PASSWORD_MIN_LENGTH = int(os.environ.get("PASSWORD_MIN_LENGTH", "12"))
+PASSWORD_MAX_LENGTH = int(os.environ.get("PASSWORD_MAX_LENGTH", "64"))
+
+# Commonly breached passwords — mirrors the frontend blocklist.
+# Extend this set or replace with a full file-based blocklist as traffic grows.
+COMMON_PASSWORDS = {
+    "password", "123456", "12345678", "1234567890", "password1", "password123",
+    "iloveyou", "admin", "welcome", "monkey", "dragon", "master", "letmein",
+    "sunshine", "princess", "football", "shadow", "superman", "michael",
+    "qwerty", "qwerty123", "abc123", "pass", "test", "hello", "welcome1",
+    "passw0rd", "pa$$word", "p@ssword", "p@$$w0rd", "trustno1", "baseball",
+}
+
 # ---- Import upload limits ----
-# Unbounded uploads let any authenticated user exhaust memory/DB storage
-# (CSV) or rack up Gemini API cost (screenshot OCR). Keep generous but finite
-# caps; override via env if a deployment legitimately needs more headroom.
 MAX_CSV_IMPORT_BYTES = int(os.environ.get("MAX_CSV_IMPORT_BYTES", 2 * 1024 * 1024))
 MAX_CSV_IMPORT_ROWS = int(os.environ.get("MAX_CSV_IMPORT_ROWS", "500"))
 MAX_SCREENSHOT_IMPORT_BYTES = int(
     os.environ.get("MAX_SCREENSHOT_IMPORT_BYTES", 8 * 1024 * 1024)
 )
 ALLOWED_SCREENSHOT_MIME_TYPES = {"image/png", "image/jpeg", "image/jpg", "image/webp"}
-MAX_SCREENSHOT_PIXELS = 25_000_000  # ~5000x5000; blocks decompression-bomb-style images
+MAX_SCREENSHOT_PIXELS = 25_000_000
+
 if _SLOWAPI_AVAILABLE:
     _storage_uri = os.environ.get("RATE_LIMIT_STORAGE_URI", "").strip() or None
     limiter = Limiter(
@@ -138,7 +143,7 @@ if _SLOWAPI_AVAILABLE:
     def rate_limit(spec: str):
         return limiter.limit(spec)
 
-else:  # pragma: no cover - slowapi missing; limits become no-ops
+else:  # pragma: no cover
 
     def rate_limit(spec: str):
         def _decorator(func):
@@ -154,6 +159,37 @@ if not JWT_SECRET:
     )
 
 
+# ============== Password Validation ==============
+def validate_password_policy(password: str, email: str = "", name: str = "") -> str:
+    """
+    Returns an error message string if the password violates policy,
+    or an empty string if the password is acceptable.
+    Mirrors the frontend getPasswordStrength logic so both layers agree.
+    """
+    if len(password) < PASSWORD_MIN_LENGTH:
+        return f"Password must be at least {PASSWORD_MIN_LENGTH} characters."
+    if len(password) > PASSWORD_MAX_LENGTH:
+        return f"Password must be no more than {PASSWORD_MAX_LENGTH} characters."
+
+    lower = password.lower()
+
+    if lower in COMMON_PASSWORDS:
+        return "That password is too common and has appeared in known data breaches."
+
+    email_local = email.split("@")[0].lower() if email else ""
+    if email_local and len(email_local) > 2 and email_local in lower:
+        return "Password cannot contain your email address."
+
+    name_part = name.lower().replace(" ", "") if name else ""
+    if name_part and len(name_part) > 2 and name_part in lower:
+        return "Password cannot contain your name."
+
+    if "illinoisjobtracker" in lower or "iltracker" in lower:
+        return "Password cannot contain the site name."
+
+    return ""
+
+
 # ============== Models ==============
 class UserPublic(BaseModel):
     id: str
@@ -164,12 +200,12 @@ class UserPublic(BaseModel):
 
 class RegisterIn(BaseModel):
     email: EmailStr
-    password: str = Field(min_length=6)
+    password: str = Field(min_length=12, max_length=64)
     name: str
     first_name: str = ""
     last_name: str = ""
     phone: str = ""
-    dob: Optional[str] = None  # ISO date YYYY-MM-DD
+    dob: Optional[str] = None
     address: str = ""
     city: str = ""
     zip: str = ""
@@ -212,11 +248,7 @@ class Profile(ProfileIn):
     id: str
     user_id: str
     updated_at: datetime
-    # sms_phone/sms_verified are set only by the /sms/verify-otp flow, never
-    # accepted as direct input — otherwise a client could mark any phone
-    # number "verified" and trigger SMS sends to it without proving it
-    # belongs to them. See sms_send_otp / sms_verify_otp.
-    sms_phone: str = ""  # E.164 format e.g. +13125550100
+    sms_phone: str = ""
     sms_verified: bool = False
 
 
@@ -226,7 +258,7 @@ class ForgotPwIn(BaseModel):
 
 class ResetPwIn(BaseModel):
     token: str
-    password: str = Field(min_length=6)
+    password: str = Field(min_length=12, max_length=64)
 
 
 class InviteCreate(BaseModel):
@@ -237,13 +269,13 @@ class InviteCreate(BaseModel):
 
 class InviteRedeem(BaseModel):
     code: str
-    password: str = Field(min_length=6)
+    password: str = Field(min_length=12, max_length=64)
     name: str
 
 
 class BenefitWeekIn(BaseModel):
-    week_start: str  # ISO date YYYY-MM-DD (Sunday)
-    week_end: str  # ISO date (Saturday)
+    week_start: str
+    week_end: str
     notes: str = ""
     certified: bool = False
 
@@ -256,7 +288,7 @@ class BenefitWeek(BenefitWeekIn):
 
 class ContactIn(BaseModel):
     benefit_week_id: str
-    contact_date: str  # ISO date
+    contact_date: str
     employer_name: str
     employer_address: str = ""
     contact_method: Literal[
@@ -298,21 +330,18 @@ def verify_password(p: str, h: str) -> bool:
 
 
 def create_token(user_id: str, email: str) -> str:
-    # Use numeric timestamps for JWT claims
     payload = {
         "sub": user_id,
         "email": email,
         "exp": int((datetime.now(timezone.utc) + timedelta(days=7)).timestamp()),
         "iat": int(datetime.now(timezone.utc).timestamp()),
     }
-    # Prefer PyJWT if available, otherwise use a small HMAC-SHA256 implementation
     try:
         if hasattr(jwt, "encode"):
             return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGO)
     except Exception:
         pass
 
-    # Fallback: construct JWT by hand (HS256)
     import base64
     import hashlib
     import hmac
@@ -339,17 +368,14 @@ async def get_current_user(request: Request) -> dict:
         token = request.cookies.get("access_token")
     if not token:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    # Try PyJWT decode first, otherwise use fallback HMAC validation
     payload = None
     try:
         if hasattr(jwt, "decode"):
             payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
     except Exception as e:
-        # PyJWT raised an error; map to HTTP errors below
         err = e
 
     if payload is None:
-        # Fallback decode: validate HMAC and parse payload
         try:
             import base64
             import hashlib
@@ -378,7 +404,6 @@ async def get_current_user(request: Request) -> dict:
         except Exception:
             raise HTTPException(status_code=401, detail="Invalid token")
 
-    # Verify exp
     try:
         exp = int(payload.get("exp", 0))
         if datetime.now(timezone.utc).timestamp() > exp:
@@ -471,14 +496,12 @@ def send_sms(to_number: str, body: str) -> bool:
         return False
 
 
-# SMS rate limit: minimum minutes between SMS to same phone
 SMS_MIN_INTERVAL_MINUTES = int(os.environ.get("SMS_MIN_INTERVAL_MINUTES", "30"))
 
 
 async def send_sms_rate_limited(
     phone: str, body: str, claimant_id: str = ""
 ) -> tuple[bool, str]:
-    """Returns (sent, reason). Enforces per-phone rate limit via Mongo."""
     if not phone:
         return False, "no phone"
     last = await db.sms_log.find_one({"phone": phone}, sort=[("sent_at", -1)])
@@ -513,10 +536,68 @@ def to_public_user(u: dict) -> UserPublic:
     )
 
 
+# ============== Account Lockout Helpers ==============
+async def _check_account_lockout(email: str):
+    """
+    Raises HTTP 429 if the account is currently locked out.
+    Call this BEFORE verifying the password on login.
+    """
+    rec = await db.login_attempts.find_one({"email": email})
+    if not rec:
+        return
+    locked_until = rec.get("locked_until")
+    if locked_until:
+        if isinstance(locked_until, str):
+            locked_until = datetime.fromisoformat(locked_until)
+        if locked_until.tzinfo is None:
+            locked_until = locked_until.replace(tzinfo=timezone.utc)
+        if datetime.now(timezone.utc) < locked_until:
+            remaining = int((locked_until - datetime.now(timezone.utc)).total_seconds() / 60) + 1
+            raise HTTPException(
+                status_code=429,
+                detail=f"Account temporarily locked due to too many failed login attempts. "
+                       f"Try again in {remaining} minute(s).",
+            )
+        else:
+            # Lockout expired — clear it
+            await db.login_attempts.delete_one({"email": email})
+
+
+async def _record_failed_login(email: str):
+    """
+    Increments the failed attempt counter. Locks the account if the
+    threshold is reached.
+    """
+    now = datetime.now(timezone.utc)
+    rec = await db.login_attempts.find_one({"email": email})
+    attempts = (rec.get("attempts", 0) if rec else 0) + 1
+    update: dict = {"attempts": attempts, "last_attempt": now.isoformat()}
+    if attempts >= LOGIN_MAX_ATTEMPTS:
+        locked_until = now + timedelta(minutes=LOCKOUT_DURATION_MINUTES)
+        update["locked_until"] = locked_until.isoformat()
+        logging.warning(
+            f"Account locked: {email} after {attempts} failed attempts. "
+            f"Locked until {locked_until.isoformat()}"
+        )
+    await db.login_attempts.update_one(
+        {"email": email}, {"$set": update}, upsert=True
+    )
+
+
+async def _clear_failed_logins(email: str):
+    """Clears the failed attempt record on successful login."""
+    await db.login_attempts.delete_one({"email": email})
+
+
 # ============== Auth Endpoints ==============
 @api.post("/auth/register", response_model=RegisterOut)
 @rate_limit(RATE_LIMIT_REGISTER)
 async def register(request: Request, body: RegisterIn):
+    # Server-side password policy check (mirrors frontend validation)
+    policy_error = validate_password_policy(body.password, body.email, body.name)
+    if policy_error:
+        raise HTTPException(status_code=422, detail=policy_error)
+
     email = body.email.lower()
     if await db.users.find_one({"email": email}):
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -531,7 +612,6 @@ async def register(request: Request, body: RegisterIn):
     }
     await db.users.insert_one(user_doc)
 
-    # After creating user, auto-create their claimant profile
     await db.profiles.insert_one(
         {
             "id": str(uuid.uuid4()),
@@ -548,7 +628,6 @@ async def register(request: Request, body: RegisterIn):
         }
     )
 
-    # After creating user, send verification email
     verification_token = secrets.token_urlsafe(32)
     await db.users.update_one(
         {"id": uid},
@@ -577,11 +656,6 @@ async def register(request: Request, body: RegisterIn):
     )
 
     await log_audit(uid, "REGISTER", "user", uid, f"Account created: {email}")
-    # No session token is issued here: the account is unverified, and the
-    # only way to obtain a token is /auth/login, which rejects unverified
-    # accounts. This prevents an attacker from registering a victim's email
-    # and using an authenticated session before the victim ever sees the
-    # verification email (account pre-hijacking).
     return RegisterOut(
         message="Account created. Please check your email to verify your address before logging in.",
         user=UserPublic(id=uid, email=email, name=body.name, role="user"),
@@ -592,16 +666,48 @@ async def register(request: Request, body: RegisterIn):
 @rate_limit(RATE_LIMIT_LOGIN)
 async def login(request: Request, body: LoginIn):
     email = body.email.lower()
+
+    # Check lockout BEFORE touching the password — avoids timing oracle
+    await _check_account_lockout(email)
+
     user = await db.users.find_one({"email": email})
-    if not user or not verify_password(body.password, user["password_hash"]):
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    # Always verify password (even if user is None via dummy hash) to prevent
+    # timing-based user enumeration
+    dummy_hash = "$2b$12$invalidhashfortimingprotectionpurposesonly000000000000"
+    stored_hash = user["password_hash"] if user else dummy_hash
+    password_ok = verify_password(body.password, stored_hash)
+
+    if not user or not password_ok:
+        if user:
+            # Only record failed attempts for real accounts
+            await _record_failed_login(email)
+            rec = await db.login_attempts.find_one({"email": email})
+            attempts = rec.get("attempts", 0) if rec else 0
+            remaining_attempts = max(0, LOGIN_MAX_ATTEMPTS - attempts)
+            if remaining_attempts > 0:
+                detail = f"Invalid email or password. {remaining_attempts} attempt(s) remaining before temporary lockout."
+            else:
+                detail = f"Account temporarily locked for {LOCKOUT_DURATION_MINUTES} minutes due to too many failed attempts."
+            await log_audit(
+                user["id"], "LOGIN_FAIL", "user", user["id"],
+                f"Failed login attempt #{attempts} from {request.client.host if request.client else 'unknown'}"
+            )
+        else:
+            detail = "Invalid email or password."
+        raise HTTPException(status_code=401, detail=detail)
+
     if not user.get("email_verified", False):
         raise HTTPException(
             status_code=403,
             detail="Please verify your email address before logging in.",
         )
+
+    # Successful login — clear any failed attempt record
+    await _clear_failed_logins(email)
+
     token = create_token(user["id"], user["email"])
-    await log_audit(user["id"], "LOGIN", "user", user["id"], f"Login successful")
+    await log_audit(user["id"], "LOGIN", "user", user["id"], "Login successful")
     return AuthOut(
         token=token,
         user=UserPublic(
@@ -652,7 +758,6 @@ async def me(user=Depends(get_current_user)):
 # ============== Claimant Profiles (multi) ==============
 @api.get("/profile")
 async def get_active_profile(user=Depends(get_current_user)):
-    """Backward-compat: returns the active claimant profile."""
     cid = await get_active_claimant_id(user["id"])
     if not cid:
         return None
@@ -661,7 +766,6 @@ async def get_active_profile(user=Depends(get_current_user)):
 
 @api.put("/profile")
 async def upsert_profile(body: ProfileIn, user=Depends(get_current_user)):
-    """Backward-compat: upserts the active claimant profile."""
     cid = await get_active_claimant_id(user["id"])
     now = datetime.now(timezone.utc).isoformat()
     if cid:
@@ -707,7 +811,6 @@ async def create_claimant(body: ProfileIn, user=Depends(get_current_user)):
     now = datetime.now(timezone.utc).isoformat()
     doc = {"id": pid, "user_id": user["id"], "updated_at": now, **body.model_dump()}
     await db.profiles.insert_one(doc)
-    # If user has no active, make this active
     u = await db.users.find_one({"id": user["id"]}, {"_id": 0, "active_claimant_id": 1})
     if not u or not u.get("active_claimant_id"):
         await db.users.update_one(
@@ -746,7 +849,6 @@ async def delete_claimant(cid: str, user=Depends(get_current_user)):
     await db.contacts.delete_many({"claimant_id": cid, "user_id": user["id"]})
     u = await db.users.find_one({"id": user["id"]}, {"_id": 0, "active_claimant_id": 1})
     if u and u.get("active_claimant_id") == cid:
-        # Reassign to any remaining claimant or clear
         nxt = await db.profiles.find_one({"user_id": user["id"]}, {"_id": 0, "id": 1})
         await db.users.update_one(
             {"id": user["id"]},
@@ -788,7 +890,6 @@ async def list_weeks(user=Depends(get_current_user)):
     weeks = (
         await db.benefit_weeks.find(q, {"_id": 0}).sort("week_start", -1).to_list(1000)
     )
-    # Attach contact count for each
     for w in weeks:
         w["contact_count"] = await db.contacts.count_documents(
             {"benefit_week_id": w["id"]}
@@ -880,7 +981,6 @@ async def list_contacts(week_id: Optional[str] = None, user=Depends(get_current_
 
 @api.post("/contacts")
 async def create_contact(body: ContactIn, user=Depends(get_current_user)):
-    # Derive claimant_id from the week
     w = await db.benefit_weeks.find_one(
         {"id": body.benefit_week_id, "user_id": user["id"]}, {"_id": 0}
     )
@@ -912,15 +1012,8 @@ async def update_contact(cid: str, body: ContactIn, user=Depends(get_current_use
     update = body.model_dump()
     await db.contacts.update_one({"id": cid, "user_id": user["id"]}, {"$set": update})
     keys = [
-        "contact_date",
-        "employer_name",
-        "employer_address",
-        "contact_method",
-        "type_of_work",
-        "position_applied",
-        "person_contacted",
-        "result",
-        "source_url",
+        "contact_date", "employer_name", "employer_address", "contact_method",
+        "type_of_work", "position_applied", "person_contacted", "result", "source_url",
     ]
     diff = diff_dict(existing, update, keys)
     await log_audit(
@@ -970,7 +1063,6 @@ async def import_csv(
     week_id: str = Form(...),
     user=Depends(get_current_user),
 ):
-    # Verify the benefit week exists for user
     w = await db.benefit_weeks.find_one({"id": week_id, "user_id": user["id"]})
     if not w:
         raise HTTPException(status_code=404, detail="Benefit week not found")
@@ -993,50 +1085,25 @@ async def import_csv(
             "user_id": user["id"],
             "benefit_week_id": week_id,
             "claimant_id": w.get("claimant_id"),
-            "contact_date": lc.get("date")
-            or lc.get("contact_date")
-            or lc.get("date applied")
-            or w["week_start"],
-            "employer_name": lc.get("employer")
-            or lc.get("company")
-            or lc.get("employer_name")
-            or lc.get("company name")
-            or "",
+            "contact_date": lc.get("date") or lc.get("contact_date") or lc.get("date applied") or w["week_start"],
+            "employer_name": lc.get("employer") or lc.get("company") or lc.get("employer_name") or lc.get("company name") or "",
             "employer_address": lc.get("address") or lc.get("location") or "",
-            "contact_method": (
-                lc.get("method") or lc.get("contact_method") or "Online"
-            ).title(),
+            "contact_method": (lc.get("method") or lc.get("contact_method") or "Online").title(),
             "type_of_work": lc.get("type_of_work") or lc.get("type") or "",
-            "position_applied": lc.get("position")
-            or lc.get("job_title")
-            or lc.get("title")
-            or "",
+            "position_applied": lc.get("position") or lc.get("job_title") or lc.get("title") or "",
             "person_contacted": lc.get("contact") or lc.get("person_contacted") or "",
             "result": lc.get("result") or lc.get("status") or "Applied",
             "source_url": lc.get("url") or lc.get("link") or "",
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
-        if contact["contact_method"] not in [
-            "In Person",
-            "Phone",
-            "Email",
-            "Online",
-            "Mail",
-            "Other",
-        ]:
+        if contact["contact_method"] not in ["In Person", "Phone", "Email", "Online", "Mail", "Other"]:
             contact["contact_method"] = "Online"
         if contact["employer_name"]:
             await db.contacts.insert_one(contact)
             contact.pop("_id", None)
             rows_out.append(contact)
             inserted += 1
-    await log_audit(
-        user["id"],
-        "IMPORT_CSV",
-        "contact",
-        week_id,
-        f"Imported {inserted} contacts via CSV",
-    )
+    await log_audit(user["id"], "IMPORT_CSV", "contact", week_id, f"Imported {inserted} contacts via CSV")
     return {"inserted": inserted, "contacts": rows_out}
 
 
@@ -1081,12 +1148,11 @@ async def import_screenshot(
     )
 
     import io as _io
-
     import PIL.Image
 
     try:
         pil_image = PIL.Image.open(_io.BytesIO(img_bytes))
-        pil_image.load()  # force decode now so malformed/oversized images fail here
+        pil_image.load()
     except Exception:
         raise HTTPException(status_code=400, detail="Could not read image file")
     if pil_image.width * pil_image.height > MAX_SCREENSHOT_PIXELS:
@@ -1094,7 +1160,6 @@ async def import_screenshot(
 
     try:
         import google.generativeai as genai
-
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel("gemini-2.0-flash")
         response = await asyncio.get_event_loop().run_in_executor(
@@ -1104,12 +1169,10 @@ async def import_screenshot(
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Vision extraction failed: {e}")
 
-    # Parse JSON from response
     import json
     import re
 
     text = str(response)
-    # Strip code fences if present
     m = re.search(r"\{[\s\S]*\}", text)
     json_str = m.group(0) if m else text
     try:
@@ -1145,13 +1208,7 @@ async def import_screenshot(
         contact.pop("_id", None)
         inserted.append(contact)
 
-    await log_audit(
-        user["id"],
-        "IMPORT_OCR",
-        "contact",
-        week_id,
-        f"Imported {len(inserted)} contacts via screenshot OCR",
-    )
+    await log_audit(user["id"], "IMPORT_OCR", "contact", week_id, f"Imported {len(inserted)} contacts via screenshot OCR")
     return {"inserted": len(inserted), "contacts": inserted, "raw": text[:500]}
 
 
@@ -1315,28 +1372,15 @@ async def export_contacts_csv(
     )
     buf = io.StringIO()
     fields = [
-        "contact_date",
-        "employer_name",
-        "employer_address",
-        "contact_method",
-        "position_applied",
-        "type_of_work",
-        "person_contacted",
-        "result",
-        "source_url",
+        "contact_date", "employer_name", "employer_address", "contact_method",
+        "position_applied", "type_of_work", "person_contacted", "result", "source_url",
     ]
     writer = csv.DictWriter(buf, fieldnames=fields, extrasaction="ignore")
     writer.writeheader()
     for c in contacts:
         writer.writerow(c)
     buf.seek(0)
-    await log_audit(
-        user["id"],
-        "EXPORT_CSV",
-        "contact",
-        week_id,
-        f"Exported {len(contacts)} contacts to CSV",
-    )
+    await log_audit(user["id"], "EXPORT_CSV", "contact", week_id, f"Exported {len(contacts)} contacts to CSV")
     fname = f"contacts_{week_id or 'all'}.csv"
     return StreamingResponse(
         io.BytesIO(buf.getvalue().encode()),
@@ -1358,7 +1402,7 @@ async def forgot_password(request: Request, body: ForgotPwIn):
             {
                 "token": token,
                 "user_id": user["id"],
-                "expires_at": expires,  # BSON datetime — TTL index will auto-clean
+                "expires_at": expires,
                 "used": False,
                 "created_at": datetime.now(timezone.utc),
             }
@@ -1407,10 +1451,7 @@ async def forgot_password(request: Request, body: ForgotPwIn):
         """
         sent = await send_email(email, "Reset your Illinois UI Tracker password", html)
         await log_audit(
-            user["id"],
-            "FORGOT_PW",
-            "user",
-            user["id"],
+            user["id"], "FORGOT_PW", "user", user["id"],
             f"Reset link sent (mailgun={'ok' if sent else 'fail'})",
         )
     return {"ok": True, "message": "If that email exists, a reset link has been sent."}
@@ -1418,6 +1459,11 @@ async def forgot_password(request: Request, body: ForgotPwIn):
 
 @api.post("/auth/reset-password")
 async def reset_password(body: ResetPwIn):
+    # Server-side password policy check on reset too
+    policy_error = validate_password_policy(body.password)
+    if policy_error:
+        raise HTTPException(status_code=422, detail=policy_error)
+
     rec = await db.password_resets.find_one({"token": body.token})
     if not rec or rec.get("used"):
         raise HTTPException(status_code=400, detail="Invalid or used token")
@@ -1433,12 +1479,12 @@ async def reset_password(body: ResetPwIn):
         {"$set": {"password_hash": hash_password(body.password)}},
     )
     await db.password_resets.update_one({"token": body.token}, {"$set": {"used": True}})
+    # Also clear any lockout on successful password reset
+    user = await db.users.find_one({"id": rec["user_id"]}, {"_id": 0, "email": 1})
+    if user:
+        await _clear_failed_logins(user["email"])
     await log_audit(
-        rec["user_id"],
-        "RESET_PW",
-        "user",
-        rec["user_id"],
-        "Password reset via email link",
+        rec["user_id"], "RESET_PW", "user", rec["user_id"], "Password reset via email link"
     )
     return {"ok": True}
 
@@ -1476,9 +1522,7 @@ async def admin_user_detail(uid: str, admin=Depends(require_admin)):
         .to_list(500)
     )
     for w in weeks:
-        w["contact_count"] = await db.contacts.count_documents(
-            {"benefit_week_id": w["id"]}
-        )
+        w["contact_count"] = await db.contacts.count_documents({"benefit_week_id": w["id"]})
     return {"user": user, "claimants": claimants, "weeks": weeks}
 
 
@@ -1504,8 +1548,6 @@ def _reminder_html(title: str, body_html: str) -> str:
     </head>
     <body style="margin:0; padding:16px; background-color:#f4f4f5;" class="email-bg">
       <div style="font-family:'IBM Plex Sans',Arial,sans-serif; max-width:560px; margin:auto;">
-
-        <!-- Header -->
         <div style="background:#0033A0; padding:16px 24px; border-radius:4px 4px 0 0;">
           <div style="display:flex; align-items:center; gap:12px;">
             <div style="background:#fff; color:#0033A0; font-weight:900; font-size:18px; width:36px; height:36px; display:inline-flex; align-items:center; justify-content:center; border-radius:4px; font-family:'Chivo',Arial,sans-serif;">IL</div>
@@ -1515,28 +1557,21 @@ def _reminder_html(title: str, body_html: str) -> str:
             </div>
           </div>
         </div>
-
-        <!-- Body -->
         <div style="background:#ffffff; border:1px solid #D4D4D8; border-top:none; border-radius:0 0 4px 4px; padding:24px;" class="email-body">
           <h2 style="margin:0 0 16px; font-family:'Chivo',Arial,sans-serif; font-weight:900; color:#09090B; letter-spacing:-0.01em;" class="email-text">{title}</h2>
           <div style="color:#09090B;" class="email-text">{body_html}</div>
-
-          <!-- Login CTA -->
           <div style="margin:28px 0 20px;">
             <a href="{frontend_url}" class="login-btn"
                style="display:inline-block; background:#0033A0; color:#ffffff; padding:12px 24px; text-decoration:none; font-weight:600; font-size:14px; border-radius:2px;">
               Log In to Illinois UI Tracker
             </a>
           </div>
-
-          <!-- Footer -->
           <hr style="border:none; border-top:1px solid #e4e4e7; margin:20px 0;">
           <p style="font-size:12px; color:#52525B; margin:0;" class="email-muted">
             Illinois law requires a minimum of <strong>3 work-search contacts</strong> per benefit week (Sunday–Saturday).<br>
             You can disable reminders from your Claimant profile inside the app.
           </p>
         </div>
-
       </div>
     </body>
     </html>
@@ -1546,7 +1581,6 @@ def _reminder_html(title: str, body_html: str) -> str:
 def _current_week_bounds(tz_str: str = "America/Chicago"):
     tz = pytz.timezone(tz_str)
     now = datetime.now(tz)
-    # Find this week's Sunday (Python: Monday=0…Sunday=6)
     days_since_sun = (now.weekday() + 1) % 7
     sunday = (now - timedelta(days=days_since_sun)).date()
     saturday = sunday + timedelta(days=6)
@@ -1554,14 +1588,8 @@ def _current_week_bounds(tz_str: str = "America/Chicago"):
 
 
 async def _send_user_reminder(user: dict, kind: str):
-    """kind in: 'sunday','wednesday','friday','saturday'"""
-    # Defense in depth: only send outbound mail/SMS for accounts that have
-    # proven ownership of their email. Registration no longer issues a
-    # session token before verification, but this keeps it true even if a
-    # token were ever minted for an unverified account some other way.
     if not user.get("email_verified", False):
         return 0
-    # iterate claimants that have reminders_enabled
     claimants = await db.profiles.find(
         {"user_id": user["id"], "reminders_enabled": {"$ne": False}}, {"_id": 0}
     ).to_list(50)
@@ -1570,27 +1598,16 @@ async def _send_user_reminder(user: dict, kind: str):
     sun, sat = _current_week_bounds()
     sent = 0
     for c in claimants:
-        # Find this week's matching benefit week
         w = await db.benefit_weeks.find_one(
-            {
-                "user_id": user["id"],
-                "claimant_id": c["id"],
-                "week_start": sun,
-                "week_end": sat,
-            },
+            {"user_id": user["id"], "claimant_id": c["id"], "week_start": sun, "week_end": sat},
             {"_id": 0},
         )
         contacts_count = 0
         contacts_list = []
         if w:
-            contacts_list = await db.contacts.find(
-                {"benefit_week_id": w["id"]}, {"_id": 0}
-            ).to_list(50)
+            contacts_list = await db.contacts.find({"benefit_week_id": w["id"]}, {"_id": 0}).to_list(50)
             contacts_count = len(contacts_list)
 
-        # reminder_email/name/employer fields are user-controlled (set via
-        # the profile/contact forms); escape before interpolating into the
-        # HTML email body to prevent HTML/markup injection in outbound mail.
         to_email = c.get("reminder_email") or user.get("email")
         name = html.escape(
             f"{c.get('first_name', '')} {c.get('last_name', '')}".strip()
@@ -1602,9 +1619,7 @@ async def _send_user_reminder(user: dict, kind: str):
             date_ = html.escape(str(x.get("contact_date", "")))
             employer = html.escape(str(x.get("employer_name", "")))
             if with_position:
-                position = html.escape(
-                    str(x.get("position_applied", "") or x.get("type_of_work", ""))
-                )
+                position = html.escape(str(x.get("position_applied", "") or x.get("type_of_work", "")))
                 return f"<li>{date_} — {employer} ({position})</li>"
             return f"<li>{date_} — {employer}</li>"
 
@@ -1614,15 +1629,11 @@ async def _send_user_reminder(user: dict, kind: str):
         elif kind == "wednesday":
             if contacts_count >= 3:
                 continue
-            title = (
-                f"Mid-Week Check — {deficit} contact{'s' if deficit != 1 else ''} to go"
-            )
+            title = f"Mid-Week Check — {deficit} contact{'s' if deficit != 1 else ''} to go"
             body = f"<p>Hi {name}, you're at <b>{contacts_count} / 3</b> contacts for the week {sun} → {sat}. Keep going!</p>"
         elif kind == "friday":
             title = f"Friday Reminder — {contacts_count} / 3 contacts logged"
-            list_html = "".join(
-                _contact_line(x, with_position=True) for x in contacts_list
-            )
+            list_html = "".join(_contact_line(x, with_position=True) for x in contacts_list)
             body = (
                 f"<p>Hi {name}, you have <b>{contacts_count} / 3</b> contacts for {sun} → {sat}.</p>"
                 + (f"<ul>{list_html}</ul>" if list_html else "")
@@ -1644,34 +1655,17 @@ async def _send_user_reminder(user: dict, kind: str):
         ok = await send_email(to_email, title, html_body)
         if ok:
             sent += 1
-            await log_audit(
-                user["id"],
-                f"REMINDER_{kind.upper()}",
-                "claimant",
-                c["id"],
-                f"Email sent to {to_email}",
-            )
+            await log_audit(user["id"], f"REMINDER_{kind.upper()}", "claimant", c["id"], f"Email sent to {to_email}")
 
-        # SMS reminder (optional + rate-limited + only if phone is verified)
         if c.get("sms_enabled") and c.get("sms_phone") and c.get("sms_verified"):
             sms_text = f"[IL UI Tracker] {title}: {contacts_count}/3 contacts for week {sun}–{sat}."
             if kind == "friday" and contacts_count < 3:
                 sms_text += f" Log {deficit} more by Sat."
-            ok_sms, reason = await send_sms_rate_limited(
-                c["sms_phone"], sms_text, c["id"]
-            )
+            ok_sms, reason = await send_sms_rate_limited(c["sms_phone"], sms_text, c["id"])
             if ok_sms:
-                await log_audit(
-                    user["id"],
-                    f"SMS_{kind.upper()}",
-                    "claimant",
-                    c["id"],
-                    f"SMS sent to {c['sms_phone']}",
-                )
+                await log_audit(user["id"], f"SMS_{kind.upper()}", "claimant", c["id"], f"SMS sent to {c['sms_phone']}")
             elif reason.startswith("rate-limited"):
-                await log_audit(
-                    user["id"], "SMS_SKIPPED", "claimant", c["id"], f"{kind}: {reason}"
-                )
+                await log_audit(user["id"], "SMS_SKIPPED", "claimant", c["id"], f"{kind}: {reason}")
     return sent
 
 
@@ -1681,9 +1675,7 @@ async def reminder_test(
     request: Request, kind: str = "friday", user=Depends(get_current_user)
 ):
     if kind not in ("sunday", "wednesday", "friday", "saturday"):
-        raise HTTPException(
-            status_code=400, detail="kind must be sunday|wednesday|friday|saturday"
-        )
+        raise HTTPException(status_code=400, detail="kind must be sunday|wednesday|friday|saturday")
     n = await _send_user_reminder(user, kind)
     return {"sent": n, "kind": kind}
 
@@ -1697,7 +1689,7 @@ async def _broadcast_reminders(kind: str):
             logging.warning(f"Reminder {kind} failed for {u.get('email')}: {e}")
 
 
-# ============== Dashboard Trend (last N weeks) ==============
+# ============== Dashboard Trend ==============
 @api.get("/dashboard/trend")
 async def dashboard_trend(weeks: int = 12, user=Depends(get_current_user)):
     cid = await get_active_claimant_id(user["id"])
@@ -1713,15 +1705,13 @@ async def dashboard_trend(weeks: int = 12, user=Depends(get_current_user)):
     out = []
     for w in recent:
         n = await db.contacts.count_documents({"benefit_week_id": w["id"]})
-        out.append(
-            {
-                "week_start": w["week_start"],
-                "week_end": w["week_end"],
-                "contacts": n,
-                "target": 3,
-                "compliant": n >= 3,
-            }
-        )
+        out.append({
+            "week_start": w["week_start"],
+            "week_end": w["week_end"],
+            "contacts": n,
+            "target": 3,
+            "compliant": n >= 3,
+        })
     return out
 
 
@@ -1731,9 +1721,7 @@ async def create_invite(body: InviteCreate, admin=Depends(require_admin)):
     code = secrets.token_urlsafe(12)
     existing = await db.users.find_one({"email": body.email.lower()})
     if existing:
-        raise HTTPException(
-            status_code=400, detail="A user with that email already exists"
-        )
+        raise HTTPException(status_code=400, detail="A user with that email already exists")
     doc = {
         "code": code,
         "email": body.email.lower(),
@@ -1746,13 +1734,8 @@ async def create_invite(body: InviteCreate, admin=Depends(require_admin)):
         "used_at": None,
     }
     await db.invites.insert_one(doc)
-    await log_audit(
-        admin["id"], "INVITE_CREATE", "invite", code, f"Invite for {body.email}"
-    )
-    invite_link = (
-        f"{os.environ.get('FRONTEND_URL', 'http://localhost:3000')}/invite/{code}"
-    )
-    # Send email
+    await log_audit(admin["id"], "INVITE_CREATE", "invite", code, f"Invite for {body.email}")
+    invite_link = f"{os.environ.get('FRONTEND_URL', 'http://localhost:3000')}/invite/{code}"
     html = f"""
     <div style="font-family:'IBM Plex Sans',Arial,sans-serif; max-width:560px; margin:auto; color:#09090B;">
       <div style="background:#0033A0; color:#fff; padding:18px 24px;">
@@ -1777,9 +1760,7 @@ async def create_invite(body: InviteCreate, admin=Depends(require_admin)):
 async def list_invites(admin=Depends(require_admin)):
     items = await db.invites.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
     for it in items:
-        it["invite_link"] = (
-            f"{os.environ.get('FRONTEND_URL', 'http://localhost:3000')}/invite/{it['code']}"
-        )
+        it["invite_link"] = f"{os.environ.get('FRONTEND_URL', 'http://localhost:3000')}/invite/{it['code']}"
     return items
 
 
@@ -1794,7 +1775,6 @@ async def revoke_invite(code: str, admin=Depends(require_admin)):
 
 @api.get("/invite/{code}")
 async def get_invite(code: str):
-    """Public endpoint — returns invite details if valid (no auth)."""
     inv = await db.invites.find_one({"code": code}, {"_id": 0})
     if not inv:
         raise HTTPException(status_code=404, detail="Invite not found")
@@ -1816,6 +1796,11 @@ async def get_invite(code: str):
 
 @api.post("/invite/redeem")
 async def redeem_invite(body: InviteRedeem):
+    # Password policy check on invite redemption too
+    policy_error = validate_password_policy(body.password)
+    if policy_error:
+        raise HTTPException(status_code=422, detail=policy_error)
+
     inv = await db.invites.find_one({"code": body.code})
     if not inv:
         raise HTTPException(status_code=404, detail="Invite not found")
@@ -1828,69 +1813,47 @@ async def redeem_invite(body: InviteRedeem):
         exp = exp.replace(tzinfo=timezone.utc)
     if exp and datetime.now(timezone.utc) > exp:
         raise HTTPException(status_code=400, detail="Invite expired")
-    # Create user + claimant
     if await db.users.find_one({"email": inv["email"]}):
-        raise HTTPException(
-            status_code=400, detail="Account already exists with this email"
-        )
+        raise HTTPException(status_code=400, detail="Account already exists with this email")
     uid = str(uuid.uuid4())
-    await db.users.insert_one(
-        {
-            "id": uid,
-            "email": inv["email"],
-            "name": body.name,
-            "password_hash": hash_password(body.password),
-            "role": "user",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "invited_by": inv.get("created_by"),
-        }
-    )
+    await db.users.insert_one({
+        "id": uid,
+        "email": inv["email"],
+        "name": body.name,
+        "password_hash": hash_password(body.password),
+        "role": "user",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "invited_by": inv.get("created_by"),
+    })
     pid = str(uuid.uuid4())
-    await db.profiles.insert_one(
-        {
-            "id": pid,
-            "user_id": uid,
-            "label": inv.get("claimant_label", "Primary"),
-            "first_name": "",
-            "last_name": "",
-            "middle_initial": "",
-            "claimant_id": "",
-            "address": "",
-            "city": "",
-            "state": "IL",
-            "zip_code": "",
-            "phone": "",
-            "occupation": "",
-            "reminders_enabled": True,
-            "reminder_email": "",
-            "sms_enabled": False,
-            "sms_phone": "",
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-        }
-    )
+    await db.profiles.insert_one({
+        "id": pid,
+        "user_id": uid,
+        "label": inv.get("claimant_label", "Primary"),
+        "first_name": "",
+        "last_name": "",
+        "middle_initial": "",
+        "claimant_id": "",
+        "address": "",
+        "city": "",
+        "state": "IL",
+        "zip_code": "",
+        "phone": "",
+        "occupation": "",
+        "reminders_enabled": True,
+        "reminder_email": "",
+        "sms_enabled": False,
+        "sms_phone": "",
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    })
     await db.users.update_one({"id": uid}, {"$set": {"active_claimant_id": pid}})
     await db.invites.update_one(
         {"code": body.code},
-        {
-            "$set": {
-                "used": True,
-                "used_at": datetime.now(timezone.utc),
-                "redeemed_user_id": uid,
-            }
-        },
+        {"$set": {"used": True, "used_at": datetime.now(timezone.utc), "redeemed_user_id": uid}},
     )
-    await log_audit(
-        uid,
-        "REGISTER_INVITE",
-        "user",
-        uid,
-        f"Invited account created from {inv.get('created_by')}",
-    )
+    await log_audit(uid, "REGISTER_INVITE", "user", uid, f"Invited account created from {inv.get('created_by')}")
     token = create_token(uid, inv["email"])
-    return {
-        "token": token,
-        "user": {"id": uid, "email": inv["email"], "name": body.name, "role": "user"},
-    }
+    return {"token": token, "user": {"id": uid, "email": inv["email"], "name": body.name, "role": "user"}}
 
 
 # ============== SMS Phone OTP Verification ==============
@@ -1906,40 +1869,26 @@ class OtpVerifyIn(BaseModel):
 
 @api.post("/sms/send-otp")
 async def sms_send_otp(body: OtpSendIn, user=Depends(get_current_user)):
-    c = await db.profiles.find_one(
-        {"id": body.claimant_id, "user_id": user["id"]}, {"_id": 0}
-    )
+    c = await db.profiles.find_one({"id": body.claimant_id, "user_id": user["id"]}, {"_id": 0})
     if not c:
         raise HTTPException(status_code=404, detail="Claimant not found")
     phone = body.phone.strip()
     if not phone.startswith("+"):
-        raise HTTPException(
-            status_code=400, detail="Phone must be E.164 (e.g. +13125550100)"
-        )
-    # Generate 6-digit code
+        raise HTTPException(status_code=400, detail="Phone must be E.164 (e.g. +13125550100)")
     import random
-
     code = f"{random.randint(0, 999999):06d}"
-    await db.otp_codes.insert_one(
-        {
-            "claimant_id": body.claimant_id,
-            "user_id": user["id"],
-            "phone": phone,
-            "code": code,
-            "expires_at": datetime.now(timezone.utc) + timedelta(minutes=10),
-            "used": False,
-            "created_at": datetime.now(timezone.utc),
-        }
-    )
+    await db.otp_codes.insert_one({
+        "claimant_id": body.claimant_id,
+        "user_id": user["id"],
+        "phone": phone,
+        "code": code,
+        "expires_at": datetime.now(timezone.utc) + timedelta(minutes=10),
+        "used": False,
+        "created_at": datetime.now(timezone.utc),
+    })
     msg = f"Illinois UI Tracker verification code: {code} (expires in 10 minutes)"
     sent, reason = await send_sms_rate_limited(phone, msg, body.claimant_id)
-    await log_audit(
-        user["id"],
-        "OTP_SEND",
-        "claimant",
-        body.claimant_id,
-        f"OTP to {phone}: {'sent' if sent else reason}",
-    )
+    await log_audit(user["id"], "OTP_SEND", "claimant", body.claimant_id, f"OTP to {phone}: {'sent' if sent else reason}")
     if not sent:
         raise HTTPException(
             status_code=502,
@@ -1955,9 +1904,7 @@ async def sms_verify_otp(body: OtpVerifyIn, user=Depends(get_current_user)):
         sort=[("created_at", -1)],
     )
     if not rec:
-        raise HTTPException(
-            status_code=400, detail="No active OTP found. Request a new code."
-        )
+        raise HTTPException(status_code=400, detail="No active OTP found. Request a new code.")
     exp = rec["expires_at"]
     if isinstance(exp, str):
         exp = datetime.fromisoformat(exp)
@@ -1970,21 +1917,9 @@ async def sms_verify_otp(body: OtpVerifyIn, user=Depends(get_current_user)):
     await db.otp_codes.update_one({"_id": rec["_id"]}, {"$set": {"used": True}})
     await db.profiles.update_one(
         {"id": body.claimant_id, "user_id": user["id"]},
-        {
-            "$set": {
-                "sms_verified": True,
-                "sms_phone": rec["phone"],
-                "sms_verified_at": datetime.now(timezone.utc).isoformat(),
-            }
-        },
+        {"$set": {"sms_verified": True, "sms_phone": rec["phone"], "sms_verified_at": datetime.now(timezone.utc).isoformat()}},
     )
-    await log_audit(
-        user["id"],
-        "OTP_VERIFY",
-        "claimant",
-        body.claimant_id,
-        f"Phone {rec['phone']} verified",
-    )
+    await log_audit(user["id"], "OTP_VERIFY", "claimant", body.claimant_id, f"Phone {rec['phone']} verified")
     return {"ok": True, "phone": rec["phone"]}
 
 
@@ -1993,7 +1928,6 @@ async def _parse_mailgun_webhook(request: Request) -> dict:
     content_type = request.headers.get("content-type", "").lower()
     if "application/json" in content_type:
         return await request.json()
-
     form = await request.form()
     payload = {k: v for k, v in form.items()}
     if "event-data" in payload:
@@ -2025,13 +1959,9 @@ def _verify_mailgun_signature(payload: dict):
         token = signature_payload.get("token")
         signature = signature_payload.get("signature")
 
-    timestamp = (
-        timestamp or payload.get("timestamp") or payload.get("signature[timestamp]")
-    )
+    timestamp = timestamp or payload.get("timestamp") or payload.get("signature[timestamp]")
     token = token or payload.get("token") or payload.get("signature[token]")
-    signature = (
-        signature or payload.get("signature") or payload.get("signature[signature]")
-    )
+    signature = signature or payload.get("signature") or payload.get("signature[signature]")
 
     if not timestamp or not token or not signature:
         raise HTTPException(status_code=400, detail="Mailgun webhook signature missing")
@@ -2039,9 +1969,7 @@ def _verify_mailgun_signature(payload: dict):
     secret = os.environ.get("MAILGUN_API_KEY", "")
     if not secret:
         logging.warning("Mailgun webhook signature verification is not configured")
-        raise HTTPException(
-            status_code=503, detail="Mailgun webhook verification is not configured"
-        )
+        raise HTTPException(status_code=503, detail="Mailgun webhook verification is not configured")
 
     expected = hmac.new(
         secret.encode("utf-8"), f"{timestamp}{token}".encode("utf-8"), hashlib.sha256
@@ -2062,46 +1990,29 @@ async def mailgun_webhook(request: Request):
             data = {}
     event_type = data.get("event") or payload.get("type", "")
     to_emails = (
-        data.get("recipient")
-        or data.get("recipients")
-        or data.get("message", {}).get("headers", {}).get("to")
-        or []
+        data.get("recipient") or data.get("recipients")
+        or data.get("message", {}).get("headers", {}).get("to") or []
     )
     if isinstance(to_emails, str):
         if "," in to_emails:
             to_emails = [addr.strip() for addr in to_emails.split(",") if addr.strip()]
         else:
             to_emails = [to_emails.strip()]
-    await db.email_events.insert_one(
-        {
-            "id": str(uuid.uuid4()),
-            "type": event_type,
-            "to": to_emails,
-            "received_at": datetime.now(timezone.utc),
-            "raw": data,
-        }
-    )
-    if event_type in (
-        "email.bounced",
-        "email.complained",
-        "bounced",
-        "complained",
-        "complaint",
-    ):
+    await db.email_events.insert_one({
+        "id": str(uuid.uuid4()),
+        "type": event_type,
+        "to": to_emails,
+        "received_at": datetime.now(timezone.utc),
+        "raw": data,
+    })
+    if event_type in ("email.bounced", "email.complained", "bounced", "complained", "complaint"):
         for addr in to_emails:
             await db.profiles.update_many(
                 {"reminder_email": addr},
-                {
-                    "$set": {
-                        "reminders_enabled": False,
-                        "email_bounced": True,
-                        "email_bounced_at": datetime.now(timezone.utc).isoformat(),
-                    }
-                },
+                {"$set": {"reminders_enabled": False, "email_bounced": True, "email_bounced_at": datetime.now(timezone.utc).isoformat()}},
             )
             users_with_email = await db.users.find(
-                {"email": addr.lower() if isinstance(addr, str) else ""},
-                {"_id": 0, "id": 1},
+                {"email": addr.lower() if isinstance(addr, str) else ""}, {"_id": 0, "id": 1}
             ).to_list(20)
             for u in users_with_email:
                 await db.profiles.update_many(
@@ -2113,9 +2024,7 @@ async def mailgun_webhook(request: Request):
 
 @api.get("/admin/email-events")
 async def admin_email_events(admin=Depends(require_admin)):
-    items = (
-        await db.email_events.find({}, {"_id": 0}).sort("received_at", -1).to_list(500)
-    )
+    items = await db.email_events.find({}, {"_id": 0}).sort("received_at", -1).to_list(500)
     for it in items:
         if isinstance(it.get("received_at"), datetime):
             it["received_at"] = it["received_at"].isoformat()
@@ -2124,7 +2033,7 @@ async def admin_email_events(admin=Depends(require_admin)):
 
 # ============== Bulk Invite (Admin) ==============
 class BulkInviteIn(BaseModel):
-    csv_text: str = ""  # CSV: email,claimant_label,note (header required)
+    csv_text: str = ""
     note: str = ""
 
 
@@ -2157,9 +2066,7 @@ async def bulk_invite(body: BulkInviteIn, admin=Depends(require_admin)):
             "used_at": None,
         }
         await db.invites.insert_one(doc)
-        link = (
-            f"{os.environ.get('FRONTEND_URL', 'http://localhost:3000')}/invite/{code}"
-        )
+        link = f"{os.environ.get('FRONTEND_URL', 'http://localhost:3000')}/invite/{code}"
         await send_email(
             email,
             "You're invited to Illinois UI Tracker",
@@ -2169,13 +2076,7 @@ async def bulk_invite(body: BulkInviteIn, admin=Depends(require_admin)):
             ),
         )
         created.append({"email": email, "code": code, "invite_link": link})
-    await log_audit(
-        admin["id"],
-        "INVITE_BULK",
-        "invite",
-        None,
-        f"Created {len(created)}, skipped {len(skipped)}",
-    )
+    await log_audit(admin["id"], "INVITE_BULK", "invite", None, f"Created {len(created)}, skipped {len(skipped)}")
     return {"created": created, "skipped": skipped}
 
 
@@ -2188,16 +2089,12 @@ async def integrations_status(admin=Depends(require_admin)):
         and os.environ.get("TWILIO_AUTH_TOKEN")
         and os.environ.get("TWILIO_FROM_NUMBER")
     )
-    domain = os.environ.get("MAILGUN_VERIFIED_DOMAIN", "")
-    from_addr = os.environ.get("MAILGUN_FROM", "")
     return {
         "mailgun": {
             "configured": has_mailgun,
-            "from": from_addr,
-            "verified_domain": domain,
-            "fallback_from": os.environ.get(
-                "MAILGUN_FALLBACK_FROM", "onboarding@mailgun.com"
-            ),
+            "from": os.environ.get("MAILGUN_FROM", ""),
+            "verified_domain": os.environ.get("MAILGUN_VERIFIED_DOMAIN", ""),
+            "fallback_from": os.environ.get("MAILGUN_FALLBACK_FROM", "onboarding@mailgun.com"),
             "dns_records_url": "https://app.mailgun.com/mg/sending/domains",
         },
         "twilio": {
@@ -2225,7 +2122,8 @@ async def on_startup():
     await db.contacts.create_index([("user_id", 1), ("benefit_week_id", 1)])
     await db.audit_log.create_index([("user_id", 1), ("timestamp", -1)])
     await db.profiles.create_index("user_id")
-    # TTL index on password_resets.expires_at (BSON datetime auto-cleanup)
+    # Index for account lockout lookups
+    await db.login_attempts.create_index("email", unique=True)
     try:
         await db.password_resets.create_index("expires_at", expireAfterSeconds=0)
     except Exception as e:
@@ -2236,102 +2134,75 @@ async def on_startup():
     except Exception as e:
         logging.info(f"invites indexes: {e}")
 
-    # Seed demo user only when explicitly enabled
-    demo_user_enabled = os.environ.get("ENABLE_DEMO_USER", "true").lower() in (
-        "1",
-        "true",
-        "yes",
-    )
+    demo_user_enabled = os.environ.get("ENABLE_DEMO_USER", "true").lower() in ("1", "true", "yes")
     demo_email = os.environ.get("DEMO_USER_EMAIL", "demo@illinoistracker.test").lower()
     demo_password = os.environ.get("DEMO_USER_PASSWORD", "Demo1234!")
     if demo_user_enabled:
         existing = await db.users.find_one({"email": demo_email})
         if not existing:
             uid = str(uuid.uuid4())
-            await db.users.insert_one(
-                {
-                    "id": uid,
-                    "email": demo_email,
-                    "name": "Demo Claimant",
-                    "password_hash": hash_password(demo_password),
-                    "role": "user",
-                    # Seeded accounts skip the email-verification gate so they
-                    # can actually log in.
-                    "email_verified": True,
-                    "created_at": datetime.now(timezone.utc).isoformat(),
-                }
-            )
+            await db.users.insert_one({
+                "id": uid,
+                "email": demo_email,
+                "name": "Demo Claimant",
+                "password_hash": hash_password(demo_password),
+                "role": "user",
+                "email_verified": True,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            })
             pid = str(uuid.uuid4())
-            await db.profiles.insert_one(
-                {
-                    "id": pid,
-                    "user_id": uid,
-                    "label": "Primary",
-                    "first_name": "Demo",
-                    "last_name": "Claimant",
-                    "middle_initial": "A",
-                    "claimant_id": "1234567",
-                    "address": "100 W Randolph St",
-                    "city": "Chicago",
-                    "state": "IL",
-                    "zip_code": "60601",
-                    "phone": "312-555-1212",
-                    "occupation": "Software Developer",
-                    "reminders_enabled": True,
-                    "reminder_email": "democlaimant@example.com",
-                    "updated_at": datetime.now(timezone.utc).isoformat(),
-                }
-            )
-            await db.users.update_one(
-                {"id": uid}, {"$set": {"active_claimant_id": pid}}
-            )
+            await db.profiles.insert_one({
+                "id": pid,
+                "user_id": uid,
+                "label": "Primary",
+                "first_name": "Demo",
+                "last_name": "Claimant",
+                "middle_initial": "A",
+                "claimant_id": "1234567",
+                "address": "100 W Randolph St",
+                "city": "Chicago",
+                "state": "IL",
+                "zip_code": "60601",
+                "phone": "312-555-1212",
+                "occupation": "Software Developer",
+                "reminders_enabled": True,
+                "reminder_email": "democlaimant@example.com",
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            })
+            await db.users.update_one({"id": uid}, {"$set": {"active_claimant_id": pid}})
         else:
             update = {"email_verified": True}
             if not verify_password(demo_password, existing["password_hash"]):
                 update["password_hash"] = hash_password(demo_password)
             await db.users.update_one({"email": demo_email}, {"$set": update})
     else:
-        logging.info(
-            "Demo user seeding disabled. Set ENABLE_DEMO_USER=true to enable it."
-        )
+        logging.info("Demo user seeding disabled. Set ENABLE_DEMO_USER=true to enable it.")
 
-    # Seed admin (case-worker) account only when configured explicitly
     admin_email = os.environ.get("ADMIN_EMAIL", "").strip().lower()
     admin_pw = os.environ.get("ADMIN_PASSWORD", "")
     if admin_email and admin_pw:
         existing_admin = await db.users.find_one({"email": admin_email})
         if not existing_admin:
-            await db.users.insert_one(
-                {
-                    "id": str(uuid.uuid4()),
-                    "email": admin_email,
-                    "name": "Admin / Case Worker",
-                    "password_hash": hash_password(admin_pw),
-                    "role": "admin",
-                    "email_verified": True,
-                    "created_at": datetime.now(timezone.utc).isoformat(),
-                }
-            )
-        elif existing_admin.get("role") == "admin" and not verify_password(
-            admin_pw, existing_admin["password_hash"]
-        ):
+            await db.users.insert_one({
+                "id": str(uuid.uuid4()),
+                "email": admin_email,
+                "name": "Admin / Case Worker",
+                "password_hash": hash_password(admin_pw),
+                "role": "admin",
+                "email_verified": True,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            })
+        elif existing_admin.get("role") == "admin" and not verify_password(admin_pw, existing_admin["password_hash"]):
             await db.users.update_one(
                 {"email": admin_email},
                 {"$set": {"password_hash": hash_password(admin_pw)}},
             )
         elif existing_admin.get("role") != "admin":
-            logging.warning(
-                f"Configured ADMIN_EMAIL {admin_email} already exists as non-admin. Skipping admin seed."
-            )
+            logging.warning(f"Configured ADMIN_EMAIL {admin_email} already exists as non-admin. Skipping admin seed.")
     else:
-        logging.warning(
-            "ADMIN_EMAIL and ADMIN_PASSWORD are not configured; no admin account will be created automatically."
-        )
+        logging.warning("ADMIN_EMAIL and ADMIN_PASSWORD are not configured; no admin account will be created automatically.")
 
-    # Data migration: backfill claimant_id and active_claimant_id
-    async for u in db.users.find(
-        {}, {"_id": 0, "id": 1, "active_claimant_id": 1, "role": 1}
-    ):
+    async for u in db.users.find({}, {"_id": 0, "id": 1, "active_claimant_id": 1, "role": 1}):
         if u.get("role") == "admin":
             continue
         active = u.get("active_claimant_id")
@@ -2339,9 +2210,7 @@ async def on_startup():
             p = await db.profiles.find_one({"user_id": u["id"]}, {"_id": 0, "id": 1})
             if p:
                 active = p["id"]
-                await db.users.update_one(
-                    {"id": u["id"]}, {"$set": {"active_claimant_id": active}}
-                )
+                await db.users.update_one({"id": u["id"]}, {"$set": {"active_claimant_id": active}})
         if active:
             await db.benefit_weeks.update_many(
                 {"user_id": u["id"], "claimant_id": {"$exists": False}},
@@ -2352,34 +2221,13 @@ async def on_startup():
                 {"$set": {"claimant_id": active}},
             )
 
-    # Reminder scheduler
     if os.environ.get("MAILGUN_API_KEY"):
         try:
             scheduler = AsyncIOScheduler(timezone=pytz.timezone("America/Chicago"))
-            scheduler.add_job(
-                _broadcast_reminders,
-                CronTrigger(day_of_week="sun", hour=9, minute=0),
-                args=["sunday"],
-                id="rem_sun",
-            )
-            scheduler.add_job(
-                _broadcast_reminders,
-                CronTrigger(day_of_week="wed", hour=9, minute=0),
-                args=["wednesday"],
-                id="rem_wed",
-            )
-            scheduler.add_job(
-                _broadcast_reminders,
-                CronTrigger(day_of_week="fri", hour=9, minute=0),
-                args=["friday"],
-                id="rem_fri",
-            )
-            scheduler.add_job(
-                _broadcast_reminders,
-                CronTrigger(day_of_week="sat", hour=9, minute=0),
-                args=["saturday"],
-                id="rem_sat",
-            )
+            scheduler.add_job(_broadcast_reminders, CronTrigger(day_of_week="sun", hour=9, minute=0), args=["sunday"], id="rem_sun")
+            scheduler.add_job(_broadcast_reminders, CronTrigger(day_of_week="wed", hour=9, minute=0), args=["wednesday"], id="rem_wed")
+            scheduler.add_job(_broadcast_reminders, CronTrigger(day_of_week="fri", hour=9, minute=0), args=["friday"], id="rem_fri")
+            scheduler.add_job(_broadcast_reminders, CronTrigger(day_of_week="sat", hour=9, minute=0), args=["saturday"], id="rem_sat")
             scheduler.start()
             logging.info("Reminder scheduler started (America/Chicago)")
         except Exception as e:
@@ -2398,9 +2246,6 @@ async def on_shutdown():
 
 
 # ============== Health / readiness probes ==============
-# Kept off the /api prefix so load balancers and uptime monitors can hit them
-# directly. /health/live = process is up; /health/ready = dependencies (Mongo)
-# are reachable so the instance can receive traffic.
 @app.get("/health/live")
 async def health_live():
     return {"status": "ok"}
@@ -2413,10 +2258,7 @@ async def health_ready():
         return {"status": "ready", "mongo": "ok"}
     except Exception as e:
         logging.warning(f"Readiness check failed: {e}")
-        return JSONResponse(
-            status_code=503,
-            content={"status": "not ready", "mongo": "error"},
-        )
+        return JSONResponse(status_code=503, content={"status": "not ready", "mongo": "error"})
 
 
 app.include_router(api)
@@ -2429,19 +2271,12 @@ async def security_headers(request: Request, call_next):
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
-    response.headers.setdefault(
-        "Permissions-Policy", "geolocation=(), microphone=(), camera=()"
-    )
-    # HSTS only makes sense behind TLS; enable explicitly in production.
+    response.headers.setdefault("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
     if os.environ.get("ENABLE_HSTS", "false").lower() in ("1", "true", "yes"):
-        response.headers.setdefault(
-            "Strict-Transport-Security",
-            "max-age=63072000; includeSubDomains",
-        )
+        response.headers.setdefault("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
     return response
 
 
-# CORS - allow_origins must be explicit when allow_credentials=True
 origins_env = os.environ.get("CORS_ORIGINS", "*")
 allow_credentials = True
 if origins_env.strip() == "*":
