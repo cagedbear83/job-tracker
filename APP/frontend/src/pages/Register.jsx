@@ -18,10 +18,13 @@ export default function Register() {
   const [city, setCity] = useState("");
   const [zip, setZip] = useState("");
   const [claimantId, setClaimantId] = useState("");
-  const [eamil, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [busy, setBusy] = useState(false);
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+  };
 
   const onSubmit = async (e) => {
     e.preventDefault();
