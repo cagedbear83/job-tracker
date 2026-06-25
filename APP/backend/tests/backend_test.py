@@ -26,7 +26,7 @@ def H(token):
 
 # ---- auth ----
 def test_register_duplicate_or_new():
-    r = requests.post(f"{API}/auth/register", json={"email": "TEST_user1@example.com", "password": "Pass1234!", "name": "T"}, timeout=30)
+   r = requests.post(f"{API}/auth/register", json={"email": "TEST_user1@example.com", "password": "Lake Sunrise Coffee 42!", "name": "T"}, timeout=30)
     assert r.status_code in (200, 400)
     if r.status_code == 200:
         d = r.json()
