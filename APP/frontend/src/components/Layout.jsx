@@ -21,6 +21,7 @@ import {
   ShieldCheckIcon,
   CalendarCheckIcon,
   ListIcon,
+  FolderOpenIcon,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
 
@@ -54,6 +55,12 @@ const userNav = [
     label: "Calendar",
     Icon: CalendarCheckIcon,
     testid: "nav-calendar",
+  },
+  {
+    to: "/documents",
+    label: "My Documents",
+    Icon: FolderOpenIcon,
+    testid: "nav-documents",
   },
   {
     to: "/import",

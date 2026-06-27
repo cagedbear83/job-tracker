@@ -21,6 +21,7 @@ import BenefitWeeks from "@/pages/BenefitWeeks";
 import WeekDetail from "@/pages/WeekDetail";
 import ImportPage from "@/pages/ImportPage";
 import AuditLog from "@/pages/AuditLog";
+import DocumentsPage from "@/pages/Documents";
 import SmsOptIn from "@/pages/SmsOptIn";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
 import Terms from "@/pages/Terms";
@@ -131,6 +132,7 @@ export function App() {
                 <Route path="/weeks" element={<BenefitWeeks />} />
                 <Route path="/weeks/:id" element={<WeekDetail />} />
                 <Route path="/calendar" element={<CalendarPage />} />
+                <Route path="/documents" element={<DocumentsPage />} />
                 <Route path="/import" element={<ImportPage />} />
                 <Route path="/audit" element={<AuditLog />} />
                 <Route path="/admin" element={<AdminPage />} />
