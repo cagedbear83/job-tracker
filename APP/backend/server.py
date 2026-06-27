@@ -1089,7 +1089,7 @@ async def create_calendar_event(
     body: CalendarEventIn, user=Depends(get_current_user)
 ):
     doc = {
-        "id": new_id(),
+        "id": str(uuid.uuid4()),
         "user_id": user["id"],
         "event_date": body.event_date,
         "event_type": body.event_type,
@@ -1181,7 +1181,7 @@ async def upload_document(
     import base64
     file_b64 = base64.b64encode(raw).decode("ascii")
     doc = {
-        "id": new_id(),
+        "id": str(uuid.uuid4()),
         "user_id": user["id"],
         "claimant_id": claimant_id or None,
         "title": title.strip(),
@@ -1443,6 +1443,10 @@ async def report_pdf(week_id: str, user=Depends(get_current_user)):
         {"id": w.get("claimant_id"), "user_id": user["id"]}
     )
     claimant_id = claimant.get("claimant_id", "") if claimant else ""
+    claimant_name = (
+        f"{claimant.get('first_name', '')} {claimant.get('last_name', '')}".strip()
+        if claimant else ""
+    )
 
     # Split name into first / last / MI
     name_parts = claimant_name.strip().split()
