@@ -132,8 +132,12 @@ export default function WeekDetail() {
     setSaving(true);
     try {
       if (editing) {
-        await api.put(`/contacts/${editing.id}`, form);
-        toast.success("Contact updated");
+        const { data: updated } = await api.put(`/contacts/${editing.id}`, form);
+        if (updated.benefit_week_id !== editing.benefit_week_id) {
+          toast.success("Contact moved — the date falls in a different benefit week, so it's been reassigned there.");
+        } else {
+          toast.success("Contact updated");
+        }
       } else {
         await api.post("/contacts", form);
         toast.success("Contact added");
@@ -171,12 +175,11 @@ export default function WeekDetail() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `BenefitWeek_${week.week_start}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
-      toast.success("Report downloaded", { id: toastId });
+      // Open the PDF inline in a new tab so the browser's PDF viewer loads it.
+      // Revoke the object URL after 2 minutes — enough time for the tab to finish loading.
+      window.open(url, "_blank");
+      setTimeout(() => URL.revokeObjectURL(url), 120_000);
+      toast.success("Report opened in new tab", { id: toastId });
     } catch (e) {
       toast.error("Failed to generate report. Please try again.", {
         id: toastId,

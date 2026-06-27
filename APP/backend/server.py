@@ -246,6 +246,10 @@ class BenefitWeekIn(BaseModel):
     week_end: str  # ISO date (Saturday)
     notes: str = ""
     certified: bool = False
+    # IDES compliance questions (None = not yet answered)
+    able_to_work: Optional[bool] = None
+    available_for_work: Optional[bool] = None
+    worked_for_pay: Optional[bool] = None
 
 
 class BenefitWeek(BenefitWeekIn):
@@ -910,6 +914,31 @@ async def update_contact(cid: str, body: ContactIn, user=Depends(get_current_use
     if not existing:
         raise HTTPException(status_code=404, detail="Not found")
     update = body.model_dump()
+
+    # ── Auto-reassign to the correct benefit week when the date changes ──────
+    # If the edited date no longer falls within the contact's stated week,
+    # search for the benefit week whose Sun–Sat window contains the new date
+    # and silently move the contact there.
+    new_date = body.contact_date
+    if new_date != existing.get("contact_date"):
+        current_week = await db.benefit_weeks.find_one(
+            {"id": body.benefit_week_id, "user_id": user["id"]}, {"_id": 0}
+        )
+        date_fits = (
+            current_week
+            and current_week["week_start"] <= new_date <= current_week["week_end"]
+        )
+        if not date_fits:
+            correct_week = await db.benefit_weeks.find_one(
+                {
+                    "user_id": user["id"],
+                    "week_start": {"$lte": new_date},
+                    "week_end": {"$gte": new_date},
+                }
+            )
+            if correct_week:
+                update["benefit_week_id"] = correct_week["id"]
+
     await db.contacts.update_one({"id": cid, "user_id": user["id"]}, {"$set": update})
     keys = [
         "contact_date",
@@ -936,6 +965,189 @@ async def delete_contact(cid: str, user=Depends(get_current_user)):
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Not found")
     await log_audit(user["id"], "DELETE", "contact", cid, "Contact deleted")
+    return {"ok": True}
+
+
+# ============== Calendar Events ==============
+class CalendarEventIn(BaseModel):
+    event_date: str  # ISO YYYY-MM-DD
+    event_type: Literal[
+        "certification", "ides_interview", "appeal", "questionnaire", "other"
+    ]
+    title: str
+    notes: str = ""
+    claimant_id: Optional[str] = None
+
+
+@api.get("/calendar-events")
+async def list_calendar_events(user=Depends(get_current_user)):
+    events = (
+        await db.calendar_events.find(
+            {"user_id": user["id"]}, {"_id": 0}
+        )
+        .sort("event_date", 1)
+        .to_list(1000)
+    )
+    return events
+
+
+@api.post("/calendar-events", status_code=201)
+async def create_calendar_event(
+    body: CalendarEventIn, user=Depends(get_current_user)
+):
+    doc = {
+        "id": new_id(),
+        "user_id": user["id"],
+        "event_date": body.event_date,
+        "event_type": body.event_type,
+        "title": body.title,
+        "notes": body.notes,
+        "claimant_id": body.claimant_id,
+        "created_at": datetime.utcnow(),
+    }
+    await db.calendar_events.insert_one(doc)
+    doc.pop("_id", None)
+    await log_audit(
+        user["id"], "CREATE", "calendar_event", doc["id"],
+        f"{body.event_type}: {body.title} on {body.event_date}"
+    )
+    return doc
+
+
+@api.put("/calendar-events/{eid}")
+async def update_calendar_event(
+    eid: str, body: CalendarEventIn, user=Depends(get_current_user)
+):
+    existing = await db.calendar_events.find_one(
+        {"id": eid, "user_id": user["id"]}, {"_id": 0}
+    )
+    if not existing:
+        raise HTTPException(status_code=404, detail="Not found")
+    update = {
+        "event_date": body.event_date,
+        "event_type": body.event_type,
+        "title": body.title,
+        "notes": body.notes,
+        "claimant_id": body.claimant_id,
+    }
+    await db.calendar_events.update_one(
+        {"id": eid, "user_id": user["id"]}, {"$set": update}
+    )
+    await log_audit(
+        user["id"], "UPDATE", "calendar_event", eid,
+        f"{body.event_type}: {body.title}"
+    )
+    doc = await db.calendar_events.find_one({"id": eid}, {"_id": 0})
+    return doc
+
+
+@api.delete("/calendar-events/{eid}")
+async def delete_calendar_event(eid: str, user=Depends(get_current_user)):
+    res = await db.calendar_events.delete_one({"id": eid, "user_id": user["id"]})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Not found")
+    await log_audit(user["id"], "DELETE", "calendar_event", eid, "Event deleted")
+    return {"ok": True}
+
+
+# ============== Document Upload (IDES Paperwork) ==============
+DOC_TYPES = Literal[
+    "determination_letter",
+    "certification_form",
+    "questionnaire",
+    "appeal_notice",
+    "overpayment_notice",
+    "correspondence",
+    "other",
+]
+MAX_DOC_BYTES = int(os.environ.get("MAX_DOC_UPLOAD_BYTES", str(4 * 1024 * 1024)))  # 4 MB
+DOC_MIME_ALLOWLIST = {"image/jpeg", "image/png", "image/webp", "application/pdf"}
+
+
+@api.post("/documents/upload", status_code=201)
+async def upload_document(
+    file: UploadFile,
+    title: str = Form(...),
+    document_type: str = Form("other"),
+    received_date: str = Form(""),
+    notes: str = Form(""),
+    claimant_id: str = Form(""),
+    user=Depends(get_current_user),
+):
+    if file.content_type not in DOC_MIME_ALLOWLIST:
+        raise HTTPException(
+            status_code=415,
+            detail=f"Unsupported file type '{file.content_type}'. Allowed: JPEG, PNG, WEBP, PDF.",
+        )
+    raw = await file.read(MAX_DOC_BYTES + 1)
+    if len(raw) > MAX_DOC_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large. Maximum size is {MAX_DOC_BYTES // (1024*1024)} MB.",
+        )
+    import base64
+    file_b64 = base64.b64encode(raw).decode("ascii")
+    doc = {
+        "id": new_id(),
+        "user_id": user["id"],
+        "claimant_id": claimant_id or None,
+        "title": title.strip(),
+        "document_type": document_type,
+        "received_date": received_date or None,
+        "notes": notes.strip(),
+        "filename": file.filename or "document",
+        "content_type": file.content_type,
+        "file_data": file_b64,
+        "file_size": len(raw),
+        "created_at": datetime.utcnow(),
+    }
+    await db.document_files.insert_one(doc)
+    doc.pop("_id", None)
+    doc.pop("file_data", None)  # don't return the binary blob in the response
+    await log_audit(
+        user["id"], "CREATE", "document", doc["id"],
+        f"Uploaded: {title} ({document_type})"
+    )
+    return doc
+
+
+@api.get("/documents")
+async def list_documents(user=Depends(get_current_user)):
+    docs = (
+        await db.document_files.find(
+            {"user_id": user["id"]},
+            {"_id": 0, "file_data": 0},  # exclude binary blob from list
+        )
+        .sort("created_at", -1)
+        .to_list(500)
+    )
+    return docs
+
+
+@api.get("/documents/{did}/file")
+async def serve_document(did: str, user=Depends(get_current_user)):
+    doc = await db.document_files.find_one(
+        {"id": did, "user_id": user["id"]}, {"_id": 0}
+    )
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    import base64, io
+    raw = base64.b64decode(doc["file_data"])
+    filename = doc.get("filename", "document")
+    content_type = doc.get("content_type", "application/octet-stream")
+    return StreamingResponse(
+        io.BytesIO(raw),
+        media_type=content_type,
+        headers={"Content-Disposition": f"inline; filename={filename}"},
+    )
+
+
+@api.delete("/documents/{did}")
+async def delete_document(did: str, user=Depends(get_current_user)):
+    res = await db.document_files.delete_one({"id": did, "user_id": user["id"]})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Not found")
+    await log_audit(user["id"], "DELETE", "document", did, "Document deleted")
     return {"ok": True}
 
 
@@ -1173,15 +1385,20 @@ async def report_pdf(week_id: str, user=Depends(get_current_user)):
     claimant = await db.profiles.find_one(
         {"id": w.get("claimant_id"), "user_id": user["id"]}
     )
-    claimant_name = (
-        claimant.get("full_name", "") if claimant else user.get("full_name", "")
-    )
     claimant_id = claimant.get("claimant_id", "") if claimant else ""
 
-    name_parts = claimant_name.strip().split()
-    first = name_parts[0] if len(name_parts) >= 1 else ""
-    last = name_parts[-1] if len(name_parts) >= 2 else ""
-    mi = name_parts[1][0] if len(name_parts) >= 3 else ""
+    if claimant:
+        # Profiles store names in separate fields — use them directly.
+        first = claimant.get("first_name", "").strip()
+        last  = claimant.get("last_name",  "").strip()
+        mi    = claimant.get("middle_initial", "").strip()[:1]
+    else:
+        # Fallback: split the user's full_name (legacy path).
+        claimant_name = user.get("full_name", "").strip()
+        name_parts = claimant_name.split()
+        first = name_parts[0] if len(name_parts) >= 1 else ""
+        last  = name_parts[-1] if len(name_parts) >= 2 else ""
+        mi    = name_parts[1][0] if len(name_parts) >= 3 else ""
 
     week_end = w.get("week_end", "")
     if hasattr(week_end, "strftime"):
@@ -1239,7 +1456,7 @@ async def report_pdf(week_id: str, user=Depends(get_current_user)):
         return StreamingResponse(
             buf,
             media_type="application/pdf",
-            headers={"Content-Disposition": f"attachment; filename={filename}"},
+            headers={"Content-Disposition": f"inline; filename={filename}"},
         )
     except HTTPException:
         raise
@@ -2215,6 +2432,8 @@ async def on_startup():
     await db.contacts.create_index([("user_id", 1), ("benefit_week_id", 1)])
     await db.audit_log.create_index([("user_id", 1), ("timestamp", -1)])
     await db.profiles.create_index("user_id")
+    await db.calendar_events.create_index([("user_id", 1), ("event_date", 1)])
+    await db.document_files.create_index([("user_id", 1), ("created_at", -1)])
     # TTL index on password_resets.expires_at (BSON datetime auto-cleanup)
     try:
         await db.password_resets.create_index("expires_at", expireAfterSeconds=0)

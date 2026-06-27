@@ -56,6 +56,9 @@ export default function BenefitWeeks() {
     week_end: getSaturday(getSunday()),
     notes: "",
     certified: false,
+    able_to_work: null,
+    available_for_work: null,
+    worked_for_pay: null,
   });
 
   const load = async () => {
@@ -81,6 +84,9 @@ export default function BenefitWeeks() {
       week_end: getSaturday(getSunday()),
       notes: "",
       certified: false,
+      able_to_work: null,
+      available_for_work: null,
+      worked_for_pay: null,
     });
     setOpen(true);
   };
@@ -92,6 +98,9 @@ export default function BenefitWeeks() {
       week_end: w.week_end,
       notes: w.notes || "",
       certified: !!w.certified,
+      able_to_work: w.able_to_work ?? null,
+      available_for_work: w.available_for_work ?? null,
+      worked_for_pay: w.worked_for_pay ?? null,
     });
     setOpen(true);
   };
@@ -182,39 +191,95 @@ export default function BenefitWeeks() {
                 {editing ? "Edit Benefit Week" : "New Benefit Week"}
               </DialogTitle>
             </DialogHeader>
-            <div className="space-y-3">
-              <div>
-                <Label className="kbd-label">Week Start (Sunday)</Label>
-                <Input
-                  type="date"
-                  value={form.week_start}
-                  onChange={(e) => onWeekStart(e.target.value)}
-                  className="rounded-none mt-2"
-                  data-testid="week-start-input"
-                />
+            <div className="space-y-4">
+              {/* Date range */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="kbd-label">Week Start (Sunday)</Label>
+                  <Input
+                    type="date"
+                    value={form.week_start}
+                    onChange={(e) => onWeekStart(e.target.value)}
+                    className="rounded-none mt-2"
+                    data-testid="week-start-input"
+                  />
+                </div>
+                <div>
+                  <Label className="kbd-label">Week End (Saturday)</Label>
+                  <Input
+                    type="date"
+                    value={form.week_end}
+                    onChange={(e) =>
+                      setForm({ ...form, week_end: e.target.value })
+                    }
+                    className="rounded-none mt-2"
+                    data-testid="week-end-input"
+                  />
+                </div>
               </div>
-              <div>
-                <Label className="kbd-label">Week End (Saturday)</Label>
-                <Input
-                  type="date"
-                  value={form.week_end}
-                  onChange={(e) =>
-                    setForm({ ...form, week_end: e.target.value })
-                  }
-                  className="rounded-none mt-2"
-                  data-testid="week-end-input"
-                />
+
+              {/* IDES compliance questions */}
+              <div className="border border-zinc-200 bg-zinc-50 p-3 space-y-3">
+                <p className="kbd-label text-xs text-zinc-500 uppercase tracking-widest">
+                  IDES Certification Questions
+                </p>
+
+                {[
+                  { key: "able_to_work",       label: "Were you able to work this week?" },
+                  { key: "available_for_work", label: "Were you available for work this week?" },
+                  { key: "worked_for_pay",     label: "Did you work any hours for pay this week?" },
+                ].map(({ key, label }) => (
+                  <div key={key} className="flex items-center justify-between gap-4">
+                    <span className="text-sm text-zinc-700">{label}</span>
+                    <div className="flex items-center gap-4 text-sm shrink-0">
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <input
+                          type="radio"
+                          name={key}
+                          value="yes"
+                          checked={form[key] === true}
+                          onChange={() => setForm({ ...form, [key]: true })}
+                          className="accent-[#0033A0]"
+                          data-testid={`${key}-yes`}
+                        />
+                        Yes
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <input
+                          type="radio"
+                          name={key}
+                          value="no"
+                          checked={form[key] === false}
+                          onChange={() => setForm({ ...form, [key]: false })}
+                          className="accent-[#0033A0]"
+                          data-testid={`${key}-no`}
+                        />
+                        No
+                      </label>
+                    </div>
+                  </div>
+                ))}
               </div>
+
+              {/* Notes */}
               <div>
-                <Label className="kbd-label">Notes</Label>
+                <Label className="kbd-label">
+                  Notes about this week{" "}
+                  <span className="text-zinc-400 normal-case font-normal">
+                    (illness, holidays, etc.)
+                  </span>
+                </Label>
                 <Input
                   value={form.notes}
                   onChange={(e) => setForm({ ...form, notes: e.target.value })}
                   className="rounded-none mt-2"
+                  placeholder="e.g. Sick Monday–Tuesday, observed holiday Friday"
                   data-testid="week-notes-input"
                 />
               </div>
-              <label className="flex items-center gap-2 text-sm pt-2">
+
+              {/* Certified checkbox */}
+              <label className="flex items-center gap-2 text-sm pt-1">
                 <input
                   type="checkbox"
                   checked={form.certified}
