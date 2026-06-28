@@ -1434,7 +1434,7 @@ async def report_pdf(week_id: str, user=Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="Week not found")
 
     contacts = (
-        await db.contacts.find({"benefit_week_id": week_id})
+        await db.contacts.find({"benefit_week_id": week_id, "user_id": user["id"]})
         .sort("contact_date", 1)
         .to_list(30)
     )
@@ -1503,8 +1503,8 @@ async def report_pdf(week_id: str, user=Depends(get_current_user)):
         reader = PdfReader(str(template_path))
         writer = PdfWriter()
         writer.append(reader)
-        writer.update_page_form_field_values(writer.pages[0], field_values)
-        writer.update_page_form_field_values(writer.pages[1], field_values)
+        for page in writer.pages:
+            writer.update_page_form_field_values(page, field_values)
 
         buf = io.BytesIO()
         writer.write(buf)
