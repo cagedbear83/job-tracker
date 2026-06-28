@@ -72,5 +72,46 @@ export default defineConfig({
   build: {
     outDir: "build",
     sourcemap: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Core React runtime — changes least often, cached longest
+          "vendor-react": ["react", "react-dom"],
+          // Router is small but separate from React so it caches independently
+          "vendor-router": ["react-router-dom"],
+          // All Radix primitives — large, almost never changes
+          "vendor-radix": [
+            "@radix-ui/react-accordion",
+            "@radix-ui/react-alert-dialog",
+            "@radix-ui/react-avatar",
+            "@radix-ui/react-checkbox",
+            "@radix-ui/react-dialog",
+            "@radix-ui/react-dropdown-menu",
+            "@radix-ui/react-label",
+            "@radix-ui/react-popover",
+            "@radix-ui/react-progress",
+            "@radix-ui/react-radio-group",
+            "@radix-ui/react-scroll-area",
+            "@radix-ui/react-select",
+            "@radix-ui/react-separator",
+            "@radix-ui/react-slot",
+            "@radix-ui/react-switch",
+            "@radix-ui/react-tabs",
+            "@radix-ui/react-toast",
+            "@radix-ui/react-tooltip",
+          ],
+          // Charts library — heavy, loaded only on Dashboard
+          "vendor-charts": ["recharts"],
+          // Icons — tree-shaken but still a sizeable package
+          "vendor-icons": ["@phosphor-icons/react"],
+          // Form libraries
+          "vendor-forms": [
+            "react-hook-form",
+            "zod",
+            "@hookform/resolvers",
+          ],
+        },
+      },
+    },
   },
 });

@@ -1,30 +1,43 @@
 import "@/App.css";
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { Toaster } from "@/components/ui/sonner";
 
-import Login from "@/pages/Login";
-import Register from "@/pages/Register";
-import ForgotPassword from "@/pages/ForgotPassword";
-import ResetPassword from "@/pages/ResetPassword";
-import VerifyEmail from "@/pages/VerifyEmail";
-import Landing from "@/pages/Landing";
-import InviteSignup from "@/pages/InviteSignup";
+// Eagerly load Layout and auth-wall pages — needed before any route renders
 import Layout from "@/components/Layout";
-import Dashboard from "@/pages/Dashboard";
-import Profile from "@/pages/Profile";
-import Claimants from "@/pages/Claimants";
-import CalendarPage from "@/pages/Calendar";
-import AdminPage from "@/pages/Admin";
-import BenefitWeeks from "@/pages/BenefitWeeks";
-import WeekDetail from "@/pages/WeekDetail";
-import ImportPage from "@/pages/ImportPage";
-import AuditLog from "@/pages/AuditLog";
-import DocumentsPage from "@/pages/Documents";
-import SmsOptIn from "@/pages/SmsOptIn";
-import PrivacyPolicy from "@/pages/PrivacyPolicy";
-import Terms from "@/pages/Terms";
+
+// Lazily load every page so each route gets its own chunk.
+// The router won't request a chunk until the user navigates to that path.
+const Login         = lazy(() => import("@/pages/Login"));
+const Register      = lazy(() => import("@/pages/Register"));
+const ForgotPassword = lazy(() => import("@/pages/ForgotPassword"));
+const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
+const VerifyEmail   = lazy(() => import("@/pages/VerifyEmail"));
+const Landing       = lazy(() => import("@/pages/Landing"));
+const InviteSignup  = lazy(() => import("@/pages/InviteSignup"));
+const Dashboard     = lazy(() => import("@/pages/Dashboard"));
+const Profile       = lazy(() => import("@/pages/Profile"));
+const Claimants     = lazy(() => import("@/pages/Claimants"));
+const CalendarPage  = lazy(() => import("@/pages/Calendar"));
+const AdminPage     = lazy(() => import("@/pages/Admin"));
+const BenefitWeeks  = lazy(() => import("@/pages/BenefitWeeks"));
+const WeekDetail    = lazy(() => import("@/pages/WeekDetail"));
+const ImportPage    = lazy(() => import("@/pages/ImportPage"));
+const AuditLog      = lazy(() => import("@/pages/AuditLog"));
+const DocumentsPage = lazy(() => import("@/pages/Documents"));
+const SmsOptIn      = lazy(() => import("@/pages/SmsOptIn"));
+const PrivacyPolicy = lazy(() => import("@/pages/PrivacyPolicy"));
+const Terms         = lazy(() => import("@/pages/Terms"));
+
+function PageLoader() {
+  return (
+    <div className="min-h-[40vh] flex items-center justify-center">
+      <div className="kbd-label text-zinc-400">Loading…</div>
+    </div>
+  );
+}
 
 function Protected({ children }) {
   const { user, loading } = useAuth();
@@ -59,6 +72,7 @@ export function App() {
       <ErrorBoundary>
         <AuthProvider>
           <BrowserRouter>
+            <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route path="/" element={<LandingOrApp />} />
               <Route
@@ -142,6 +156,7 @@ export function App() {
               </Route>
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
+            </Suspense>
           </BrowserRouter>
           <Toaster richColors position="top-right" />
         </AuthProvider>
