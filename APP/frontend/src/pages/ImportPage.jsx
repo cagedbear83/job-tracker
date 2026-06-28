@@ -140,6 +140,7 @@ export default function ImportPage() {
           <input
             type="file"
             accept=".csv"
+            aria-label="Choose CSV file to import"
             onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
             className="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:border file:border-zinc-300 file:bg-[#F4F4F5] file:text-zinc-900 file:font-semibold file:rounded-none hover:file:bg-zinc-200"
             data-testid="csv-file-input"
@@ -172,6 +173,7 @@ export default function ImportPage() {
           <input
             type="file"
             accept="image/png,image/jpeg,image/webp"
+            aria-label="Choose screenshot image to import"
             onChange={(e) => setImgFile(e.target.files?.[0] || null)}
             className="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:border file:border-zinc-300 file:bg-[#F4F4F5] file:text-zinc-900 file:font-semibold file:rounded-none hover:file:bg-zinc-200"
             data-testid="screenshot-file-input"

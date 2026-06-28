@@ -200,6 +200,7 @@ export default function SmsOptIn() {
             )}
 
             <button
+              type="button"
               onClick={handleSubmit}
               className="w-full bg-[#0033A0] text-white font-bold py-3 flex items-center justify-center gap-2 hover:bg-[#002880] transition-colors"
             >

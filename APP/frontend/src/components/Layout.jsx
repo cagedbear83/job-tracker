@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useState } from "react";
+import { useTheme } from "next-themes";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +23,8 @@ import {
   CalendarCheckIcon,
   ListIcon,
   FolderOpenIcon,
+  SunIcon,
+  MoonIcon,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
 
@@ -92,6 +95,7 @@ export default function Layout() {
   const navigate = useNavigate();
   const isAdmin = user?.role === "admin";
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const { theme, setTheme } = useTheme();
 
   const onLogout = async () => {
     await logout();
@@ -251,10 +255,23 @@ export default function Layout() {
               </NavLink>
             ))}
           </nav>
+          {/* Dark mode toggle */}
+          <button
+            type="button"
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            className="mt-3 w-full flex items-center gap-2 px-4 py-2 text-xs text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50 border-t border-zinc-200 transition-colors"
+            aria-label="Toggle dark mode"
+          >
+            {theme === "dark"
+              ? <SunIcon size={14} weight="bold" />
+              : <MoonIcon size={14} weight="bold" />}
+            {theme === "dark" ? "Light mode" : "Dark mode"}
+          </button>
+
           {!isAdmin && (
-            <div className="mt-4 p-4 border border-zinc-200 bg-[#F4F4F5]">
+            <div className="mt-4 p-4 border border-zinc-200 bg-[#F4F4F5] dark:bg-zinc-800 dark:border-zinc-700">
               <div className="kbd-label mb-1">Reminder</div>
-              <p className="text-xs text-zinc-700 leading-relaxed">
+              <p className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed">
                 Illinois requires a minimum of <b>3 work-search contacts</b> per
                 benefit week (Sun–Sat).
               </p>

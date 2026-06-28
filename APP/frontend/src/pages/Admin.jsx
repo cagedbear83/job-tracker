@@ -214,6 +214,7 @@ export default function AdminPage() {
                     <td className="font-mono-data">{u.contacts_count}</td>
                     <td className="text-right">
                       <button
+                        type="button"
                         onClick={() => openDetail(u.id)}
                         className="text-xs font-semibold uppercase border border-zinc-300 px-3 py-1 hover:border-[#0033A0] hover:text-[#0033A0]"
                         data-testid={`admin-view-${u.id}`}
@@ -240,6 +241,8 @@ export default function AdminPage() {
                   </h3>
                 </div>
                 <button
+                  type="button"
+                  aria-label="Close detail panel"
                   onClick={() => setDetail(null)}
                   className="kbd-label text-zinc-500"
                 >
@@ -511,6 +514,7 @@ export default function AdminPage() {
                     <td className="text-right">
                       <div className="inline-flex gap-1">
                         <button
+                          type="button"
                           onClick={() => copyLink(inv.invite_link)}
                           className="text-xs font-semibold uppercase border border-zinc-300 px-2 py-1 hover:border-[#0033A0] hover:text-[#0033A0] inline-flex items-center gap-1"
                           data-testid={`invite-copy-${inv.code}`}
@@ -527,6 +531,7 @@ export default function AdminPage() {
                         </a>
                         {!inv.used && (
                           <button
+                            type="button"
                             onClick={() => revokeInvite(inv.code)}
                             className="text-xs font-semibold uppercase border border-zinc-300 px-2 py-1 hover:border-[#DC2626] hover:text-[#DC2626] inline-flex items-center gap-1"
                             data-testid={`invite-revoke-${inv.code}`}

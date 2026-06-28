@@ -133,6 +133,7 @@ export default function Dashboard() {
                 {[4, 12, 52].map((n) => (
                   <button
                     key={n}
+                    type="button"
                     onClick={() => setRange(n)}
                     data-testid={`trend-range-${n}`}
                     className={`px-3 py-1 text-xs font-semibold uppercase tracking-wider ${range === n ? "bg-[#0033A0] text-white" : "bg-white text-zinc-600 hover:text-zinc-900"}`}

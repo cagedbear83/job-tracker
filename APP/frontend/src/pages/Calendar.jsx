@@ -251,6 +251,8 @@ export default function CalendarPage() {
         {/* Header nav */}
         <div className="px-6 py-4 border-b border-zinc-200 flex items-center justify-between">
           <button
+            type="button"
+            aria-label="Previous month"
             onClick={prev}
             className="text-sm font-semibold border border-zinc-300 px-3 py-1 hover:border-[#0033A0]"
             data-testid="calendar-prev"
@@ -259,6 +261,8 @@ export default function CalendarPage() {
           </button>
           <h2 className="font-display font-bold text-xl tracking-tight">{monthName}</h2>
           <button
+            type="button"
+            aria-label="Next month"
             onClick={next}
             className="text-sm font-semibold border border-zinc-300 px-3 py-1 hover:border-[#0033A0]"
             data-testid="calendar-next"
@@ -392,16 +396,18 @@ export default function CalendarPage() {
                     </div>
                     <div className="flex gap-1 shrink-0">
                       <button
+                        type="button"
                         onClick={() => openEditEvent(evt)}
                         className="p-1 text-zinc-400 hover:text-[#0033A0]"
-                        title="Edit"
+                        aria-label="Edit event"
                       >
                         <PencilSimpleIcon size={14} weight="bold" />
                       </button>
                       <button
+                        type="button"
                         onClick={() => deleteEvent(evt.id)}
                         className="p-1 text-zinc-400 hover:text-red-600"
-                        title="Delete"
+                        aria-label="Delete event"
                       >
                         <TrashIcon size={14} weight="bold" />
                       </button>

@@ -112,6 +112,7 @@ export default function AuditLog() {
             />
             <button
               type="submit"
+              aria-label="Search audit log"
               className="px-4 border border-[#0033A0] bg-[#0033A0] text-white"
               data-testid="audit-search-button"
             >

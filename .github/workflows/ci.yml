@@ -25,14 +25,12 @@ jobs:
           cache-dependency-path: APP/frontend/yarn.lock
       - name: Install dependencies
         run: yarn install --frozen-lockfile
-      # `craco build` runs ESLint (incl. react/jsx-no-undef). With CI=true,
-      # warnings are treated as errors, so undefined components / bad imports
-      # fail the build instead of shipping a runtime crash.
-      - name: Build (lint + compile)
+      - name: Lint
+        run: yarn eslint src --max-warnings=0
+      - name: Build
         run: yarn build
         env:
-          CI: "true"
-          REACT_APP_BACKEND_URL: http://localhost:8001
+          VITE_BACKEND_URL: http://localhost:8001
 
   backend:
     name: Backend tests
