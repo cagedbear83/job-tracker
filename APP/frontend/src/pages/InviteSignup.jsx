@@ -127,6 +127,7 @@ export default function InviteSignup() {
           <Label className="kbd-label">Create Password</Label>
           <Input
             type="password"
+            autoComplete="new-password"
             required
             minLength={6}
             value={form.password}
@@ -139,6 +140,7 @@ export default function InviteSignup() {
           <Label className="kbd-label">Confirm Password</Label>
           <Input
             type="password"
+            autoComplete="new-password"
             required
             minLength={6}
             value={form.confirm}
