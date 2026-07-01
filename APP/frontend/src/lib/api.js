@@ -2,6 +2,7 @@ import axios from "axios";
 import { getToken } from "./tokenStorage";
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+const BASE_URL = import.meta.env.VITE_API_URL.replace(/\/$/, '');;
 
 if (!BACKEND_URL) {
   console.error(
