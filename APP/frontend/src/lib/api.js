@@ -10,7 +10,7 @@ if (!BACKEND_URL) {
   );
 }
 
-export const API = `${BACKEND_URL}/api`;
+export const API = `${(BACKEND_URL || "").replace(/\/+$/, "")}/api`;
 
 export const api = axios.create({ baseURL: API });
 
