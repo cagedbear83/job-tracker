@@ -89,9 +89,12 @@ export default function Register() {
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
+  // Combine first + last into a single display name (replaces the old Full Name field)
+  const fullName = `${firstName} ${lastName}`.trim();
+
   const strength = useMemo(
-    () => getPasswordStrength(form.password, form.email, form.name),
-    [form.password, form.email, form.name]
+    () => getPasswordStrength(form.password, form.email, fullName),
+    [form.password, form.email, fullName]
   );
 
   const passwordTooLong = form.password.length > 64;
@@ -101,6 +104,10 @@ export default function Register() {
 
   const onSubmit = async (e) => {
     e.preventDefault();
+    if (!fullName) {
+      toast.error("Please enter your first and last name.");
+      return;
+    }
     if (!passwordReady) {
       toast.error(strength.label || "Password does not meet requirements.");
       return;
@@ -114,7 +121,7 @@ export default function Register() {
       await register({
         email: form.email,
         password: form.password,
-        name: form.name,
+        name: fullName,
         first_name: firstName,
         last_name: lastName,
         phone: phone,
@@ -164,6 +171,7 @@ export default function Register() {
             <div>
               <Label className="kbd-label">First Name</Label>
               <Input
+                required
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
                 className="rounded-none border-border mt-2"
@@ -173,6 +181,7 @@ export default function Register() {
             <div>
               <Label className="kbd-label">Last Name</Label>
               <Input
+                required
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
                 className="rounded-none border-border mt-2"
@@ -244,17 +253,6 @@ export default function Register() {
 
         {/* Account Credentials */}
         <div className="space-y-3">
-          <div>
-            <Label className="kbd-label">Full Name</Label>
-            <Input
-              required
-              name="name"
-              value={form.name}
-              onChange={handleInputChange}
-              className="rounded-none border-border mt-2"
-              data-testid="register-name-input"
-            />
-          </div>
           <div>
             <Label className="kbd-label">Email</Label>
             <Input

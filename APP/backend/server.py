@@ -83,6 +83,8 @@ client = AsyncIOMotorClient(
         os.environ.get("MONGO_SERVER_SELECTION_TIMEOUT_MS", "5000")
     ),
     connectTimeoutMS=int(os.environ.get("MONGO_CONNECT_TIMEOUT_MS", "10000")),
+    tz_aware=True,
+    tzinfo=timezone.utc,
 )
 db = client[os.environ["DB_NAME"]]
 
@@ -731,8 +733,14 @@ async def verify_email(token: str):
             status_code=400, detail="Invalid or expired verification token"
         )
     expires = user.get("verification_token_expires")
-    if expires and datetime.now(timezone.utc) > expires:
-        raise HTTPException(status_code=400, detail="Verification link has expired")
+    if expires:
+        # Normalize to timezone-aware UTC (older docs may be naive)
+        if expires.tzinfo is None:
+            expires = expires.replace(tzinfo=timezone.utc)
+        if datetime.now(timezone.utc) > expires:
+            raise HTTPException(
+                status_code=400, detail="Verification link has expired"
+            )
     await db.users.update_one(
         {"id": user["id"]},
         {
