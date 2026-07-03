@@ -13,30 +13,30 @@ import { toast } from "sonner";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react";
 
 const ACTION_COLORS = {
-  LOGIN: "text-zinc-700",
-  LOGOUT: "text-zinc-700",
-  REGISTER: "text-[#0033A0]",
-  REGISTER_INVITE: "text-[#0033A0]",
+  LOGIN: "text-foreground",
+  LOGOUT: "text-foreground",
+  REGISTER: "text-[#0033A0] dark:text-[#5a86ff]",
+  REGISTER_INVITE: "text-[#0033A0] dark:text-[#5a86ff]",
   CREATE: "text-[#16A34A]",
   UPDATE: "text-[#EAB308]",
   DELETE: "text-[#DC2626]",
-  SWITCH: "text-zinc-700",
-  IMPORT_CSV: "text-[#0033A0]",
-  IMPORT_OCR: "text-[#0033A0]",
-  EXPORT_CSV: "text-[#0033A0]",
-  EXPORT_PDF: "text-[#0033A0]",
-  FORGOT_PW: "text-zinc-700",
+  SWITCH: "text-foreground",
+  IMPORT_CSV: "text-[#0033A0] dark:text-[#5a86ff]",
+  IMPORT_OCR: "text-[#0033A0] dark:text-[#5a86ff]",
+  EXPORT_CSV: "text-[#0033A0] dark:text-[#5a86ff]",
+  EXPORT_PDF: "text-[#0033A0] dark:text-[#5a86ff]",
+  FORGOT_PW: "text-foreground",
   RESET_PW: "text-[#EAB308]",
-  INVITE_CREATE: "text-[#0033A0]",
+  INVITE_CREATE: "text-[#0033A0] dark:text-[#5a86ff]",
   INVITE_REVOKE: "text-[#DC2626]",
-  REMINDER_SUNDAY: "text-zinc-600",
-  REMINDER_WEDNESDAY: "text-zinc-600",
-  REMINDER_FRIDAY: "text-zinc-600",
-  REMINDER_SATURDAY: "text-zinc-600",
-  SMS_SUNDAY: "text-zinc-600",
-  SMS_WEDNESDAY: "text-zinc-600",
-  SMS_FRIDAY: "text-zinc-600",
-  SMS_SATURDAY: "text-zinc-600",
+  REMINDER_SUNDAY: "text-muted-foreground",
+  REMINDER_WEDNESDAY: "text-muted-foreground",
+  REMINDER_FRIDAY: "text-muted-foreground",
+  REMINDER_SATURDAY: "text-muted-foreground",
+  SMS_SUNDAY: "text-muted-foreground",
+  SMS_WEDNESDAY: "text-muted-foreground",
+  SMS_FRIDAY: "text-muted-foreground",
+  SMS_SATURDAY: "text-muted-foreground",
 };
 
 const ENTITY_OPTIONS = [
@@ -93,13 +93,13 @@ export default function AuditLog() {
         <h1 className="font-display font-black text-4xl tracking-tighter mt-1">
           Audit Log
         </h1>
-        <p className="text-sm text-zinc-600 mt-2">
+        <p className="text-sm text-muted-foreground mt-2">
           Every action you take is recorded for compliance. Edits include
           field-level old → new diffs.
         </p>
       </div>
 
-      <div className="border border-zinc-200 bg-white p-4 grid grid-cols-1 md:grid-cols-12 gap-3">
+      <div className="border border-border bg-background p-4 grid grid-cols-1 md:grid-cols-12 gap-3">
         <form onSubmit={onSearch} className="md:col-span-6">
           <Label className="kbd-label">Search detail</Label>
           <div className="flex gap-2 mt-2">
@@ -158,9 +158,9 @@ export default function AuditLog() {
         </div>
       </div>
 
-      <div className="border border-zinc-200 bg-white overflow-x-auto">
+      <div className="border border-border bg-background overflow-x-auto">
         <table className="w-full compliance-table text-sm">
-          <thead className="bg-[#F4F4F5] border-b border-zinc-200">
+          <thead className="bg-muted border-b border-border">
             <tr className="text-left">
               <th className="kbd-label">Timestamp</th>
               <th className="kbd-label">Action</th>
@@ -171,14 +171,14 @@ export default function AuditLog() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={4} className="text-center text-zinc-500 py-12">
+                <td colSpan={4} className="text-center text-muted-foreground py-12">
                   Loading…
                 </td>
               </tr>
             )}
             {!loading && items.length === 0 && (
               <tr>
-                <td colSpan={4} className="text-center text-zinc-500 py-12">
+                <td colSpan={4} className="text-center text-muted-foreground py-12">
                   No audit entries match your filters.
                 </td>
               </tr>
@@ -186,19 +186,19 @@ export default function AuditLog() {
             {items.map((it) => (
               <tr
                 key={it.id}
-                className="border-b border-zinc-100"
+                className="border-b border-border"
                 data-testid={`audit-row-${it.id}`}
               >
-                <td className="font-mono-data text-xs text-zinc-600 whitespace-nowrap">
+                <td className="font-mono-data text-xs text-muted-foreground whitespace-nowrap">
                   {new Date(it.timestamp).toLocaleString()}
                 </td>
                 <td
-                  className={`text-xs font-bold tracking-wider ${ACTION_COLORS[it.action] || "text-zinc-700"}`}
+                  className={`text-xs font-bold tracking-wider ${ACTION_COLORS[it.action] || "text-foreground"}`}
                 >
                   {it.action}
                 </td>
-                <td className="text-xs text-zinc-600">{it.entity}</td>
-                <td className="text-xs text-zinc-800 max-w-[600px]">
+                <td className="text-xs text-muted-foreground">{it.entity}</td>
+                <td className="text-xs text-foreground max-w-[600px]">
                   {it.detail}
                 </td>
               </tr>
@@ -207,7 +207,7 @@ export default function AuditLog() {
         </table>
       </div>
 
-      <div className="text-xs text-zinc-500" data-testid="audit-count">
+      <div className="text-xs text-muted-foreground" data-testid="audit-count">
         Showing {items.length} entries
       </div>
     </div>

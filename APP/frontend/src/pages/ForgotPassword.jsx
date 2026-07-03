@@ -27,7 +27,7 @@ export default function ForgotPassword() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white p-8">
+    <div className="min-h-screen flex items-center justify-center bg-background p-8">
       <form
         onSubmit={submit}
         className="w-full max-w-md space-y-6"
@@ -39,14 +39,14 @@ export default function ForgotPassword() {
           <h2 className="font-display font-black text-3xl tracking-tighter mt-1">
             Forgot password
           </h2>
-          <p className="text-sm text-zinc-600 mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             Enter your account email and we'll send a reset link.
           </p>
         </div>
 
         {sent ? (
           <div
-            className="border border-[#16A34A] bg-green-50 p-6 text-sm"
+            className="border border-[#16A34A] bg-green-50 dark:bg-green-950/30 p-6 text-sm"
             data-testid="forgot-success"
           >
             <EnvelopeSimpleIcon
@@ -54,14 +54,14 @@ export default function ForgotPassword() {
               weight="bold"
               className="text-[#16A34A] mb-2"
             />
-            <div className="font-semibold text-zinc-900">Check your inbox</div>
-            <p className="mt-1 text-zinc-700">
+            <div className="font-semibold text-foreground">Check your inbox</div>
+            <p className="mt-1 text-foreground">
               If <code>{email}</code> exists in our system, a reset link has
               been emailed. It expires in 1 hour.
             </p>
             <Link
               to="/login"
-              className="inline-block mt-3 text-[#0033A0] font-semibold underline"
+              className="inline-block mt-3 text-[#0033A0] dark:text-[#5a86ff] font-semibold underline"
             >
               Back to sign in
             </Link>
@@ -75,7 +75,7 @@ export default function ForgotPassword() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="rounded-none border-zinc-300 mt-2"
+                className="rounded-none border-border mt-2"
                 data-testid="forgot-email-input"
               />
             </div>
@@ -88,7 +88,7 @@ export default function ForgotPassword() {
               {busy ? "Sending..." : "Send reset link"}
             </Button>
             <div className="text-xs">
-              <Link to="/login" className="text-zinc-500 underline">
+              <Link to="/login" className="text-muted-foreground underline">
                 ← Back to sign in
               </Link>
             </div>

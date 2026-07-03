@@ -25,10 +25,10 @@ import {
 
 function Metric({ label, value, accent, testid }) {
   return (
-    <div className="border border-zinc-200 bg-white p-6" data-testid={testid}>
+    <div className="border border-border bg-card p-6" data-testid={testid}>
       <div className="kbd-label">{label}</div>
       <div
-        className={`mt-3 font-display font-black text-4xl tracking-tighter ${accent || "text-zinc-900"}`}
+        className={`mt-3 font-display font-black text-4xl tracking-tighter ${accent || "text-foreground"}`}
       >
         {value}
       </div>
@@ -69,14 +69,14 @@ export default function Dashboard() {
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
           <div className="kbd-label">Overview</div>
-          <h1 className="font-display font-black text-4xl sm:text-5xl tracking-tighter mt-1">
+          <h1 className="font-display font-black text-4xl sm:text-5xl tracking-tighter mt-1 text-foreground">
             Dashboard
           </h1>
         </div>
         <div className="flex gap-2">
           <Link to="/weeks">
             <Button
-              className="rounded-none bg-[#0033A0] hover:bg-[#002266]"
+              className="rounded-none bg-[#0033A0] hover:bg-[#002266] text-white"
               data-testid="dashboard-new-week"
             >
               <PlusIcon className="mr-2" size={16} weight="bold" /> New Benefit
@@ -113,21 +113,21 @@ export default function Dashboard() {
 
       {trend.length > 0 && (
         <div
-          className="border border-zinc-200 bg-white"
+          className="border border-border bg-card"
           data-testid="trend-chart"
         >
-          <div className="px-6 py-4 border-b border-zinc-200 flex items-center justify-between flex-wrap gap-3">
+          <div className="px-6 py-4 border-b border-border flex items-center justify-between flex-wrap gap-3">
             <div>
               <div className="kbd-label flex items-center gap-2">
                 <TrendUpIcon size={12} weight="bold" /> Compliance Trend
               </div>
-              <h2 className="font-display font-bold text-xl tracking-tight">
+              <h2 className="font-display font-bold text-xl tracking-tight text-foreground">
                 Last {trend.length} of {range} weeks
               </h2>
             </div>
             <div className="flex items-center gap-3">
               <div
-                className="flex border border-zinc-300"
+                className="flex border border-border"
                 data-testid="trend-range-toggle"
               >
                 {[4, 12, 52].map((n) => (
@@ -136,13 +136,13 @@ export default function Dashboard() {
                     type="button"
                     onClick={() => setRange(n)}
                     data-testid={`trend-range-${n}`}
-                    className={`px-3 py-1 text-xs font-semibold uppercase tracking-wider ${range === n ? "bg-[#0033A0] text-white" : "bg-white text-zinc-600 hover:text-zinc-900"}`}
+                    className={`px-3 py-1 text-xs font-semibold uppercase tracking-wider ${range === n ? "bg-[#0033A0] text-white" : "bg-card text-muted-foreground hover:text-foreground"}`}
                   >
                     {n} wk
                   </button>
                 ))}
               </div>
-              <div className="flex items-center gap-4 text-xs">
+              <div className="flex items-center gap-4 text-xs text-foreground">
                 <span className="inline-flex items-center gap-1">
                   <span className="w-3 h-3 bg-[#16A34A]" /> ≥3
                 </span>
@@ -165,20 +165,22 @@ export default function Dashboard() {
                 <XAxis
                   dataKey="week_start"
                   tick={{ fontSize: 11, fontFamily: "IBM Plex Sans" }}
-                  stroke="#52525B"
+                  stroke="hsl(var(--muted-foreground))"
                 />
                 <YAxis
                   allowDecimals={false}
                   tick={{ fontSize: 11 }}
-                  stroke="#52525B"
+                  stroke="hsl(var(--muted-foreground))"
                 />
                 <Tooltip
-                  cursor={{ fill: "#F4F4F5" }}
+                  cursor={{ fill: "hsl(var(--muted))" }}
                   contentStyle={{
-                    border: "1px solid #D4D4D8",
+                    border: "1px solid hsl(var(--border))",
                     borderRadius: 0,
                     fontFamily: "IBM Plex Sans",
                     fontSize: 12,
+                    background: "hsl(var(--card))",
+                    color: "hsl(var(--card-foreground))",
                   }}
                   formatter={(v, n, p) => [
                     `${v} contacts`,
@@ -202,22 +204,22 @@ export default function Dashboard() {
       )}
 
       {!stats?.profile_complete && (
-        <div className="border-l-4 border-[#EAB308] bg-yellow-50 p-4 flex items-start gap-3">
+        <div className="border-l-4 border-[#EAB308] bg-yellow-50 dark:bg-yellow-950/30 p-4 flex items-start gap-3">
           <WarningIcon
             size={20}
             weight="fill"
             className="text-[#EAB308] flex-shrink-0 mt-0.5"
           />
           <div className="text-sm">
-            <div className="font-semibold text-zinc-900">
+            <div className="font-semibold text-foreground">
               Complete your Claimant Profile
             </div>
-            <p className="text-zinc-700 mt-1">
+            <p className="text-muted-foreground mt-1">
               Your profile information is required to generate proper work
               search reports.{" "}
               <Link
                 to="/profile"
-                className="font-semibold underline text-[#0033A0]"
+                className="font-semibold underline text-[#0033A0] dark:text-[#5a86ff]"
                 data-testid="dashboard-profile-link"
               >
                 Go to profile →
@@ -227,28 +229,28 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="border border-zinc-200 bg-white">
-        <div className="px-6 py-4 border-b border-zinc-200 flex items-center justify-between">
+      <div className="border border-border bg-card">
+        <div className="px-6 py-4 border-b border-border flex items-center justify-between">
           <div>
             <div className="kbd-label">Recent</div>
-            <h2 className="font-display font-bold text-xl tracking-tight">
+            <h2 className="font-display font-bold text-xl tracking-tight text-foreground">
               Benefit Weeks
             </h2>
           </div>
           <Link
             to="/weeks"
-            className="text-sm font-semibold text-[#0033A0] underline"
+            className="text-sm font-semibold text-[#0033A0] dark:text-[#5a86ff] underline"
           >
             View all
           </Link>
         </div>
-        <div className="divide-y divide-zinc-100">
+        <div className="divide-y divide-border">
           {weeks.length === 0 && (
-            <div className="px-6 py-12 text-center text-sm text-zinc-500">
+            <div className="px-6 py-12 text-center text-sm text-muted-foreground">
               <CalendarBlankIcon
                 size={32}
                 weight="thin"
-                className="mx-auto mb-2 text-zinc-400"
+                className="mx-auto mb-2 text-muted-foreground"
               />
               No benefit weeks yet. Create your first one.
             </div>
@@ -257,17 +259,17 @@ export default function Dashboard() {
             <Link
               key={w.id}
               to={`/weeks/${w.id}`}
-              className="flex items-center justify-between px-6 py-4 hover:bg-zinc-50 transition-colors"
+              className="flex items-center justify-between px-6 py-4 hover:bg-muted transition-colors"
               data-testid={`dashboard-week-${w.id}`}
             >
               <div className="flex items-center gap-4">
                 <CalendarBlankIcon
                   size={20}
                   weight="regular"
-                  className="text-zinc-500"
+                  className="text-muted-foreground"
                 />
                 <div>
-                  <div className="font-semibold text-zinc-900 font-mono-data">
+                  <div className="font-semibold text-foreground font-mono-data">
                     {w.week_start} → {w.week_end}
                   </div>
                   <div className="kbd-label mt-1">

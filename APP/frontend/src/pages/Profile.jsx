@@ -67,14 +67,14 @@ export default function Profile() {
         <h1 className="font-display font-black text-4xl tracking-tighter mt-1">
           Claimant Profile
         </h1>
-        <p className="text-sm text-zinc-600 mt-2 max-w-2xl">
+        <p className="text-sm text-muted-foreground mt-2 max-w-2xl">
           Your profile populates IDES work-search reports.
         </p>
       </div>
 
       <form
         onSubmit={save}
-        className="border border-zinc-200 bg-white p-6 sm:p-8"
+        className="border border-border bg-background p-6 sm:p-8"
       >
         <div className="grid grid-cols-12 gap-4">
           {FIELDS.map(([key, label, span]) => (
@@ -83,7 +83,7 @@ export default function Profile() {
               <Input
                 value={form[key] || ""}
                 onChange={(e) => setForm({ ...form, [key]: e.target.value })}
-                className="rounded-none border-zinc-300 mt-2"
+                className="rounded-none border-border mt-2"
                 data-testid={`profile-${key}-input`}
               />
             </div>

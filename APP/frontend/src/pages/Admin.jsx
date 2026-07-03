@@ -131,7 +131,7 @@ export default function AdminPage() {
   if (user?.role !== "admin") {
     return (
       <div
-        className="border border-[#DC2626] bg-red-50 p-6 text-sm text-[#DC2626] font-semibold"
+        className="border border-[#DC2626] bg-red-50 dark:bg-red-950/30 p-6 text-sm text-[#DC2626] font-semibold"
         data-testid="admin-forbidden"
       >
         Admin access only.
@@ -142,7 +142,7 @@ export default function AdminPage() {
   return (
     <div className="space-y-6" data-testid="admin-page">
       <div className="flex items-center gap-3">
-        <ShieldCheckIcon size={32} weight="bold" className="text-[#0033A0]" />
+        <ShieldCheckIcon size={32} weight="bold" className="text-[#0033A0] dark:text-[#5a86ff]" />
         <div>
           <div className="kbd-label">Case-Worker View</div>
           <h1 className="font-display font-black text-4xl tracking-tighter">
@@ -152,7 +152,7 @@ export default function AdminPage() {
       </div>
 
       <Tabs defaultValue="users" className="space-y-4">
-        <TabsList className="rounded-none bg-zinc-100 p-0 h-auto">
+        <TabsList className="rounded-none bg-muted p-0 h-auto">
           <TabsTrigger
             value="users"
             className="rounded-none data-[state=active]:bg-[#0033A0] data-[state=active]:text-white px-4 py-2 text-xs font-semibold uppercase tracking-wider"
@@ -177,9 +177,9 @@ export default function AdminPage() {
         </TabsList>
 
         <TabsContent value="users" className="space-y-4">
-          <div className="border border-zinc-200 bg-white overflow-x-auto">
+          <div className="border border-border bg-background overflow-x-auto">
             <table className="w-full compliance-table text-sm">
-              <thead className="bg-[#F4F4F5] border-b">
+              <thead className="bg-muted border-b">
                 <tr className="text-left">
                   <th className="kbd-label">Email</th>
                   <th className="kbd-label">Name</th>
@@ -193,7 +193,7 @@ export default function AdminPage() {
               <tbody>
                 {loading && (
                   <tr>
-                    <td colSpan={7} className="text-center text-zinc-500 py-12">
+                    <td colSpan={7} className="text-center text-muted-foreground py-12">
                       Loading…
                     </td>
                   </tr>
@@ -201,7 +201,7 @@ export default function AdminPage() {
                 {users.map((u) => (
                   <tr
                     key={u.id}
-                    className="border-b border-zinc-100"
+                    className="border-b border-border"
                     data-testid={`admin-row-${u.id}`}
                   >
                     <td className="font-mono-data text-xs">{u.email}</td>
@@ -216,7 +216,7 @@ export default function AdminPage() {
                       <button
                         type="button"
                         onClick={() => openDetail(u.id)}
-                        className="text-xs font-semibold uppercase border border-zinc-300 px-3 py-1 hover:border-[#0033A0] hover:text-[#0033A0]"
+                        className="text-xs font-semibold uppercase border border-border px-3 py-1 hover:border-[#0033A0] hover:text-[#0033A0] dark:text-[#5a86ff]"
                         data-testid={`admin-view-${u.id}`}
                       >
                         View
@@ -230,7 +230,7 @@ export default function AdminPage() {
 
           {detail && (
             <div
-              className="border border-[#0033A0] bg-white p-6"
+              className="border border-[#0033A0] bg-background p-6"
               data-testid="admin-detail"
             >
               <div className="flex items-start justify-between mb-4">
@@ -244,7 +244,7 @@ export default function AdminPage() {
                   type="button"
                   aria-label="Close detail panel"
                   onClick={() => setDetail(null)}
-                  className="kbd-label text-zinc-500"
+                  className="kbd-label text-muted-foreground"
                 >
                   Close ×
                 </button>
@@ -257,7 +257,7 @@ export default function AdminPage() {
                   {detail.claimants.map((c) => (
                     <div
                       key={c.id}
-                      className="border border-zinc-200 p-3 mb-2 text-sm"
+                      className="border border-border p-3 mb-2 text-sm"
                     >
                       <b>{c.label || "Untitled"}</b> — {c.first_name}{" "}
                       {c.last_name} (•••{c.claimant_id_last4})
@@ -272,7 +272,7 @@ export default function AdminPage() {
                     {detail.weeks.map((w) => (
                       <div
                         key={w.id}
-                        className="flex items-center justify-between border-b border-zinc-100 py-2 text-sm"
+                        className="flex items-center justify-between border-b border-border py-2 text-sm"
                       >
                         <span className="font-mono-data">
                           {w.week_start} → {w.week_end}
@@ -304,7 +304,7 @@ export default function AdminPage() {
               <h2 className="font-display font-bold text-2xl tracking-tight mt-1">
                 Invitations
               </h2>
-              <p className="text-sm text-zinc-600 mt-1">
+              <p className="text-sm text-muted-foreground mt-1">
                 Send a pre-configured signup link. Expires in 14 days.
               </p>
             </div>
@@ -313,7 +313,7 @@ export default function AdminPage() {
                 <DialogTrigger asChild>
                   <Button
                     variant="outline"
-                    className="rounded-none border-zinc-300"
+                    className="rounded-none border-border"
                     data-testid="bulk-invite-button"
                   >
                     Bulk import
@@ -329,7 +329,7 @@ export default function AdminPage() {
                     </DialogTitle>
                   </DialogHeader>
                   <div className="space-y-3">
-                    <p className="text-xs text-zinc-600">
+                    <p className="text-xs text-muted-foreground">
                       Paste a CSV with header row:{" "}
                       <code>email,claimant_label,note</code>
                     </p>
@@ -337,16 +337,16 @@ export default function AdminPage() {
                       value={bulkCsv}
                       onChange={(e) => setBulkCsv(e.target.value)}
                       rows={10}
-                      className="w-full font-mono text-xs border border-zinc-300 p-3 rounded-none"
+                      className="w-full font-mono text-xs border border-border p-3 rounded-none"
                       data-testid="bulk-csv-input"
                     />
                     {bulkResult && (
                       <div className="text-xs space-y-2">
-                        <div className="border border-[#16A34A] bg-green-50 p-2">
+                        <div className="border border-[#16A34A] bg-green-50 dark:bg-green-950/30 p-2">
                           <b>Created:</b> {bulkResult.created.length}
                         </div>
                         {bulkResult.skipped.length > 0 && (
-                          <div className="border border-[#EAB308] bg-yellow-50 p-2">
+                          <div className="border border-[#EAB308] bg-yellow-50 dark:bg-yellow-950/30 p-2">
                             <b>Skipped:</b> {bulkResult.skipped.length}
                             <ul className="mt-1 ml-3 list-disc">
                               {bulkResult.skipped.slice(0, 5).map((s, i) => (
@@ -470,9 +470,9 @@ export default function AdminPage() {
             </div>
           </div>
 
-          <div className="border border-zinc-200 bg-white overflow-x-auto">
+          <div className="border border-border bg-background overflow-x-auto">
             <table className="w-full compliance-table text-sm">
-              <thead className="bg-[#F4F4F5] border-b">
+              <thead className="bg-muted border-b">
                 <tr className="text-left">
                   <th className="kbd-label">Email</th>
                   <th className="kbd-label">Label</th>
@@ -484,7 +484,7 @@ export default function AdminPage() {
               <tbody>
                 {invites.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="text-center text-zinc-500 py-12">
+                    <td colSpan={5} className="text-center text-muted-foreground py-12">
                       No invitations yet.
                     </td>
                   </tr>
@@ -492,7 +492,7 @@ export default function AdminPage() {
                 {invites.map((inv) => (
                   <tr
                     key={inv.code}
-                    className="border-b border-zinc-100"
+                    className="border-b border-border"
                     data-testid={`invite-row-${inv.code}`}
                   >
                     <td className="font-mono-data text-xs">{inv.email}</td>
@@ -503,12 +503,12 @@ export default function AdminPage() {
                           REDEEMED
                         </span>
                       ) : (
-                        <span className="text-xs font-bold text-[#0033A0]">
+                        <span className="text-xs font-bold text-[#0033A0] dark:text-[#5a86ff]">
                           PENDING
                         </span>
                       )}
                     </td>
-                    <td className="font-mono-data text-xs text-zinc-500">
+                    <td className="font-mono-data text-xs text-muted-foreground">
                       {new Date(inv.expires_at).toLocaleDateString()}
                     </td>
                     <td className="text-right">
@@ -516,7 +516,7 @@ export default function AdminPage() {
                         <button
                           type="button"
                           onClick={() => copyLink(inv.invite_link)}
-                          className="text-xs font-semibold uppercase border border-zinc-300 px-2 py-1 hover:border-[#0033A0] hover:text-[#0033A0] inline-flex items-center gap-1"
+                          className="text-xs font-semibold uppercase border border-border px-2 py-1 hover:border-[#0033A0] hover:text-[#0033A0] dark:text-[#5a86ff] inline-flex items-center gap-1"
                           data-testid={`invite-copy-${inv.code}`}
                         >
                           <CopySimpleIcon size={12} weight="bold" /> Copy
@@ -525,7 +525,7 @@ export default function AdminPage() {
                           href={inv.invite_link}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-xs font-semibold uppercase border border-zinc-300 px-2 py-1 hover:border-[#0033A0] hover:text-[#0033A0] inline-flex items-center gap-1"
+                          className="text-xs font-semibold uppercase border border-border px-2 py-1 hover:border-[#0033A0] hover:text-[#0033A0] dark:text-[#5a86ff] inline-flex items-center gap-1"
                         >
                           <ArrowSquareOutIcon size={12} weight="bold" /> Open
                         </a>
@@ -533,7 +533,7 @@ export default function AdminPage() {
                           <button
                             type="button"
                             onClick={() => revokeInvite(inv.code)}
-                            className="text-xs font-semibold uppercase border border-zinc-300 px-2 py-1 hover:border-[#DC2626] hover:text-[#DC2626] inline-flex items-center gap-1"
+                            className="text-xs font-semibold uppercase border border-border px-2 py-1 hover:border-[#DC2626] hover:text-[#DC2626] inline-flex items-center gap-1"
                             data-testid={`invite-revoke-${inv.code}`}
                           >
                             <TrashIcon size={12} weight="bold" /> Revoke
@@ -552,12 +552,12 @@ export default function AdminPage() {
           {!status && <div className="kbd-label">Loading…</div>}
           {status && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div className="border border-zinc-200 bg-white p-6">
+              <div className="border border-border bg-background p-6">
                 <div className="flex items-center gap-3 mb-3">
                   <EnvelopeSimpleIcon
                     size={26}
                     weight="bold"
-                    className="text-[#0033A0]"
+                    className="text-[#0033A0] dark:text-[#5a86ff]"
                   />
                   <div>
                     <div className="kbd-label">Email Provider</div>
@@ -591,11 +591,11 @@ export default function AdminPage() {
                     </code>
                   </div>
                 </div>
-                <div className="mt-4 border border-zinc-200 bg-[#F4F4F5] p-3 text-xs">
+                <div className="mt-4 border border-border bg-muted p-3 text-xs">
                   <div className="kbd-label mb-2">
                     DNS records to add at your registrar
                   </div>
-                  <p className="text-zinc-700">
+                  <p className="text-foreground">
                     Add these records at name.com for your Mailgun sending
                     domain:
                   </p>
@@ -623,7 +623,7 @@ export default function AdminPage() {
                     href={status.mailgun.dns_records_url}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-1 text-[#0033A0] font-semibold underline mt-3"
+                    className="inline-flex items-center gap-1 text-[#0033A0] dark:text-[#5a86ff] font-semibold underline mt-3"
                   >
                     Open Mailgun dashboard{" "}
                     <ArrowSquareOutIcon size={12} weight="bold" />
@@ -631,12 +631,12 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="border border-zinc-200 bg-white p-6">
+              <div className="border border-border bg-background p-6">
                 <div className="flex items-center gap-3 mb-3">
                   <DeviceMobileIcon
                     size={26}
                     weight="bold"
-                    className="text-[#0033A0]"
+                    className="text-[#0033A0] dark:text-[#5a86ff]"
                   />
                   <div>
                     <div className="kbd-label">SMS Provider</div>
@@ -663,16 +663,16 @@ export default function AdminPage() {
                       {status.twilio.from_number || "—"}
                     </code>
                   </div>
-                  <div className="border border-zinc-200 bg-[#F4F4F5] p-3 text-xs mt-2">
+                  <div className="border border-border bg-muted p-3 text-xs mt-2">
                     <div className="kbd-label mb-2">How it works</div>
-                    <p className="text-zinc-700">
+                    <p className="text-foreground">
                       Claimants opt in to SMS from their Claimant profile by
                       enabling the toggle and adding an E.164 phone (e.g.{" "}
                       <code className="font-mono">+13125550100</code>). SMS
                       reminders fire alongside email reminders on the same
                       schedule.
                     </p>
-                    <p className="text-zinc-700 mt-2">
+                    <p className="text-foreground mt-2">
                       Twilio trial accounts can only SMS verified numbers —
                       verify recipient numbers in the Twilio Console.
                     </p>

@@ -3,10 +3,10 @@ import { ShieldCheckIcon } from "@phosphor-icons/react";
 
 const Section = ({ title, children }) => (
   <div className="mb-10">
-    <h2 className="font-display font-black text-xl tracking-tight mb-4 pb-2 border-b border-zinc-200">
+    <h2 className="font-display font-black text-xl tracking-tight mb-4 pb-2 border-b border-border">
       {title}
     </h2>
-    <div className="text-sm text-zinc-700 leading-relaxed space-y-3">
+    <div className="text-sm text-foreground leading-relaxed space-y-3">
       {children}
     </div>
   </div>
@@ -16,10 +16,10 @@ export default function PrivacyPolicy() {
   const updated = "June 6, 2026";
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-background">
       <div className="h-1 bg-[#0033A0]" />
 
-      <header className="border-b border-zinc-200 bg-white">
+      <header className="border-b border-border bg-background">
         <div className="max-w-4xl mx-auto px-6 py-3 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-3">
             <div className="w-9 h-9 bg-[#0033A0] flex items-center justify-center text-white font-display font-black tracking-tight text-sm">
@@ -29,14 +29,14 @@ export default function PrivacyPolicy() {
               <div className="font-display font-black text-base leading-none tracking-tight">
                 Illinois UI Tracker
               </div>
-              <div className="text-[10px] font-bold tracking-widest text-zinc-500 uppercase mt-1">
+              <div className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase mt-1">
                 Work Search Compliance
               </div>
             </div>
           </Link>
           <Link
             to="/login"
-            className="text-sm font-semibold text-[#0033A0] hover:underline"
+            className="text-sm font-semibold text-[#0033A0] dark:text-[#5a86ff] hover:underline"
           >
             Sign In
           </Link>
@@ -49,13 +49,13 @@ export default function PrivacyPolicy() {
             <ShieldCheckIcon size={28} weight="bold" className="text-white" />
           </div>
           <div>
-            <p className="text-xs font-bold tracking-widest text-zinc-500 uppercase mb-1">
+            <p className="text-xs font-bold tracking-widest text-muted-foreground uppercase mb-1">
               Legal
             </p>
             <h1 className="font-display font-black text-3xl tracking-tight leading-none">
               Privacy Policy
             </h1>
-            <p className="text-xs text-zinc-500 mt-2">
+            <p className="text-xs text-muted-foreground mt-2">
               Last updated: {updated}
             </p>
           </div>
@@ -209,7 +209,7 @@ export default function PrivacyPolicy() {
 
         <Section title="Contact">
           <p>For privacy-related questions or data requests, contact us at:</p>
-          <p className="font-mono text-xs bg-zinc-50 border border-zinc-200 p-3">
+          <p className="font-mono text-xs bg-muted border border-border p-3">
             Illinois UI Job Search Tracker
             <br />
             illinoisjobtracker.app
@@ -219,16 +219,16 @@ export default function PrivacyPolicy() {
         </Section>
       </main>
 
-      <footer className="border-t border-zinc-200 mt-8">
-        <div className="max-w-4xl mx-auto px-6 py-6 flex items-center justify-between text-xs text-zinc-500">
+      <footer className="border-t border-border mt-8">
+        <div className="max-w-4xl mx-auto px-6 py-6 flex items-center justify-between text-xs text-muted-foreground">
           <span>
             © {new Date().getFullYear()} Illinois UI Job Search Tracker
           </span>
           <div className="flex gap-4">
-            <Link to="/sms-opt-in" className="hover:text-zinc-900">
+            <Link to="/sms-opt-in" className="hover:text-foreground">
               SMS Opt-In
             </Link>
-            <Link to="/terms" className="hover:text-zinc-900">
+            <Link to="/terms" className="hover:text-foreground">
               Terms & Conditions
             </Link>
           </div>

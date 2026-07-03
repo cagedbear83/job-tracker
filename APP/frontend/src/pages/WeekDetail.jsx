@@ -217,7 +217,7 @@ export default function WeekDetail() {
   if (pageLoading) {
     return (
       <div className="space-y-6" data-testid="week-detail-page">
-        <div className="flex items-center gap-3 text-zinc-500 py-24 justify-center">
+        <div className="flex items-center gap-3 text-muted-foreground py-24 justify-center">
           <CircleNotchIcon size={20} weight="bold" className="animate-spin" />
           <span className="kbd-label">Loading benefit week...</span>
         </div>
@@ -229,13 +229,13 @@ export default function WeekDetail() {
   if (pageError || !week) {
     return (
       <div className="space-y-6" data-testid="week-detail-page">
-        <div className="border border-red-200 bg-red-50 p-8 text-center">
+        <div className="border border-red-200 bg-red-50 dark:bg-red-950/30 p-8 text-center">
           <WarningIcon
             size={28}
             weight="fill"
             className="text-[#DC2626] mx-auto mb-3"
           />
-          <p className="text-sm text-red-700 font-semibold mb-1">
+          <p className="text-sm text-red-700 dark:text-red-300 font-semibold mb-1">
             Couldn't load this benefit week
           </p>
           <p className="text-xs text-red-600 mb-4">
@@ -244,7 +244,7 @@ export default function WeekDetail() {
           <div className="flex gap-2 justify-center">
             <Button
               variant="outline"
-              className="rounded-none border-red-300 text-red-700 hover:bg-red-100"
+              className="rounded-none border-red-300 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-950/40"
               onClick={() => {
                 setPageLoading(true);
                 load();
@@ -255,7 +255,7 @@ export default function WeekDetail() {
             <Link to="/weeks">
               <Button
                 variant="outline"
-                className="rounded-none border-zinc-300"
+                className="rounded-none border-border"
               >
                 Back to All Weeks
               </Button>
@@ -274,12 +274,12 @@ export default function WeekDetail() {
         <div>
           <Link
             to="/weeks"
-            className="kbd-label text-zinc-500 hover:text-zinc-900 inline-flex items-center gap-1"
+            className="kbd-label text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
           >
             <ArrowLeftIcon size={12} weight="bold" /> All Weeks
           </Link>
           <h1 className="font-display font-black text-3xl sm:text-4xl tracking-tighter mt-2 font-mono-data">
-            {week.week_start} <span className="text-zinc-400">→</span>{" "}
+            {week.week_start} <span className="text-muted-foreground">→</span>{" "}
             {week.week_end}
           </h1>
           <div className="flex items-center gap-3 mt-2">
@@ -295,7 +295,7 @@ export default function WeekDetail() {
               </span>
             )}
             {week.certified && (
-              <span className="inline-flex items-center gap-1 text-xs font-semibold text-zinc-600">
+              <span className="inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground">
                 CERTIFIED WITH IDES
               </span>
             )}
@@ -304,7 +304,7 @@ export default function WeekDetail() {
         <div className="flex gap-2">
           <Button
             variant="outline"
-            className="rounded-none border-zinc-300 min-w-[110px]"
+            className="rounded-none border-border min-w-[110px]"
             onClick={downloadCsv}
             disabled={downloadingCsv}
             data-testid="download-csv-button"
@@ -327,7 +327,7 @@ export default function WeekDetail() {
           </Button>
           <Button
             variant="outline"
-            className="rounded-none border-zinc-300 min-w-[190px]"
+            className="rounded-none border-border min-w-[190px]"
             onClick={downloadPdf}
             disabled={downloadingPdf}
             data-testid="download-pdf-button"
@@ -538,13 +538,13 @@ export default function WeekDetail() {
       </div>
 
       {week.notes && (
-        <div className="border-l-4 border-zinc-300 pl-4 text-sm text-zinc-700">
+        <div className="border-l-4 border-border pl-4 text-sm text-foreground">
           <div className="kbd-label">Notes</div>
           <div className="mt-1">{week.notes}</div>
         </div>
       )}
 
-      <div className="border border-zinc-200 bg-white overflow-x-auto">
+      <div className="border border-border bg-background overflow-x-auto">
         <table className="w-full compliance-table text-sm">
           <thead className="bg-[#0033A0] text-white">
             <tr className="text-left">
@@ -565,13 +565,13 @@ export default function WeekDetail() {
                     <ClipboardTextIcon
                       size={32}
                       weight="light"
-                      className="text-zinc-300"
+                      className="text-muted-foreground"
                     />
                     <div>
-                      <p className="text-sm font-semibold text-zinc-600">
+                      <p className="text-sm font-semibold text-muted-foreground">
                         No contacts logged yet
                       </p>
-                      <p className="text-xs text-zinc-400 mt-1">
+                      <p className="text-xs text-muted-foreground mt-1">
                         Illinois requires at least 3 work-search contacts for
                         this benefit week.
                       </p>
@@ -591,26 +591,26 @@ export default function WeekDetail() {
             {contacts.map((c, i) => (
               <tr
                 key={c.id}
-                className="border-b border-zinc-100"
+                className="border-b border-border"
                 data-testid={`contact-row-${c.id}`}
               >
-                <td className="font-mono-data text-zinc-500">{i + 1}</td>
+                <td className="font-mono-data text-muted-foreground">{i + 1}</td>
                 <td className="font-mono-data">{c.contact_date}</td>
                 <td>
                   <div className="font-semibold">{c.employer_name}</div>
-                  <div className="text-xs text-zinc-500">
+                  <div className="text-xs text-muted-foreground">
                     {c.employer_address}
                   </div>
                 </td>
                 <td>
-                  <span className="text-xs font-semibold uppercase tracking-wider border border-zinc-300 px-2 py-0.5">
+                  <span className="text-xs font-semibold uppercase tracking-wider border border-border px-2 py-0.5">
                     {c.contact_method}
                   </span>
                 </td>
                 <td>
                   <div>{c.position_applied || "—"}</div>
                   {c.type_of_work && (
-                    <div className="text-xs text-zinc-500">
+                    <div className="text-xs text-muted-foreground">
                       {c.type_of_work}
                     </div>
                   )}
@@ -621,7 +621,7 @@ export default function WeekDetail() {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="rounded-none border-zinc-300"
+                      className="rounded-none border-border"
                       onClick={() => openEdit(c)}
                       disabled={deletingId === c.id}
                       data-testid={`edit-contact-${c.id}`}
@@ -633,7 +633,7 @@ export default function WeekDetail() {
                         <Button
                           size="sm"
                           variant="outline"
-                          className="rounded-none border-zinc-300 hover:bg-red-50 hover:text-[#DC2626]"
+                          className="rounded-none border-border hover:bg-red-50 dark:bg-red-950/30 hover:text-[#DC2626]"
                           disabled={deletingId === c.id}
                           data-testid={`delete-contact-${c.id}`}
                         >

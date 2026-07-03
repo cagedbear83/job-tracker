@@ -174,7 +174,7 @@ export default function Claimants() {
           <h1 className="font-display font-black text-4xl tracking-tighter mt-1">
             Claimants
           </h1>
-          <p className="text-sm text-zinc-600 mt-2 max-w-2xl">
+          <p className="text-sm text-muted-foreground mt-2 max-w-2xl">
             Manage one or more claimant profiles. Each claimant has its own
             benefit weeks, work-search contacts, and reminders.
           </p>
@@ -357,7 +357,7 @@ export default function Claimants() {
                     />
                     Also send SMS reminders via Twilio
                   </label>
-                  <p className="text-xs text-zinc-500 mt-2">
+                  <p className="text-xs text-muted-foreground mt-2">
                     Standard message rates may apply. SMS is sent alongside
                     email reminders. After saving, use "Verify phone" on the
                     claimant card to confirm a number with a one-time code —
@@ -389,11 +389,11 @@ export default function Claimants() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {claimants.length === 0 && (
-          <div className="col-span-2 border border-dashed border-zinc-300 p-12 text-center text-sm text-zinc-500">
+          <div className="col-span-2 border border-dashed border-border p-12 text-center text-sm text-muted-foreground">
             <UserCircleIcon
               size={48}
               weight="thin"
-              className="mx-auto mb-2 text-zinc-400"
+              className="mx-auto mb-2 text-muted-foreground"
             />
             No claimants yet — create your first.
           </div>
@@ -401,7 +401,7 @@ export default function Claimants() {
         {claimants.map((c) => (
           <div
             key={c.id}
-            className={`border bg-white p-6 ${c.id === activeClaimantId ? "border-[#0033A0] border-2" : "border-zinc-200"}`}
+            className={`border bg-background p-6 ${c.id === activeClaimantId ? "border-[#0033A0] border-2" : "border-border"}`}
             data-testid={`claimant-card-${c.id}`}
           >
             <div className="flex items-start justify-between gap-3">
@@ -411,33 +411,33 @@ export default function Claimants() {
                     {c.label || "Untitled"}
                   </h3>
                   {c.id === activeClaimantId && (
-                    <span className="inline-flex items-center gap-1 text-xs font-bold text-[#0033A0]">
+                    <span className="inline-flex items-center gap-1 text-xs font-bold text-[#0033A0] dark:text-[#5a86ff]">
                       <CheckCircleIcon size={12} weight="fill" /> ACTIVE
                     </span>
                   )}
                 </div>
-                <div className="text-sm text-zinc-700 mt-1">
+                <div className="text-sm text-foreground mt-1">
                   {c.first_name} {c.middle_initial} {c.last_name}
                 </div>
                 <div className="kbd-label mt-2">
                   ID •••{c.claimant_id} · {c.phone || "—"}
                 </div>
-                <div className="text-xs text-zinc-500 mt-1">{c.occupation}</div>
-                <div className="text-xs text-zinc-500 mt-1">
+                <div className="text-xs text-muted-foreground mt-1">{c.occupation}</div>
+                <div className="text-xs text-muted-foreground mt-1">
                   {c.address
                     ? `${c.address}, ${c.city}, ${c.state} ${c.zip_code}`
                     : "—"}
                 </div>
                 <div className="mt-3 flex items-center gap-2">
                   <span
-                    className={`text-xs font-semibold uppercase tracking-wider px-2 py-0.5 border inline-flex items-center gap-1 ${c.reminders_enabled ? "border-[#16A34A] text-[#16A34A]" : "border-zinc-300 text-zinc-500"}`}
+                    className={`text-xs font-semibold uppercase tracking-wider px-2 py-0.5 border inline-flex items-center gap-1 ${c.reminders_enabled ? "border-[#16A34A] text-[#16A34A]" : "border-border text-muted-foreground"}`}
                   >
                     <EnvelopeSimpleIcon size={12} weight="bold" />
                     {c.reminders_enabled ? "Reminders ON" : "Reminders off"}
                   </span>
                   {c.sms_enabled && (
                     <span
-                      className={`text-xs font-semibold uppercase tracking-wider px-2 py-0.5 border ${c.sms_verified ? "border-[#0033A0] text-[#0033A0]" : "border-[#EAB308] text-[#EAB308]"}`}
+                      className={`text-xs font-semibold uppercase tracking-wider px-2 py-0.5 border ${c.sms_verified ? "border-[#0033A0] text-[#0033A0] dark:text-[#5a86ff]" : "border-[#EAB308] text-[#EAB308]"}`}
                     >
                       {c.sms_verified ? "SMS ✓" : "SMS unverified"}{" "}
                       {c.sms_phone || ""}
@@ -448,8 +448,8 @@ export default function Claimants() {
                       EMAIL BOUNCED
                     </span>
                   )}
-                  <span className="text-xs text-zinc-500 inline-flex items-center gap-1">
-                    <EnvelopeSimpleIcon size={12} className="text-zinc-400" />{" "}
+                  <span className="text-xs text-muted-foreground inline-flex items-center gap-1">
+                    <EnvelopeSimpleIcon size={12} className="text-muted-foreground" />{" "}
                     {c.reminder_email || "via account email"}
                   </span>
                 </div>
@@ -468,7 +468,7 @@ export default function Claimants() {
                 <Button
                   size="sm"
                   variant="outline"
-                  className="rounded-none border-zinc-300"
+                  className="rounded-none border-border"
                   onClick={() => openEdit(c)}
                   data-testid={`edit-claimant-${c.id}`}
                 >
@@ -479,7 +479,7 @@ export default function Claimants() {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="rounded-none border-zinc-300 hover:bg-red-50 hover:text-[#DC2626]"
+                      className="rounded-none border-border hover:bg-red-50 dark:bg-red-950/30 hover:text-[#DC2626]"
                       data-testid={`delete-claimant-${c.id}`}
                     >
                       <TrashIcon size={14} weight="bold" />
@@ -516,7 +516,7 @@ export default function Claimants() {
                   key={k}
                   onClick={() => sendTest(k)}
                   data-testid={`test-${k}-${c.id}`}
-                  className="text-xs font-semibold uppercase tracking-wider border border-zinc-300 px-2 py-1 hover:border-[#0033A0] hover:text-[#0033A0] inline-flex items-center gap-1"
+                  className="text-xs font-semibold uppercase tracking-wider border border-border px-2 py-1 hover:border-[#0033A0] hover:text-[#0033A0] dark:text-[#5a86ff] inline-flex items-center gap-1"
                 >
                   <PaperPlaneTiltIcon size={11} weight="bold" /> {k.slice(0, 3)}
                 </button>
@@ -525,7 +525,7 @@ export default function Claimants() {
                 <button
                   onClick={() => openOtp(c)}
                   data-testid={`verify-phone-${c.id}`}
-                  className="text-xs font-semibold uppercase tracking-wider border border-[#EAB308] text-[#EAB308] bg-yellow-50 px-2 py-1 inline-flex items-center gap-1"
+                  className="text-xs font-semibold uppercase tracking-wider border border-[#EAB308] text-[#EAB308] bg-yellow-50 dark:bg-yellow-950/30 px-2 py-1 inline-flex items-center gap-1"
                 >
                   Verify phone →
                 </button>
@@ -550,7 +550,7 @@ export default function Claimants() {
           </DialogHeader>
           {otpStep === 1 && (
             <div className="space-y-3">
-              <p className="text-sm text-zinc-600">
+              <p className="text-sm text-muted-foreground">
                 Enter the phone in E.164 format. We'll text a 6-digit code.
               </p>
               <Input
@@ -568,7 +568,7 @@ export default function Claimants() {
               >
                 {otpBusy ? "Sending..." : "Send code"}
               </Button>
-              <p className="text-xs text-zinc-500">
+              <p className="text-xs text-muted-foreground">
                 Twilio trial: the number must already be verified in the Twilio
                 console.
               </p>
@@ -576,7 +576,7 @@ export default function Claimants() {
           )}
           {otpStep === 2 && (
             <div className="space-y-3">
-              <p className="text-sm text-zinc-700">
+              <p className="text-sm text-foreground">
                 Enter the 6-digit code we texted to <b>{otpPhone}</b>.
               </p>
               <Input

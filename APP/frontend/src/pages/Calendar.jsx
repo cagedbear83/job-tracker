@@ -21,14 +21,15 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { useTheme } from "next-themes";
 
 // ── Event type config ────────────────────────────────────────────────────────
 const EVENT_TYPES = [
-  { value: "certification",  label: "Certification",   color: "#0033A0", bg: "#EEF2FF" },
-  { value: "ides_interview", label: "IDES Interview",  color: "#7C3AED", bg: "#F5F3FF" },
-  { value: "appeal",         label: "Appeal",          color: "#DC2626", bg: "#FEF2F2" },
-  { value: "questionnaire",  label: "Questionnaire",   color: "#D97706", bg: "#FFFBEB" },
-  { value: "other",          label: "Other",           color: "#6B7280", bg: "#F3F4F6" },
+  { value: "certification",  label: "Certification",   color: "#0033A0", bg: "#EEF2FF", darkBg: "#1a2340" },
+  { value: "ides_interview", label: "IDES Interview",  color: "#7C3AED", bg: "#F5F3FF", darkBg: "#2a1f3d" },
+  { value: "appeal",         label: "Appeal",          color: "#DC2626", bg: "#FEF2F2", darkBg: "#3d1f1f" },
+  { value: "questionnaire",  label: "Questionnaire",   color: "#D97706", bg: "#FFFBEB", darkBg: "#3d2f1a" },
+  { value: "other",          label: "Other",           color: "#6B7280", bg: "#F3F4F6", darkBg: "#2a2a2e" },
 ];
 
 const typeMap = Object.fromEntries(EVENT_TYPES.map((t) => [t.value, t]));
@@ -75,6 +76,11 @@ const blank = (date = "") => ({
 });
 
 export default function CalendarPage() {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
+  // Pick the theme-appropriate chip background for an event type
+  const typeBg = (t) => (isDark ? t.darkBg : t.bg);
+
   const today = new Date();
   const [year, setYear]   = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
@@ -212,7 +218,7 @@ export default function CalendarPage() {
           <h1 className="font-display font-black text-4xl tracking-tighter mt-1">
             Calendar
           </h1>
-          <p className="text-sm text-zinc-600 mt-2 max-w-2xl">
+          <p className="text-sm text-muted-foreground mt-2 max-w-2xl">
             Click any day to view or add IDES events. Green/red badges show
             benefit-week compliance.
           </p>
@@ -232,29 +238,29 @@ export default function CalendarPage() {
           <span
             key={t.value}
             className="inline-flex items-center gap-1.5 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider border"
-            style={{ borderColor: t.color, color: t.color, background: t.bg }}
+            style={{ borderColor: t.color, color: t.color, background: typeBg(t) }}
           >
             <span className="w-2 h-2 rounded-full" style={{ background: t.color }} />
             {t.label}
           </span>
         ))}
-        <span className="inline-flex items-center gap-1.5 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider border border-green-600 text-green-700 bg-green-50">
+        <span className="inline-flex items-center gap-1.5 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider border border-green-600 text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-950/30">
           <CheckCircleIcon size={10} weight="fill" /> Week ≥3 contacts
         </span>
-        <span className="inline-flex items-center gap-1.5 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider border border-red-600 text-red-700 bg-red-50">
+        <span className="inline-flex items-center gap-1.5 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider border border-red-600 text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/30">
           <WarningIcon size={10} weight="fill" /> Week &lt;3 contacts
         </span>
       </div>
 
       {/* ── Calendar grid ── */}
-      <div className="border border-zinc-200 bg-white">
+      <div className="border border-border bg-background">
         {/* Header nav */}
-        <div className="px-6 py-4 border-b border-zinc-200 flex items-center justify-between">
+        <div className="px-6 py-4 border-b border-border flex items-center justify-between">
           <button
             type="button"
             aria-label="Previous month"
             onClick={prev}
-            className="text-sm font-semibold border border-zinc-300 px-3 py-1 hover:border-[#0033A0]"
+            className="text-sm font-semibold border border-border px-3 py-1 hover:border-[#0033A0]"
             data-testid="calendar-prev"
           >
             ← Prev
@@ -264,7 +270,7 @@ export default function CalendarPage() {
             type="button"
             aria-label="Next month"
             onClick={next}
-            className="text-sm font-semibold border border-zinc-300 px-3 py-1 hover:border-[#0033A0]"
+            className="text-sm font-semibold border border-border px-3 py-1 hover:border-[#0033A0]"
             data-testid="calendar-next"
           >
             Next →
@@ -272,9 +278,9 @@ export default function CalendarPage() {
         </div>
 
         {/* Day-of-week headers */}
-        <div className="grid grid-cols-7 border-b border-zinc-200">
+        <div className="grid grid-cols-7 border-b border-border">
           {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-            <div key={d} className="kbd-label py-2 px-3 text-center border-r last:border-r-0 border-zinc-200">
+            <div key={d} className="kbd-label py-2 px-3 text-center border-r last:border-r-0 border-border">
               {d}
             </div>
           ))}
@@ -295,13 +301,13 @@ export default function CalendarPage() {
               <div
                 key={i}
                 onClick={() => openDay(dateStr)}
-                className={`min-h-[96px] border-b border-r border-zinc-100 p-2 cursor-pointer transition-colors
-                  ${inMonth ? "bg-white hover:bg-zinc-50" : "bg-[#FAFAFA] hover:bg-zinc-100"}
+                className={`min-h-[96px] border-b border-r border-border p-2 cursor-pointer transition-colors
+                  ${inMonth ? "bg-background hover:bg-muted" : "bg-muted/50 hover:bg-muted"}
                   ${isToday ? "ring-2 ring-[#0033A0] ring-inset" : ""}`}
                 data-testid={`cal-cell-${dateStr}`}
               >
                 {/* Date number */}
-                <div className={`text-xs font-mono-data ${inMonth ? "text-zinc-900" : "text-zinc-400"}`}>
+                <div className={`text-xs font-mono-data ${inMonth ? "text-foreground" : "text-muted-foreground"}`}>
                   {d.getDate()}
                 </div>
 
@@ -316,8 +322,8 @@ export default function CalendarPage() {
                     <div
                       className={`text-[10px] font-semibold uppercase tracking-wider inline-flex items-center gap-1 px-1.5 py-0.5 border
                         ${matched.contact_count >= 3
-                          ? "border-[#16A34A] text-[#16A34A] bg-green-50"
-                          : "border-[#DC2626] text-[#DC2626] bg-red-50"}`}
+                          ? "border-[#16A34A] text-[#16A34A] bg-green-50 dark:bg-green-950/30"
+                          : "border-[#DC2626] text-[#DC2626] bg-red-50 dark:bg-red-950/30"}`}
                     >
                       {matched.contact_count >= 3
                         ? <CheckCircleIcon size={10} weight="fill" />
@@ -336,7 +342,7 @@ export default function CalendarPage() {
                         <div
                           key={evt.id}
                           className="text-[10px] font-semibold truncate px-1 py-0.5 leading-none"
-                          style={{ background: t.bg, color: t.color, borderLeft: `2px solid ${t.color}` }}
+                          style={{ background: typeBg(t), color: t.color, borderLeft: `2px solid ${t.color}` }}
                           title={evt.title}
                         >
                           {evt.title}
@@ -344,7 +350,7 @@ export default function CalendarPage() {
                       );
                     })}
                     {dayEvts.length > MAX_DOTS && (
-                      <div className="text-[10px] text-zinc-400 pl-1">
+                      <div className="text-[10px] text-muted-foreground pl-1">
                         +{dayEvts.length - MAX_DOTS} more
                       </div>
                     )}
@@ -355,7 +361,7 @@ export default function CalendarPage() {
           })}
         </div>
 
-        <div className="px-6 py-3 border-t border-zinc-200 flex items-center gap-4 text-xs text-zinc-600">
+        <div className="px-6 py-3 border-t border-border flex items-center gap-4 text-xs text-muted-foreground">
           <CalendarBlankIcon size={14} weight="bold" />
           <span>
             {weeks.length} logged week{weeks.length !== 1 ? "s" : ""} ·{" "}
@@ -374,7 +380,7 @@ export default function CalendarPage() {
           </DialogHeader>
 
           {dayEvents.length === 0 ? (
-            <p className="text-sm text-zinc-500 py-2">No events on this day.</p>
+            <p className="text-sm text-muted-foreground py-2">No events on this day.</p>
           ) : (
             <div className="space-y-2">
               {dayEvents.map((evt) => {
@@ -383,22 +389,22 @@ export default function CalendarPage() {
                   <div
                     key={evt.id}
                     className="flex items-start justify-between gap-3 p-3 border"
-                    style={{ borderColor: t.color + "44", background: t.bg }}
+                    style={{ borderColor: t.color + "44", background: typeBg(t) }}
                   >
                     <div className="min-w-0">
                       <div className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: t.color }}>
                         {t.label}
                       </div>
-                      <div className="text-sm font-semibold text-zinc-900 truncate">{evt.title}</div>
+                      <div className="text-sm font-semibold text-foreground truncate">{evt.title}</div>
                       {evt.notes && (
-                        <div className="text-xs text-zinc-500 mt-1 line-clamp-2">{evt.notes}</div>
+                        <div className="text-xs text-muted-foreground mt-1 line-clamp-2">{evt.notes}</div>
                       )}
                     </div>
                     <div className="flex gap-1 shrink-0">
                       <button
                         type="button"
                         onClick={() => openEditEvent(evt)}
-                        className="p-1 text-zinc-400 hover:text-[#0033A0]"
+                        className="p-1 text-muted-foreground hover:text-[#0033A0] dark:text-[#5a86ff]"
                         aria-label="Edit event"
                       >
                         <PencilSimpleIcon size={14} weight="bold" />
@@ -406,7 +412,7 @@ export default function CalendarPage() {
                       <button
                         type="button"
                         onClick={() => deleteEvent(evt.id)}
-                        className="p-1 text-zinc-400 hover:text-red-600"
+                        className="p-1 text-muted-foreground hover:text-red-600"
                         aria-label="Delete event"
                       >
                         <TrashIcon size={14} weight="bold" />
@@ -451,8 +457,8 @@ export default function CalendarPage() {
                     key={t.value}
                     className={`flex items-center gap-2 p-2 border cursor-pointer text-sm transition-colors
                       ${form.event_type === t.value
-                        ? "border-[#0033A0] bg-[#EEF2FF] font-semibold text-[#0033A0]"
-                        : "border-zinc-200 hover:border-zinc-400"}`}
+                        ? "border-[#0033A0] bg-[#EEF2FF] font-semibold text-[#0033A0] dark:text-[#5a86ff]"
+                        : "border-border hover:border-foreground/40"}`}
                   >
                     <input
                       type="radio"
@@ -499,7 +505,7 @@ export default function CalendarPage() {
             {/* Notes */}
             <div>
               <Label className="kbd-label">
-                Notes <span className="text-zinc-400 normal-case font-normal">(optional)</span>
+                Notes <span className="text-muted-foreground normal-case font-normal">(optional)</span>
               </Label>
               <Input
                 value={form.notes}
