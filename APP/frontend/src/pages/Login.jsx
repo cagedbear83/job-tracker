@@ -29,7 +29,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen grid grid-cols-1 md:grid-cols-2 bg-white">
+    <div className="min-h-screen grid grid-cols-1 md:grid-cols-2 bg-background">
       <div className="hidden md:block relative">
         <img
           src="https://images.unsplash.com/photo-1657639789999-837194c7d6aa?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2MDV8MHwxfHNlYXJjaHwxfHxpbGxpbm9pcyUyMGNoaWNhZ28lMjBza3lsaW5lfGVufDB8fHx8MTc3ODU0ODUxN3ww&ixlib=rb-4.1.0&q=85"
@@ -60,10 +60,10 @@ export default function Login() {
           <div>
             <div className="brand-bar w-20 mb-4" />
             <div className="kbd-label">Authentication</div>
-            <h2 className="font-display font-black text-3xl tracking-tighter mt-1">Sign in</h2>
-            <p className="text-sm text-zinc-600 mt-1">
+            <h2 className="font-display font-black text-3xl tracking-tighter mt-1 text-foreground">Sign in</h2>
+            <p className="text-sm text-muted-foreground mt-1">
               Don't have an account?{" "}
-              <Link to="/register" className="text-[#0033A0] font-semibold underline" data-testid="link-register">
+              <Link to="/register" className="text-[#0033A0] dark:text-[#5a86ff] font-semibold underline" data-testid="link-register">
                 Create one
               </Link>
             </p>
@@ -79,7 +79,7 @@ export default function Login() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="rounded-none border-zinc-300 mt-2"
+                className="rounded-none border-border mt-2"
                 data-testid="login-email-input"
               />
             </div>
@@ -92,7 +92,7 @@ export default function Login() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="rounded-none border-zinc-300 mt-2"
+                className="rounded-none border-border mt-2"
                 data-testid="login-password-input"
               />
             </div>
@@ -108,7 +108,7 @@ export default function Login() {
           </Button>
 
           <div className="text-xs flex justify-between items-center">
-            <Link to="/forgot-password" className="text-[#0033A0] underline font-semibold" data-testid="link-forgot">
+            <Link to="/forgot-password" className="text-[#0033A0] dark:text-[#5a86ff] underline font-semibold" data-testid="link-forgot">
               Forgot password?
             </Link>
           </div>

@@ -25,6 +25,7 @@ import {
   FolderOpenIcon,
   SunIcon,
   MoonIcon,
+  DesktopIcon,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
 
@@ -255,17 +256,33 @@ export default function Layout() {
               </NavLink>
             ))}
           </nav>
-          {/* Dark mode toggle */}
+{/* Theme toggle: Light -> Dark -> System -> Light ... */}
           <button
             type="button"
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            onClick={() =>
+              setTheme(
+                theme === "light"
+                  ? "dark"
+                  : theme === "dark"
+                    ? "system"
+                    : "light"
+              )
+            }
             className="mt-3 w-full flex items-center gap-2 px-4 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted border-t border-border transition-colors"
-            aria-label="Toggle dark mode"
+            aria-label="Toggle theme"
           >
-            {theme === "dark"
-              ? <SunIcon size={14} weight="bold" />
-              : <MoonIcon size={14} weight="bold" />}
-            {theme === "dark" ? "Light mode" : "Dark mode"}
+            {theme === "light" && <SunIcon size={14} weight="bold" />}
+            {theme === "dark" && <MoonIcon size={14} weight="bold" />}
+            {(theme === "system" || !theme) && (
+              <DesktopIcon size={14} weight="bold" />
+            )}
+            <span>
+              {theme === "light"
+                ? "Light mode"
+                : theme === "dark"
+                  ? "Dark mode"
+                  : "System"}
+            </span>
           </button>
 
           {!isAdmin && (
