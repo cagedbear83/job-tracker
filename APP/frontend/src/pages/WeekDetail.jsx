@@ -180,7 +180,7 @@ export default function WeekDetail() {
       window.open(url, "_blank");
       setTimeout(() => URL.revokeObjectURL(url), 120_000);
       toast.success("Report opened in new tab", { id: toastId });
-    } catch (e) {
+    } catch {
       toast.error("Failed to generate report. Please try again.", {
         id: toastId,
       });
@@ -206,7 +206,7 @@ export default function WeekDetail() {
       a.click();
       URL.revokeObjectURL(url);
       toast.success("CSV downloaded", { id: toastId });
-    } catch (e) {
+    } catch {
       toast.error("Failed to export CSV. Please try again.", { id: toastId });
     } finally {
       setDownloadingCsv(false);

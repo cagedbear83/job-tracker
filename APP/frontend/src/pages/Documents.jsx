@@ -128,7 +128,7 @@ export default function DocumentsPage() {
     if (!form.file) { toast.error("Please select a file."); return; }
     if (!form.title.trim()) { toast.error("Title is required."); return; }
 
-    setSaving: setUploading(true);
+    setUploading(true);
     const fd = new FormData();
     fd.append("file", form.file);
     fd.append("title", form.title.trim());
@@ -170,7 +170,7 @@ export default function DocumentsPage() {
       const url = URL.createObjectURL(blob);
       window.open(url, "_blank");
       setTimeout(() => URL.revokeObjectURL(url), 120_000);
-    } catch (e) {
+    } catch {
       toast.error("Could not open document.");
     }
   };
@@ -332,12 +332,20 @@ export default function DocumentsPage() {
           <div className="space-y-4">
             {/* Drop zone */}
             <div
+              role="button"
+              tabIndex={0}
               className={`border-2 border-dashed rounded-none p-6 text-center cursor-pointer transition-colors
                 ${dragOver ? "border-[#0033A0] bg-accent" : "border-border hover:border-foreground/40"}`}
               onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
               onDragLeave={() => setDragOver(false)}
               onDrop={onDrop}
               onClick={() => fileRef.current?.click()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  fileRef.current?.click();
+                }
+              }}
               data-testid="drop-zone"
             >
               <UploadSimpleIcon size={28} weight="thin" className="mx-auto text-muted-foreground mb-2" />

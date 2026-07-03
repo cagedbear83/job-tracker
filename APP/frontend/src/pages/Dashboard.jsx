@@ -5,9 +5,7 @@ import { Button } from "@/components/ui/button";
 import {
   CheckCircleIcon,
   WarningIcon,
-  IdentificationCardIcon,
   CalendarBlankIcon,
-  BriefcaseIcon,
   PlusIcon,
   TrendUpIcon,
 } from "@phosphor-icons/react";

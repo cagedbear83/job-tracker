@@ -90,7 +90,9 @@ export function AuthProvider({ children }) {
   const logout = async () => {
     try {
       await api.post("/auth/logout");
-    } catch {}
+    } catch {
+      // Ignore logout errors — we clear local state regardless
+    }
     clearToken();
     setUser(null);
     setClaimants([]);

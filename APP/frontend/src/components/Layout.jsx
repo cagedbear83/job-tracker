@@ -25,7 +25,6 @@ import {
   FolderOpenIcon,
   SunIcon,
   MoonIcon,
-  DesktopIcon,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
 
@@ -108,7 +107,7 @@ export default function Layout() {
       await setActiveClaimant(id);
       toast.success("Switched claimant");
       window.location.reload();
-    } catch (e) {
+    } catch {
       toast.error("Could not switch claimant");
     }
   };
@@ -256,33 +255,17 @@ export default function Layout() {
               </NavLink>
             ))}
           </nav>
-{/* Theme toggle: Light -> Dark -> System -> Light ... */}
+          {/* Dark mode toggle */}
           <button
             type="button"
-            onClick={() =>
-              setTheme(
-                theme === "light"
-                  ? "dark"
-                  : theme === "dark"
-                    ? "system"
-                    : "light"
-              )
-            }
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
             className="mt-3 w-full flex items-center gap-2 px-4 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted border-t border-border transition-colors"
-            aria-label="Toggle theme"
+            aria-label="Toggle dark mode"
           >
-            {theme === "light" && <SunIcon size={14} weight="bold" />}
-            {theme === "dark" && <MoonIcon size={14} weight="bold" />}
-            {(theme === "system" || !theme) && (
-              <DesktopIcon size={14} weight="bold" />
-            )}
-            <span>
-              {theme === "light"
-                ? "Light mode"
-                : theme === "dark"
-                  ? "Dark mode"
-                  : "System"}
-            </span>
+            {theme === "dark"
+              ? <SunIcon size={14} weight="bold" />
+              : <MoonIcon size={14} weight="bold" />}
+            {theme === "dark" ? "Light mode" : "Dark mode"}
           </button>
 
           {!isAdmin && (

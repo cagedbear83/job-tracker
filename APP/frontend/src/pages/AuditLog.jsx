@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { api, formatApiError } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,19 +13,19 @@ import { toast } from "sonner";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react";
 
 const ACTION_COLORS = {
-  LOGIN: "text-foreground",
-  LOGOUT: "text-foreground",
+  LOGIN: "text-muted-foreground",
+  LOGOUT: "text-muted-foreground",
   REGISTER: "text-[#0033A0] dark:text-[#5a86ff]",
   REGISTER_INVITE: "text-[#0033A0] dark:text-[#5a86ff]",
   CREATE: "text-[#16A34A]",
   UPDATE: "text-[#EAB308]",
   DELETE: "text-[#DC2626]",
-  SWITCH: "text-foreground",
+  SWITCH: "text-muted-foreground",
   IMPORT_CSV: "text-[#0033A0] dark:text-[#5a86ff]",
   IMPORT_OCR: "text-[#0033A0] dark:text-[#5a86ff]",
   EXPORT_CSV: "text-[#0033A0] dark:text-[#5a86ff]",
   EXPORT_PDF: "text-[#0033A0] dark:text-[#5a86ff]",
-  FORGOT_PW: "text-foreground",
+  FORGOT_PW: "text-muted-foreground",
   RESET_PW: "text-[#EAB308]",
   INVITE_CREATE: "text-[#0033A0] dark:text-[#5a86ff]",
   INVITE_REVOKE: "text-[#DC2626]",
@@ -55,11 +55,11 @@ export default function AuditLog() {
   const [action, setAction] = useState("ALL");
   const [entity, setEntity] = useState("ALL");
 
-  const load = async () => {
+  const load = useCallback(async (searchQuery = "") => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (query) params.set("q", query);
+      if (searchQuery) params.set("q", searchQuery);
       if (action !== "ALL") params.set("action", action);
       if (entity !== "ALL") params.set("entity", entity);
       const { data } = await api.get(`/audit-log?${params.toString()}`);
@@ -69,18 +69,19 @@ export default function AuditLog() {
     } finally {
       setLoading(false);
     }
-  };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    load(); /* eslint-disable-next-line */
   }, [action, entity]);
+
+  // Auto-load when filters change (not on every search keystroke).
+  // `query` is intentionally excluded from deps: search runs on submit via onSearch.
+  useEffect(() => {
+    load(query);
+  }, [load]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onSearch = (e) => {
     e.preventDefault();
-    load();
+    load(query);
   };
 
-  // gather unique actions from current results for filter pills
   const actionOptions = [
     "ALL",
     ...Array.from(new Set(items.map((i) => i.action))),
@@ -90,16 +91,16 @@ export default function AuditLog() {
     <div className="space-y-6" data-testid="audit-page">
       <div>
         <div className="kbd-label">Activity Trail</div>
-        <h1 className="font-display font-black text-4xl tracking-tighter mt-1">
+        <h1 className="font-display font-black text-4xl tracking-tighter mt-1 text-foreground">
           Audit Log
         </h1>
         <p className="text-sm text-muted-foreground mt-2">
           Every action you take is recorded for compliance. Edits include
-          field-level old → new diffs.
+          field-level old to new diffs.
         </p>
       </div>
 
-      <div className="border border-border bg-background p-4 grid grid-cols-1 md:grid-cols-12 gap-3">
+      <div className="border border-border bg-card p-4 grid grid-cols-1 md:grid-cols-12 gap-3">
         <form onSubmit={onSearch} className="md:col-span-6">
           <Label className="kbd-label">Search detail</Label>
           <div className="flex gap-2 mt-2">
@@ -158,7 +159,7 @@ export default function AuditLog() {
         </div>
       </div>
 
-      <div className="border border-border bg-background overflow-x-auto">
+      <div className="border border-border bg-card overflow-x-auto">
         <table className="w-full compliance-table text-sm">
           <thead className="bg-muted border-b border-border">
             <tr className="text-left">
@@ -172,7 +173,7 @@ export default function AuditLog() {
             {loading && (
               <tr>
                 <td colSpan={4} className="text-center text-muted-foreground py-12">
-                  Loading…
+                  Loading...
                 </td>
               </tr>
             )}

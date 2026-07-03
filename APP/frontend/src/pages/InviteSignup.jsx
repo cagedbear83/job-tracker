@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import { api, formatApiError } from "@/lib/api";
 import { setToken } from "@/lib/tokenStorage";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,6 @@ import {
 
 export default function InviteSignup() {
   const { code } = useParams();
-  const navigate = useNavigate();
   const [invite, setInvite] = useState(null);
   const [err, setErr] = useState("");
   const [form, setForm] = useState({ name: "", password: "", confirm: "" });

@@ -8,7 +8,6 @@ import {
   PlusIcon,
   TrashIcon,
   PencilSimpleIcon,
-  XIcon,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -300,7 +299,15 @@ export default function CalendarPage() {
             return (
               <div
                 key={i}
+                role="button"
+                tabIndex={0}
                 onClick={() => openDay(dateStr)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    openDay(dateStr);
+                  }
+                }}
                 className={`min-h-[96px] border-b border-r border-border p-2 cursor-pointer transition-colors
                   ${inMonth ? "bg-background hover:bg-muted" : "bg-muted/50 hover:bg-muted"}
                   ${isToday ? "ring-2 ring-[#0033A0] ring-inset" : ""}`}
