@@ -4,6 +4,8 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { Toaster } from "@/components/ui/sonner";
+import { UpgradeModalProvider } from "@/components/UpgradeModal";
+import { SubscriptionProvider } from "@/hooks/useSubscription";
 
 // Eagerly load Layout and auth-wall pages — needed before any route renders
 import Layout from "@/components/Layout";
@@ -70,6 +72,8 @@ export function App() {
   return (
     <div className="App">
       <ErrorBoundary>
+        <SubscriptionProvider>
+          <UpgradeModalProvider>
         <AuthProvider>
           <BrowserRouter>
             <Suspense fallback={<PageLoader />}>
@@ -160,6 +164,8 @@ export function App() {
           </BrowserRouter>
           <Toaster richColors position="top-right" />
         </AuthProvider>
+        </UpgradeModalProvider>
+        </SubscriptionProvider>
       </ErrorBoundary>
     </div>
   );

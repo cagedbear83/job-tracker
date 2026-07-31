@@ -20,6 +20,18 @@ api.interceptors.request.use((cfg) => {
   return cfg;
 });
 
+api.interceptors.response.use(
+     (response) => response,
+     (error) => {
+       if (error.response?.status === 402) {
+         window.dispatchEvent(
+           new CustomEvent("upgrade-required", { detail: error.response.data?.detail })
+         );
+       }
+       return Promise.reject(error);
+     }
+   );
+   
 // Guard: if Vercel's catch-all rewrite returns the SPA HTML instead of JSON
 // (happens when VITE_BACKEND_URL is wrong/missing), treat it as an error so
 // components' catch blocks fire instead of receiving an HTML string as data.
