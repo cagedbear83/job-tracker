@@ -473,6 +473,8 @@ async def send_email(to_email: str, subject: str, html: str) -> bool:
                 "to": to_email,
                 "subject": subject,
                 "html": html,
+                "h:List-Unsubscribe": "disabled",
+                "o:tracking": "no",
             },
         )
         if response.status_code == 200:
