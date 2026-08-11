@@ -29,7 +29,7 @@ export default function ResetPassword() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-8">
+    <div className="min-h-screen flex items-center justify-center bg-white p-8">
       <form onSubmit={submit} className="w-full max-w-md space-y-6" data-testid="reset-form">
         <div>
           <div className="brand-bar w-20 mb-4" />
@@ -43,11 +43,11 @@ export default function ResetPassword() {
           <>
             <div>
               <Label className="kbd-label">New Password</Label>
-              <Input type="password" autoComplete="new-password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} className="rounded-none border-border mt-2" data-testid="reset-password-input" />
+              <Input type="password" autoComplete="new-password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} className="rounded-none border-zinc-300 mt-2" data-testid="reset-password-input" />
             </div>
             <div>
               <Label className="kbd-label">Confirm Password</Label>
-              <Input type="password" autoComplete="new-password" required minLength={6} value={confirm} onChange={(e) => setConfirm(e.target.value)} className="rounded-none border-border mt-2" data-testid="reset-confirm-input" />
+              <Input type="password" autoComplete="new-password" required minLength={6} value={confirm} onChange={(e) => setConfirm(e.target.value)} className="rounded-none border-zinc-300 mt-2" data-testid="reset-confirm-input" />
             </div>
             <Button type="submit" disabled={busy} className="w-full rounded-none bg-[#0033A0] hover:bg-[#002266] text-white h-11 font-semibold" data-testid="reset-submit-button">
               {busy ? "Resetting..." : "Reset password"}

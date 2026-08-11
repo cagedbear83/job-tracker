@@ -83,8 +83,6 @@ client = AsyncIOMotorClient(
         os.environ.get("MONGO_SERVER_SELECTION_TIMEOUT_MS", "5000")
     ),
     connectTimeoutMS=int(os.environ.get("MONGO_CONNECT_TIMEOUT_MS", "10000")),
-    tz_aware=True,
-    tzinfo=timezone.utc,
 )
 db = client[os.environ["DB_NAME"]]
 
@@ -733,14 +731,8 @@ async def verify_email(token: str):
             status_code=400, detail="Invalid or expired verification token"
         )
     expires = user.get("verification_token_expires")
-    if expires:
-        # Normalize to timezone-aware UTC (older docs may be naive)
-        if expires.tzinfo is None:
-            expires = expires.replace(tzinfo=timezone.utc)
-        if datetime.now(timezone.utc) > expires:
-            raise HTTPException(
-                status_code=400, detail="Verification link has expired"
-            )
+    if expires and datetime.now(timezone.utc) > expires:
+        raise HTTPException(status_code=400, detail="Verification link has expired")
     await db.users.update_one(
         {"id": user["id"]},
         {
@@ -2318,6 +2310,93 @@ async def integrations_status(admin=Depends(require_admin)):
             "from_number": os.environ.get("TWILIO_FROM_NUMBER", ""),
         },
     }
+
+
+# ============== Contact Form (public — from marketing site) ==============
+class ContactRequest(BaseModel):
+    first_name: str
+    last_name: str
+    email: EmailStr
+    phone: str
+    reason: str
+    message: str
+
+
+@api.post("/contact")
+async def contact_form(payload: ContactRequest):
+    import re
+    phone_digits = re.sub(r"\D", "", payload.phone)
+    if len(phone_digits) != 10:
+        raise HTTPException(status_code=400, detail="Invalid phone number — must be 10 digits.")
+
+    support_html = f"""
+    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;">
+      <div style="background:#0033A0;padding:24px 32px;">
+        <h2 style="color:#fff;margin:0;font-size:20px;">New Contact Form Submission</h2>
+      </div>
+      <div style="padding:24px 32px;border:1px solid #e4e4e7;border-top:none;">
+        <table style="width:100%;border-collapse:collapse;font-size:14px;">
+          <tr><td style="padding:8px 0;color:#52525b;width:140px;">Name</td>
+              <td style="padding:8px 0;font-weight:600;">{payload.first_name} {payload.last_name}</td></tr>
+          <tr><td style="padding:8px 0;color:#52525b;">Email</td>
+              <td style="padding:8px 0;"><a href="mailto:{payload.email}">{payload.email}</a></td></tr>
+          <tr><td style="padding:8px 0;color:#52525b;">Phone</td>
+              <td style="padding:8px 0;">{payload.phone}</td></tr>
+          <tr><td style="padding:8px 0;color:#52525b;">Reason</td>
+              <td style="padding:8px 0;">{payload.reason}</td></tr>
+        </table>
+        <hr style="border:none;border-top:1px solid #e4e4e7;margin:16px 0;">
+        <p style="color:#52525b;font-size:13px;margin:0 0 8px;">Message:</p>
+        <p style="font-size:14px;white-space:pre-wrap;margin:0;">{html.escape(payload.message)}</p>
+      </div>
+    </div>
+    """
+
+    customer_html = f"""
+    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;">
+      <div style="background:#0033A0;padding:24px 32px;">
+        <h2 style="color:#fff;margin:0;font-size:20px;">We received your message</h2>
+      </div>
+      <div style="padding:24px 32px;border:1px solid #e4e4e7;border-top:none;">
+        <p style="font-size:14px;">Hi {html.escape(payload.first_name)},</p>
+        <p style="font-size:14px;">
+          Thanks for reaching out to Illinois UI Job Search Tracker. We&apos;ve received
+          your message and will get back to you at this email address. Our average
+          response time is <strong>2 business days</strong>.
+        </p>
+        <hr style="border:none;border-top:1px solid #e4e4e7;margin:20px 0;">
+        <p style="font-size:13px;color:#52525b;margin:0 0 12px;">Here&apos;s a recap of what you sent us:</p>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <tr><td style="padding:6px 0;color:#52525b;width:140px;">Reason</td>
+              <td style="padding:6px 0;">{html.escape(payload.reason)}</td></tr>
+        </table>
+        <div style="background:#f4f4f5;padding:12px 16px;margin-top:12px;font-size:13px;white-space:pre-wrap;">{html.escape(payload.message)}</div>
+        <hr style="border:none;border-top:1px solid #e4e4e7;margin:20px 0;">
+        <p style="font-size:12px;color:#52525b;margin:0;">
+          Illinois UI Job Search Tracker is operated by KMG123 Enterprises LLC.
+          This is an automated confirmation — please do not reply to this email.
+          To follow up, visit
+          <a href="https://illinoisjobtracker.com/contact">illinoisjobtracker.com/contact</a>.
+        </p>
+      </div>
+    </div>
+    """
+
+    # Email 1 → support inbox
+    await send_email(
+        "support@illinoisjobtracker.app",
+        f"Contact form: {payload.reason} — {payload.first_name} {payload.last_name}",
+        support_html,
+    )
+
+    # Email 2 → customer confirmation
+    await send_email(
+        payload.email,
+        "We received your message — Illinois UI Job Search Tracker",
+        customer_html,
+    )
+
+    return {"status": "sent"}
 
 
 # ============== Health ==============

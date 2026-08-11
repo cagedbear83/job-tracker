@@ -1,263 +1,452 @@
-import { Link } from "react-router-dom";
-import { ScalesIcon } from "@phosphor-icons/react";
+// APP/frontend/src/pages/Terms.jsx
+// Drop-in replacement. Uses the app's existing semantic Tailwind tokens.
+// ⚠️ ATTORNEY REVIEW REQUIRED before taking live payments or publishing publicly.
 
-const Section = ({ title, children }) => (
-  <div className="mb-10">
-    <h2 className="font-display font-black text-xl tracking-tight mb-4 pb-2 border-b border-border">
-      {title}
-    </h2>
-    <div className="text-sm text-foreground leading-relaxed space-y-3">
-      {children}
+import { useEffect } from "react";
+
+const EFFECTIVE_DATE = "July 14, 2026";
+const COMPANY = "KMG123 Enterprises LLC";
+const APP_NAME = "Illinois UI Job Search Tracker";
+const APP_URL = "https://illinoisjobtracker.app";
+const SUPPORT_EMAIL = "support@illinoisjobtracker.app";
+
+function Section({ title, children }) {
+  return (
+    <section className="mb-8">
+      <h2 className="text-lg font-semibold text-foreground mb-3">{title}</h2>
+      <div className="space-y-3 text-sm text-muted-foreground leading-relaxed">
+        {children}
+      </div>
+    </section>
+  );
+}
+
+function SubSection({ title, children }) {
+  return (
+    <div className="mt-4">
+      <h3 className="text-sm font-semibold text-foreground mb-2">{title}</h3>
+      <div className="space-y-2">{children}</div>
     </div>
-  </div>
-);
+  );
+}
 
 export default function Terms() {
-  const updated = "June 6, 2026";
+  useEffect(() => {
+    document.title = `Terms of Service — ${APP_NAME}`;
+  }, []);
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="h-1 bg-[#0033A0]" />
+    <div className="min-h-screen bg-background text-foreground">
+      <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
+        {/* Header */}
+        <div className="mb-10">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2">
+            Legal
+          </p>
+          <h1 className="text-3xl font-bold text-foreground mb-3">
+            Terms of Service
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Effective date: {EFFECTIVE_DATE}
+          </p>
+          <p className="mt-3 text-sm text-muted-foreground">
+            These Terms of Service ("Terms") govern your use of {APP_URL} and
+            the {APP_NAME} service (the "Service"), operated by {COMPANY}{" "}
+            ("we", "us", or "our"). By creating an account or using the Service,
+            you agree to be bound by these Terms. If you do not agree, do not
+            use the Service.
+          </p>
 
-      <header className="border-b border-border bg-background">
-        <div className="max-w-4xl mx-auto px-6 py-3 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-[#0033A0] flex items-center justify-center text-white font-display font-black tracking-tight text-sm">
-              IL
-            </div>
-            <div>
-              <div className="font-display font-black text-base leading-none tracking-tight">
-                Illinois UI Tracker
-              </div>
-              <div className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase mt-1">
-                Work Search Compliance
-              </div>
-            </div>
-          </Link>
-          <Link
-            to="/login"
-            className="text-sm font-semibold text-[#0033A0] dark:text-[#5a86ff] hover:underline"
-          >
-            Sign In
-          </Link>
-        </div>
-      </header>
-
-      <main className="max-w-2xl mx-auto px-6 py-16">
-        <div className="flex items-center gap-4 mb-10">
-          <div className="w-14 h-14 bg-[#0033A0] flex items-center justify-center flex-shrink-0">
-            <ScalesIcon size={28} weight="bold" className="text-white" />
-          </div>
-          <div>
-            <p className="text-xs font-bold tracking-widest text-muted-foreground uppercase mb-1">
-              Legal
-            </p>
-            <h1 className="font-display font-black text-3xl tracking-tight leading-none">
-              Terms & Conditions
-            </h1>
-            <p className="text-xs text-muted-foreground mt-2">
-              Last updated: {updated}
+          {/* IDES disclaimer banner */}
+          <div className="mt-4 rounded-md border border-amber-400/40 bg-amber-400/10 px-4 py-3">
+            <p className="text-xs text-amber-700 dark:text-amber-300 font-medium">
+              <strong>Non-Affiliation Notice:</strong> {APP_NAME} is a private
+              organizational tool developed by {COMPANY}. It is not affiliated
+              with, endorsed by, sponsored by, or connected to the Illinois
+              Department of Employment Security (IDES), the Illinois Department
+              of Innovation &amp; Technology (DoIT), or any agency or instrumentality
+              of the State of Illinois. Use of this Service does not fulfill
+              any legal obligation to IDES — you must still certify directly
+              through IDES on your assigned certification day.
             </p>
           </div>
         </div>
 
-        <Section title="Acceptance of Terms">
+        {/* 1. Eligibility */}
+        <Section title="1. Eligibility">
           <p>
-            By accessing or using Illinois UI Job Search Tracker ("the App"),
-            you agree to be bound by these Terms and Conditions. If you do not
-            agree to these terms, do not use the App.
+            You must be at least 18 years old to use the Service. By registering,
+            you represent and warrant that you are 18 or older. The Service is
+            intended for use by Illinois unemployment insurance claimants and,
+            under Case Worker accounts, by authorized representatives acting on
+            behalf of those claimants.
           </p>
         </Section>
 
-        <Section title="Description of Service">
+        {/* 2. Nature of the Service */}
+        <Section title="2. Nature of the Service — No Legal Advice">
           <p>
-            Illinois UI Job Search Tracker is a web-based compliance tool
-            designed to help Illinois unemployment insurance claimants track and
-            document their weekly work-search activities as required by the
-            Illinois Department of Employment Security (IDES).
+            {APP_NAME} is a <strong>recordkeeping and organizational tool only</strong>.
+            It is designed to help you log and organize your job search contacts
+            in a format consistent with IDES work-search documentation requirements.
           </p>
           <p>
-            The App helps users maintain records of work-search contacts,
-            generate IDES ADJ034F Work Search Record forms, receive compliance
-            reminders via email and SMS, and manage claimant profiles.
+            The Service does not provide legal advice, benefits counseling, or
+            any representation before IDES or any government agency. The
+            accuracy, sufficiency, or acceptability of any records you maintain
+            using the Service for purposes of your unemployment insurance claim
+            is entirely your responsibility. We make no warranty that records
+            generated or organized by this Service will satisfy IDES requirements
+            in any particular case.
+          </p>
+          <p>
+            The ADJ034F PDF generated by the Service is produced from your own
+            entered data. It is your responsibility to review it for accuracy
+            before submitting it to IDES or any other party.
           </p>
         </Section>
 
-        <Section title="Important Disclaimer — Not Official IDES Software">
-          <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 p-4">
-            <p className="font-semibold text-amber-900 dark:text-amber-200">
-              Illinois UI Job Search Tracker is an independent, privately
-              developed tool. It is NOT affiliated with, endorsed by, or
-              operated by the Illinois Department of Employment Security (IDES)
-              or the State of Illinois.
+        {/* 3. Account */}
+        <Section title="3. Your Account">
+          <SubSection title="Registration">
+            <p>
+              You must provide accurate, complete information when registering.
+              You are responsible for maintaining the confidentiality of your
+              password and for all activity that occurs under your account.
+              Notify us immediately at {SUPPORT_EMAIL} if you suspect unauthorized
+              access to your account.
             </p>
-            <p className="mt-2 text-amber-800 dark:text-amber-300">
-              Use of this App does not guarantee compliance with IDES
-              requirements. You are solely responsible for ensuring your
-              work-search records meet all applicable IDES standards. Always
-              verify your compliance status directly with IDES.
+          </SubSection>
+          <SubSection title="Single Active Session">
+            <p>
+              The Service enforces one active session per account. Logging in on
+              a new device or browser automatically invalidates any prior session.
+              This is a security measure and is not a defect.
             </p>
-          </div>
+          </SubSection>
+          <SubSection title="Account Security">
+            <p>
+              You agree to use a strong, unique password and to keep it
+              confidential. We use bcrypt hashing and enforce NIST SP 800-63B
+              password policies. We never store your password in plain text.
+            </p>
+          </SubSection>
         </Section>
 
-        <Section title="User Responsibilities">
+        {/* 4. Subscriptions & Billing */}
+        <Section title="4. Subscriptions & Billing">
+          <SubSection title="Tiers">
+            <p>
+              The Service offers three subscription tiers:
+            </p>
+            <div className="mt-2 overflow-x-auto">
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="text-left py-2 pr-4 font-semibold text-foreground">
+                      Tier
+                    </th>
+                    <th className="text-left py-2 pr-4 font-semibold text-foreground">
+                      Price
+                    </th>
+                    <th className="text-left py-2 font-semibold text-foreground">
+                      Claimants
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  <tr>
+                    <td className="py-2 pr-4 font-medium text-foreground">Free</td>
+                    <td className="py-2 pr-4">$0/month</td>
+                    <td className="py-2">1 (yourself only)</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 pr-4 font-medium text-foreground">Pro</td>
+                    <td className="py-2 pr-4">
+                      $9.99/month or $95.99/year
+                    </td>
+                    <td className="py-2">1 (yourself only)</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 pr-4 font-medium text-foreground">
+                      Case Worker
+                    </td>
+                    <td className="py-2 pr-4">
+                      $19.99/month or $199.99/year (first seat);
+                      additional seats at $12.99/month or $129.99/year each
+                    </td>
+                    <td className="py-2">Multiple (see below)</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </SubSection>
+
+          <SubSection title="Pro Tier — One Claimant Only">
+            <p>
+              Pro is limited to one claimant (yourself). Pro is{" "}
+              <strong>not</strong> for managing contacts on behalf of other
+              individuals. If you represent multiple claimants, you must use a
+              Case Worker account.
+            </p>
+          </SubSection>
+
+          <SubSection title="Case Worker Tier — Claimant Liability Release">
+            <p>
+              Before a Case Worker account may log job contacts on behalf of any
+              claimant, that claimant must sign a written Claimant Liability
+              Release. The Case Worker is solely responsible for obtaining,
+              retaining, and producing those releases upon request. {COMPANY} is
+              not a party to and bears no liability under those releases.
+            </p>
+          </SubSection>
+
+          <SubSection title="Billing & Renewal">
+            <p>
+              Paid subscriptions are billed in advance on a monthly or annual
+              cycle via Stripe. Subscriptions automatically renew until cancelled.
+              You authorize us to charge your payment method on file for each
+              renewal period.
+            </p>
+          </SubSection>
+
+          <SubSection title="Cancellation">
+            <p>
+              You may cancel your subscription at any time from your account
+              settings or by contacting {SUPPORT_EMAIL}. Cancellation takes
+              effect at the end of the current billing period. You will retain
+              access to paid features through that date.
+            </p>
+          </SubSection>
+
+          <SubSection title="Refunds">
+            <p>
+              Subscription fees are non-refundable except as described in our{" "}
+              <a href="/refunds" className="text-primary underline underline-offset-2">
+                Refund Policy
+              </a>
+              . We do not issue prorated refunds for mid-period cancellations.
+            </p>
+          </SubSection>
+
+          <SubSection title="Downgrade Policy">
+            <p>
+              If you downgrade to a lower tier, your historical job contact
+              records and benefit weeks are archived and access is locked until
+              you re-upgrade. Records are{" "}
+              <strong>never deleted on downgrade</strong>. The 53-week IDES
+              retention window continues to run on archived data. You retain
+              the ability to log new contacts for your current active benefit
+              week on any tier, as this is a legal compliance obligation.
+            </p>
+          </SubSection>
+        </Section>
+
+        {/* 5. PDF & CSV Export */}
+        <Section title="5. PDF & CSV Exports">
           <p>
-            <strong>Accuracy of records:</strong> You are responsible for
-            ensuring that all work-search records you enter are accurate and
-            truthful. Submitting false work-search records to IDES is a
-            violation of Illinois law and may result in overpayment, penalties,
-            or prosecution.
-          </p>
-          <p>
-            <strong>Record retention:</strong> Per IDES requirements, you must
-            keep your written work-search records for any benefit week until 53
-            weeks have passed from the end of that week, or until any pending
-            appeals are fully resolved.
-          </p>
-          <p>
-            <strong>Account security:</strong> You are responsible for
-            maintaining the confidentiality of your account credentials and for
-            all activity that occurs under your account.
-          </p>
-          <p>
-            <strong>Accurate contact information:</strong> You are responsible
-            for providing accurate email addresses and phone numbers for
-            reminders and notifications.
+            All PDF (ADJ034F) and CSV exports are generated{" "}
+            <strong>ephemerally on demand</strong> and are never stored on our
+            servers. Once downloaded, the file exists only on your device. You
+            are responsible for saving and retaining copies of any documents you
+            generate. We recommend downloading your ADJ034F before the 53-week
+            retention window for each benefit week expires.
           </p>
         </Section>
 
-        <Section title="SMS Terms">
+        {/* 6. AI Screenshot Import */}
+        <Section title="6. AI Screenshot Import (Pro & Case Worker)">
           <p>
-            By opting in to SMS reminders through the App or via the SMS opt-in
-            page, you consent to receive automated text messages from Illinois
-            UI Job Search Tracker via Twilio.
+            The AI screenshot import feature uses Google's Gemini API to extract
+            job contact fields from an image you upload. By using this feature,
+            you acknowledge that:
           </p>
-          <ul className="list-disc list-inside space-y-1 ml-2">
-            <li>Message frequency: typically 1–3 messages per benefit week</li>
-            <li>Message and data rates may apply</li>
+          <ul className="list-disc list-inside space-y-1 pl-2 mt-2">
             <li>
-              Reply <strong>STOP</strong> to unsubscribe at any time
+              Your uploaded image is transmitted to Google's API and then
+              discarded. It is not stored by us.
             </li>
             <li>
-              Reply <strong>HELP</strong> for assistance
+              Extracted data is returned to you for review and confirmation
+              before being saved. You are responsible for verifying its accuracy.
             </li>
             <li>
-              Opt-out is effective immediately upon receipt of your STOP reply
+              We make no warranty that AI-extracted data is accurate or complete.
+            </li>
+            <li>
+              You should not upload images containing sensitive information beyond
+              what is needed for job contact extraction.
             </li>
           </ul>
+        </Section>
+
+        {/* 7. SMS */}
+        <Section title="7. SMS Reminders">
           <p>
-            You can also disable SMS reminders at any time from your Claimant
-            profile inside the App.
+            If you opt in to SMS reminders:
+          </p>
+          <ul className="list-disc list-inside space-y-1 pl-2 mt-2">
+            <li>
+              You consent to receive up to 3 automated text messages per week
+              per active claimant regarding certification deadlines.
+            </li>
+            <li>Message and data rates may apply.</li>
+            <li>
+              Reply <strong>STOP</strong> to unsubscribe at any time.
+              Reply <strong>HELP</strong> for help.
+            </li>
+            <li>
+              Opting out of SMS does not affect your ability to use the Service.
+            </li>
+          </ul>
+        </Section>
+
+        {/* 8. Data Retention */}
+        <Section title="8. Data Retention & 53-Week Limit">
+          <p>
+            Job contact records and benefit week data are subject to a 53-week
+            maximum retention window consistent with the IDES audit period.
+            Records approaching this limit receive automated expiration notices
+            at 14 days, 7 days, and 24 hours before removal. Each notice
+            includes a link to download your ADJ034F for that week.
+          </p>
+          <p>
+            <strong>
+              It is your responsibility to download and retain any records you
+              wish to keep before expiration.
+            </strong>{" "}
+            We are not liable for loss of data due to expiration of this window.
           </p>
         </Section>
 
-        <Section title="Acceptable Use">
+        {/* 9. Acceptable Use */}
+        <Section title="9. Acceptable Use">
           <p>You agree not to:</p>
-          <ul className="list-disc list-inside space-y-1 ml-2">
+          <ul className="list-disc list-inside space-y-1 pl-2 mt-2">
             <li>
-              Use the App to submit false or fraudulent work-search records
+              Use the Service to submit false, fraudulent, or misleading job
+              contact records to IDES or any government agency
             </li>
             <li>
-              Attempt to gain unauthorized access to other users' accounts or
-              data
+              Share your account credentials with any other person (each user
+              must have their own account; Case Workers must use seat-based
+              access)
             </li>
             <li>
-              Reverse engineer, decompile, or attempt to extract the App's
-              source code
+              Attempt to reverse-engineer, scrape, or automate access to the
+              Service
             </li>
             <li>
-              Use the App in any way that violates applicable federal, state, or
-              local laws
+              Use the Service in any way that violates Illinois or federal law
             </li>
             <li>
-              Resell or commercially exploit the App without written permission
+              Represent the Service as affiliated with IDES or the State of
+              Illinois
+            </li>
+          </ul>
+          <p className="mt-3">
+            We reserve the right to suspend or terminate accounts that violate
+            these terms.
+          </p>
+        </Section>
+
+        {/* 10. Disclaimer of Warranties */}
+        <Section title="10. Disclaimer of Warranties">
+          <p className="uppercase text-xs font-medium text-foreground">
+            The Service is provided "as is" and "as available" without warranties
+            of any kind, express or implied, including but not limited to
+            warranties of merchantability, fitness for a particular purpose, or
+            non-infringement.
+          </p>
+          <p className="mt-3">
+            We do not warrant that:
+          </p>
+          <ul className="list-disc list-inside space-y-1 pl-2 mt-2">
+            <li>
+              The Service will be uninterrupted, error-free, or available at any
+              particular time
+            </li>
+            <li>
+              Records generated by the Service will satisfy IDES or any
+              government agency's requirements in any particular case
+            </li>
+            <li>
+              AI-extracted data from screenshot imports will be accurate or
+              complete
+            </li>
+            <li>
+              The ADJ034F PDF will be accepted by IDES in any specific
+              circumstance
             </li>
           </ul>
         </Section>
 
-        <Section title="Intellectual Property">
-          <p>
-            All content, features, and functionality of the App — including but
-            not limited to the design, code, logos, and text — are owned by
-            KMG123 Enterprises LLC and are protected by applicable intellectual
-            property laws.
+        {/* 11. Limitation of Liability */}
+        <Section title="11. Limitation of Liability">
+          <p className="uppercase text-xs font-medium text-foreground">
+            To the fullest extent permitted by law, {COMPANY} and its officers,
+            employees, and agents shall not be liable for any indirect,
+            incidental, special, consequential, or punitive damages, or any loss
+            of data, benefits, or unemployment compensation, arising out of or
+            related to your use of the Service — even if advised of the
+            possibility of such damages.
           </p>
-          <p>
-            The ADJ034F Work Search Record form is a public document produced by
-            the Illinois Department of Employment Security and is used in
-            accordance with its public availability for compliance purposes.
-          </p>
-        </Section>
-
-        <Section title="Limitation of Liability">
-          <p>
-            To the fullest extent permitted by law, Illinois UI Job Search
-            Tracker and KMG123 Enterprises LLC shall not be liable for any
-            indirect, incidental, special, or consequential damages arising from
-            your use of the App, including but not limited to loss of benefits,
-            penalties from IDES, or data loss.
-          </p>
-          <p>
-            The App is provided "as is" without warranties of any kind, express
-            or implied. We do not warrant that the App will be uninterrupted,
-            error-free, or that defects will be corrected.
+          <p className="mt-3">
+            Our total liability to you for any claim arising out of these Terms
+            or the Service shall not exceed the amount you paid us in the 12
+            months preceding the claim, or $50, whichever is greater.
           </p>
         </Section>
 
-        <Section title="Termination">
+        {/* 12. Indemnification */}
+        <Section title="12. Indemnification">
           <p>
-            We reserve the right to suspend or terminate your account at any
-            time for violation of these Terms. You may delete your account at
-            any time from within the App. Upon termination, your data will be
-            permanently removed within 30 days.
+            You agree to indemnify and hold harmless {COMPANY} and its officers,
+            employees, and agents from any claims, damages, or expenses
+            (including reasonable attorneys' fees) arising out of your use of the
+            Service, your violation of these Terms, or any false or fraudulent
+            records you submit to IDES or any other party.
           </p>
         </Section>
 
-        <Section title="Changes to These Terms">
-          <p>
-            We may update these Terms from time to time. When we do, we will
-            update the "Last updated" date at the top of this page. Continued
-            use of the App after changes constitutes acceptance of the updated
-            Terms.
-          </p>
-        </Section>
-
-        <Section title="Governing Law">
+        {/* 13. Governing Law */}
+        <Section title="13. Governing Law">
           <p>
             These Terms are governed by the laws of the State of Illinois,
-            without regard to its conflict of law provisions. Any disputes
-            arising from these Terms shall be resolved in the courts of
-            Illinois.
+            without regard to its conflict-of-law provisions. Any disputes
+            arising under these Terms shall be resolved in the state or federal
+            courts located in Illinois.
           </p>
         </Section>
 
-        <Section title="Contact">
-          <p>For questions about these Terms, contact us at:</p>
-          <p className="font-mono text-xs bg-muted border border-border p-3">
-            Illinois UI Job Search Tracker
-            <br />
-            illinoisjobtracker.app
-            <br />
-            KMG123 Enterprises LLC
+        {/* 14. Changes */}
+        <Section title="14. Changes to These Terms">
+          <p>
+            We may update these Terms from time to time. When we do, we will
+            revise the effective date at the top of this page. For material
+            changes, we will notify you by email or via a notice in the
+            application. Your continued use of the Service after any change
+            constitutes your acceptance of the revised Terms.
           </p>
         </Section>
-      </main>
 
-      <footer className="border-t border-border mt-8">
-        <div className="max-w-4xl mx-auto px-6 py-6 flex items-center justify-between text-xs text-muted-foreground">
-          <span>
-            © {new Date().getFullYear()} Illinois UI Job Search Tracker
-          </span>
-          <div className="flex gap-4">
-            <Link to="/sms-opt-in" className="hover:text-foreground">
-              SMS Opt-In
-            </Link>
-            <Link to="/privacy" className="hover:text-foreground">
-              Privacy Policy
-            </Link>
+        {/* 15. Contact */}
+        <Section title="15. Contact">
+          <p>Questions about these Terms? Contact us:</p>
+          <div className="mt-2 rounded-md border border-border bg-muted/40 px-4 py-3 text-sm">
+            <p className="font-medium text-foreground">{COMPANY}</p>
+            <p>
+              <a
+                href={`mailto:${SUPPORT_EMAIL}`}
+                className="text-primary underline underline-offset-2"
+              >
+                {SUPPORT_EMAIL}
+              </a>
+            </p>
+            <p>{APP_URL}</p>
           </div>
-        </div>
-      </footer>
+        </Section>
+      </div>
     </div>
   );
 }

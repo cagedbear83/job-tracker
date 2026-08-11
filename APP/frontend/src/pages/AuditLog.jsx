@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { api, formatApiError } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,30 +13,30 @@ import { toast } from "sonner";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react";
 
 const ACTION_COLORS = {
-  LOGIN: "text-muted-foreground",
-  LOGOUT: "text-muted-foreground",
-  REGISTER: "text-[#0033A0] dark:text-[#5a86ff]",
-  REGISTER_INVITE: "text-[#0033A0] dark:text-[#5a86ff]",
+  LOGIN: "text-zinc-700",
+  LOGOUT: "text-zinc-700",
+  REGISTER: "text-[#0033A0]",
+  REGISTER_INVITE: "text-[#0033A0]",
   CREATE: "text-[#16A34A]",
   UPDATE: "text-[#EAB308]",
   DELETE: "text-[#DC2626]",
-  SWITCH: "text-muted-foreground",
-  IMPORT_CSV: "text-[#0033A0] dark:text-[#5a86ff]",
-  IMPORT_OCR: "text-[#0033A0] dark:text-[#5a86ff]",
-  EXPORT_CSV: "text-[#0033A0] dark:text-[#5a86ff]",
-  EXPORT_PDF: "text-[#0033A0] dark:text-[#5a86ff]",
-  FORGOT_PW: "text-muted-foreground",
+  SWITCH: "text-zinc-700",
+  IMPORT_CSV: "text-[#0033A0]",
+  IMPORT_OCR: "text-[#0033A0]",
+  EXPORT_CSV: "text-[#0033A0]",
+  EXPORT_PDF: "text-[#0033A0]",
+  FORGOT_PW: "text-zinc-700",
   RESET_PW: "text-[#EAB308]",
-  INVITE_CREATE: "text-[#0033A0] dark:text-[#5a86ff]",
+  INVITE_CREATE: "text-[#0033A0]",
   INVITE_REVOKE: "text-[#DC2626]",
-  REMINDER_SUNDAY: "text-muted-foreground",
-  REMINDER_WEDNESDAY: "text-muted-foreground",
-  REMINDER_FRIDAY: "text-muted-foreground",
-  REMINDER_SATURDAY: "text-muted-foreground",
-  SMS_SUNDAY: "text-muted-foreground",
-  SMS_WEDNESDAY: "text-muted-foreground",
-  SMS_FRIDAY: "text-muted-foreground",
-  SMS_SATURDAY: "text-muted-foreground",
+  REMINDER_SUNDAY: "text-zinc-600",
+  REMINDER_WEDNESDAY: "text-zinc-600",
+  REMINDER_FRIDAY: "text-zinc-600",
+  REMINDER_SATURDAY: "text-zinc-600",
+  SMS_SUNDAY: "text-zinc-600",
+  SMS_WEDNESDAY: "text-zinc-600",
+  SMS_FRIDAY: "text-zinc-600",
+  SMS_SATURDAY: "text-zinc-600",
 };
 
 const ENTITY_OPTIONS = [
@@ -55,11 +55,11 @@ export default function AuditLog() {
   const [action, setAction] = useState("ALL");
   const [entity, setEntity] = useState("ALL");
 
-  const load = useCallback(async (searchQuery = "") => {
+  const load = async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (searchQuery) params.set("q", searchQuery);
+      if (query) params.set("q", query);
       if (action !== "ALL") params.set("action", action);
       if (entity !== "ALL") params.set("entity", entity);
       const { data } = await api.get(`/audit-log?${params.toString()}`);
@@ -69,19 +69,18 @@ export default function AuditLog() {
     } finally {
       setLoading(false);
     }
-  }, [action, entity]);
-
-  // Auto-load when filters change (not on every search keystroke).
-  // `query` is intentionally excluded from deps: search runs on submit via onSearch.
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    load(query);
-  }, [load]); // eslint-disable-line react-hooks/exhaustive-deps
+    load(); /* eslint-disable-next-line */
+  }, [action, entity]);
 
   const onSearch = (e) => {
     e.preventDefault();
-    load(query);
+    load();
   };
 
+  // gather unique actions from current results for filter pills
   const actionOptions = [
     "ALL",
     ...Array.from(new Set(items.map((i) => i.action))),
@@ -91,16 +90,16 @@ export default function AuditLog() {
     <div className="space-y-6" data-testid="audit-page">
       <div>
         <div className="kbd-label">Activity Trail</div>
-        <h1 className="font-display font-black text-4xl tracking-tighter mt-1 text-foreground">
+        <h1 className="font-display font-black text-4xl tracking-tighter mt-1">
           Audit Log
         </h1>
-        <p className="text-sm text-muted-foreground mt-2">
+        <p className="text-sm text-zinc-600 mt-2">
           Every action you take is recorded for compliance. Edits include
-          field-level old to new diffs.
+          field-level old → new diffs.
         </p>
       </div>
 
-      <div className="border border-border bg-card p-4 grid grid-cols-1 md:grid-cols-12 gap-3">
+      <div className="border border-zinc-200 bg-white p-4 grid grid-cols-1 md:grid-cols-12 gap-3">
         <form onSubmit={onSearch} className="md:col-span-6">
           <Label className="kbd-label">Search detail</Label>
           <div className="flex gap-2 mt-2">
@@ -159,9 +158,9 @@ export default function AuditLog() {
         </div>
       </div>
 
-      <div className="border border-border bg-card overflow-x-auto">
+      <div className="border border-zinc-200 bg-white overflow-x-auto">
         <table className="w-full compliance-table text-sm">
-          <thead className="bg-muted border-b border-border">
+          <thead className="bg-[#F4F4F5] border-b border-zinc-200">
             <tr className="text-left">
               <th className="kbd-label">Timestamp</th>
               <th className="kbd-label">Action</th>
@@ -172,14 +171,14 @@ export default function AuditLog() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={4} className="text-center text-muted-foreground py-12">
-                  Loading...
+                <td colSpan={4} className="text-center text-zinc-500 py-12">
+                  Loading…
                 </td>
               </tr>
             )}
             {!loading && items.length === 0 && (
               <tr>
-                <td colSpan={4} className="text-center text-muted-foreground py-12">
+                <td colSpan={4} className="text-center text-zinc-500 py-12">
                   No audit entries match your filters.
                 </td>
               </tr>
@@ -187,19 +186,19 @@ export default function AuditLog() {
             {items.map((it) => (
               <tr
                 key={it.id}
-                className="border-b border-border"
+                className="border-b border-zinc-100"
                 data-testid={`audit-row-${it.id}`}
               >
-                <td className="font-mono-data text-xs text-muted-foreground whitespace-nowrap">
+                <td className="font-mono-data text-xs text-zinc-600 whitespace-nowrap">
                   {new Date(it.timestamp).toLocaleString()}
                 </td>
                 <td
-                  className={`text-xs font-bold tracking-wider ${ACTION_COLORS[it.action] || "text-foreground"}`}
+                  className={`text-xs font-bold tracking-wider ${ACTION_COLORS[it.action] || "text-zinc-700"}`}
                 >
                   {it.action}
                 </td>
-                <td className="text-xs text-muted-foreground">{it.entity}</td>
-                <td className="text-xs text-foreground max-w-[600px]">
+                <td className="text-xs text-zinc-600">{it.entity}</td>
+                <td className="text-xs text-zinc-800 max-w-[600px]">
                   {it.detail}
                 </td>
               </tr>
@@ -208,7 +207,7 @@ export default function AuditLog() {
         </table>
       </div>
 
-      <div className="text-xs text-muted-foreground" data-testid="audit-count">
+      <div className="text-xs text-zinc-500" data-testid="audit-count">
         Showing {items.length} entries
       </div>
     </div>

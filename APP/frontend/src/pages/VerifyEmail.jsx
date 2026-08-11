@@ -48,8 +48,8 @@ export default function VerifyEmail() {
   }, [token, navigate, user]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted p-4">
-      <div className="w-full max-w-md bg-card rounded-lg border border-border shadow-sm p-8">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-zinc-50 to-zinc-100 p-4">
+      <div className="w-full max-w-md bg-white rounded-lg border border-zinc-200 shadow-sm p-8">
         <div className="text-center">
           <h1 className="font-display font-black text-2xl tracking-tight mb-2">
             Email Verification
@@ -60,7 +60,7 @@ export default function VerifyEmail() {
               <div className="flex justify-center">
                 <div className="animate-spin rounded-full h-8 w-8 border border-[#0033A0] border-t-transparent" />
               </div>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-zinc-600">
                 Verifying your email address...
               </p>
             </div>
@@ -69,9 +69,9 @@ export default function VerifyEmail() {
           {status === "success" && (
             <div className="space-y-4 py-8">
               <div className="text-4xl">✓</div>
-              <p className="text-sm text-foreground font-medium">{message}</p>
+              <p className="text-sm text-zinc-700 font-medium">{message}</p>
               {!user && (
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-zinc-500">
                   Redirecting to login in 3 seconds...
                 </p>
               )}
@@ -87,7 +87,7 @@ export default function VerifyEmail() {
           {status === "error" && (
             <div className="space-y-4 py-8">
               <div className="text-4xl">✕</div>
-              <p className="text-sm text-foreground font-medium">{message}</p>
+              <p className="text-sm text-zinc-700 font-medium">{message}</p>
               <div className="space-y-2 mt-6">
                 <Button
                   className="rounded-none bg-[#0033A0] hover:bg-[#002266] w-full"
@@ -97,7 +97,7 @@ export default function VerifyEmail() {
                 </Button>
                 {!user && (
                   <Link to="/register">
-                    <Button variant="outline" className="rounded-none w-full border-border">
+                    <Button variant="outline" className="rounded-none w-full border-zinc-300">
                       Create New Account
                     </Button>
                   </Link>

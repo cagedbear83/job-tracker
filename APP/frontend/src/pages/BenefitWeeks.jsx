@@ -159,7 +159,7 @@ export default function BenefitWeeks() {
           <h1 className="font-display font-black text-4xl tracking-tighter mt-1">
             Benefit Weeks
           </h1>
-          <p className="text-sm text-muted-foreground mt-2">
+          <p className="text-sm text-zinc-600 mt-2">
             Weeks run Sunday–Saturday. Each requires ≥ 3 work-search contacts.
           </p>
         </div>
@@ -167,7 +167,7 @@ export default function BenefitWeeks() {
           <div className="flex gap-2">
             <Button
               variant="outline"
-              className="rounded-none border-border"
+              className="rounded-none border-zinc-300"
               onClick={exportAll}
               data-testid="export-all-button"
             >
@@ -219,8 +219,8 @@ export default function BenefitWeeks() {
               </div>
 
               {/* IDES compliance questions */}
-              <div className="border border-border bg-muted p-3 space-y-3">
-                <p className="kbd-label text-xs text-muted-foreground uppercase tracking-widest">
+              <div className="border border-zinc-200 bg-zinc-50 p-3 space-y-3">
+                <p className="kbd-label text-xs text-zinc-500 uppercase tracking-widest">
                   IDES Certification Questions
                 </p>
 
@@ -230,7 +230,7 @@ export default function BenefitWeeks() {
                   { key: "worked_for_pay",     label: "Did you work any hours for pay this week?" },
                 ].map(({ key, label }) => (
                   <div key={key} className="flex items-center justify-between gap-4">
-                    <span className="text-sm text-foreground">{label}</span>
+                    <span className="text-sm text-zinc-700">{label}</span>
                     <div className="flex items-center gap-4 text-sm shrink-0">
                       <label className="flex items-center gap-1.5 cursor-pointer">
                         <input
@@ -265,7 +265,7 @@ export default function BenefitWeeks() {
               <div>
                 <Label className="kbd-label">
                   Notes about this week{" "}
-                  <span className="text-muted-foreground normal-case font-normal">
+                  <span className="text-zinc-400 normal-case font-normal">
                     (illness, holidays, etc.)
                   </span>
                 </Label>
@@ -311,9 +311,9 @@ export default function BenefitWeeks() {
         </Dialog>
       </div>
 
-      <div className="border border-border bg-background overflow-x-auto">
+      <div className="border border-zinc-200 bg-white overflow-x-auto">
         <table className="w-full compliance-table text-sm">
-          <thead className="bg-muted border-b border-border">
+          <thead className="bg-[#F4F4F5] border-b border-zinc-200">
             <tr className="text-left">
               <th className="kbd-label">Week (Sun → Sat)</th>
               <th className="kbd-label">Contacts</th>
@@ -326,7 +326,7 @@ export default function BenefitWeeks() {
           <tbody>
             {weeks.length === 0 && (
               <tr>
-                <td colSpan={6} className="text-center text-muted-foreground py-12">
+                <td colSpan={6} className="text-center text-zinc-500 py-12">
                   No weeks yet — click "New Benefit Week".
                 </td>
               </tr>
@@ -334,7 +334,7 @@ export default function BenefitWeeks() {
             {weeks.map((w) => (
               <tr
                 key={w.id}
-                className="border-b border-border"
+                className="border-b border-zinc-100"
                 data-testid={`week-row-${w.id}`}
               >
                 <td className="font-mono-data font-semibold">
@@ -354,7 +354,7 @@ export default function BenefitWeeks() {
                   )}
                 </td>
                 <td className="text-xs">{w.certified ? "YES" : "—"}</td>
-                <td className="text-xs text-muted-foreground max-w-[250px] truncate">
+                <td className="text-xs text-zinc-600 max-w-[250px] truncate">
                   {w.notes || "—"}
                 </td>
                 <td className="text-right">
@@ -363,7 +363,7 @@ export default function BenefitWeeks() {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="rounded-none border-border"
+                        className="rounded-none border-zinc-300"
                         data-testid={`open-week-${w.id}`}
                       >
                         Open{" "}
@@ -377,7 +377,7 @@ export default function BenefitWeeks() {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="rounded-none border-border"
+                      className="rounded-none border-zinc-300"
                       onClick={() => openEdit(w)}
                       data-testid={`edit-week-${w.id}`}
                     >
@@ -388,7 +388,7 @@ export default function BenefitWeeks() {
                         <Button
                           size="sm"
                           variant="outline"
-                          className="rounded-none border-border hover:bg-red-50 dark:bg-red-950/30 hover:text-[#DC2626]"
+                          className="rounded-none border-zinc-300 hover:bg-red-50 hover:text-[#DC2626]"
                           data-testid={`delete-week-${w.id}`}
                         >
                           <TrashIcon size={14} weight="bold" />
