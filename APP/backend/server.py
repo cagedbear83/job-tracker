@@ -2313,6 +2313,10 @@ async def integrations_status(admin=Depends(require_admin)):
 
 
 # ============== Contact Form (public — from marketing site) ==============
+@api.options("/contact")
+async def contact_options():
+    """Explicit OPTIONS handler so CORS preflight passes for the marketing site."""
+    return Response(status_code=200)
 class ContactRequest(BaseModel):
     first_name: str
     last_name: str
