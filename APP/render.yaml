@@ -1,0 +1,119 @@
+# Render Blueprint for the backend API (Docker) — staging + production.
+# Frontend deploys separately to Vercel (see APP/frontend/vercel.json).
+# Full walkthrough: docs/DEPLOYMENT.md
+#
+# Secrets (sync: false) are entered in the Render dashboard and never committed.
+# Bring your own MongoDB (e.g. MongoDB Atlas) and put each environment's
+# connection string in MONGO_URL. Staging and production should use SEPARATE
+# databases (different DB_NAME) — ideally separate Atlas clusters/projects.
+services:
+  # ---------------- Production ----------------
+  - type: web
+    name: ides-job-tracker-api
+    runtime: docker
+    dockerfilePath: ./APP/backend/Dockerfile
+    dockerContext: ./APP/backend
+    plan: starter
+    branch: main
+    healthCheckPath: /health/ready
+    autoDeploy: true
+    envVars:
+      # --- Required (set in dashboard) ---
+      - key: MONGO_URL
+        sync: false
+      - key: DB_NAME
+        value: ides_tracker_prod
+      - key: JWT_SECRET
+        generateValue: true
+      - key: FRONTEND_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      # --- Production defaults ---
+      - key: ENABLE_DEMO_USER
+        value: "false"
+      - key: ENABLE_HSTS
+        value: "true"
+      - key: RATE_LIMIT_ENABLED
+        value: "true"
+      - key: WEB_CONCURRENCY
+        value: "1"
+      # --- Error tracking (optional) ---
+      - key: SENTRY_DSN
+        sync: false
+      - key: SENTRY_ENVIRONMENT
+        value: production
+      # --- Integrations (optional) ---
+      - key: MAILGUN_API_KEY
+        sync: false
+      - key: MAILGUN_DOMAIN
+        sync: false
+      - key: MAILGUN_FROM
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_FROM_NUMBER
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+
+  # ---------------- Staging ----------------
+  - type: web
+    name: ides-job-tracker-api-staging
+    runtime: docker
+    dockerfilePath: ./APP/backend/Dockerfile
+    dockerContext: ./APP/backend
+    plan: starter
+    branch: staging
+    healthCheckPath: /health/ready
+    autoDeploy: true
+    envVars:
+      # --- Required (set in dashboard; use a SEPARATE database) ---
+      - key: MONGO_URL
+        sync: false
+      - key: DB_NAME
+        value: ides_tracker_staging
+      - key: JWT_SECRET
+        generateValue: true
+      - key: FRONTEND_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      # --- Staging defaults ---
+      # Rate limiting stays ON even in staging: this is a real, internet-
+      # reachable deployment, and disabling it removes brute-force/
+      # credential-stuffing protection from /login, /register, and
+      # /forgot-password for every account on the service (not just the demo
+      # one). If QA needs higher throughput, raise RATE_LIMIT_LOGIN /
+      # RATE_LIMIT_REGISTER / RATE_LIMIT_FORGOT in the dashboard instead of
+      # disabling the limiter outright.
+      - key: ENABLE_DEMO_USER
+        value: "true"
+      - key: ENABLE_HSTS
+        value: "true"
+      - key: RATE_LIMIT_ENABLED
+        value: "true"
+      - key: WEB_CONCURRENCY
+        value: "1"
+      # --- Error tracking (optional) ---
+      - key: SENTRY_DSN
+        sync: false
+      - key: SENTRY_ENVIRONMENT
+        value: staging
+      # --- Integrations (optional; use test/sandbox creds in staging) ---
+      - key: MAILGUN_API_KEY
+        sync: false
+      - key: MAILGUN_DOMAIN
+        sync: false
+      - key: MAILGUN_FROM
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_FROM_NUMBER
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
