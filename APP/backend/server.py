@@ -2313,10 +2313,28 @@ async def integrations_status(admin=Depends(require_admin)):
 
 
 # ============== Contact Form (public — from marketing site) ==============
+CONTACT_ALLOWED_ORIGINS = [
+    "https://illinoisjobtracker.com",
+    "https://www.illinoisjobtracker.com",
+    "https://illinoisjobtracker.app",
+    "https://www.illinoisjobtracker.app",
+]
+
+def _contact_cors_headers(request: Request) -> dict:
+    origin = request.headers.get("origin", "")
+    if origin in CONTACT_ALLOWED_ORIGINS:
+        return {
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type",
+            "Access-Control-Max-Age": "86400",
+        }
+    return {}
+
 @api.options("/contact")
-async def contact_options():
-    """Explicit OPTIONS handler so CORS preflight passes for the marketing site."""
-    return Response(status_code=200)
+async def contact_options(request: Request):
+    return Response(status_code=200, headers=_contact_cors_headers(request))
+
 class ContactRequest(BaseModel):
     first_name: str
     last_name: str
@@ -2327,7 +2345,7 @@ class ContactRequest(BaseModel):
 
 
 @api.post("/contact")
-async def contact_form(payload: ContactRequest):
+async def contact_form(payload: ContactRequest, request: Request):
     import re
     phone_digits = re.sub(r"\D", "", payload.phone)
     if len(phone_digits) != 10:
@@ -2400,7 +2418,7 @@ async def contact_form(payload: ContactRequest):
         customer_html,
     )
 
-    return {"status": "sent"}
+    return JSONResponse({"status": "sent"}, headers=_contact_cors_headers(request))
 
 
 # ============== Health ==============
