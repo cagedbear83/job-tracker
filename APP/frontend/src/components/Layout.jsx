@@ -107,7 +107,7 @@ export default function Layout() {
       await setActiveClaimant(id);
       toast.success("Switched claimant");
       window.location.reload();
-    } catch (e) {
+    } catch {
       toast.error("Could not switch claimant");
     }
   };

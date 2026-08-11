@@ -5,9 +5,7 @@ import { Button } from "@/components/ui/button";
 import {
   CheckCircleIcon,
   WarningIcon,
-  IdentificationCardIcon,
   CalendarBlankIcon,
-  BriefcaseIcon,
   PlusIcon,
   TrendUpIcon,
 } from "@phosphor-icons/react";
@@ -51,8 +49,8 @@ export default function Dashboard() {
         ]);
         setStats(d.data);
         setWeeks(w.data);
-      } catch (e) {
-        toast.error(formatApiError(e));
+      } catch (err) {
+        toast.error(formatApiError(err));
       }
     })();
   }, []);

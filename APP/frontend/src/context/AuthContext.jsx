@@ -90,7 +90,10 @@ export function AuthProvider({ children }) {
   const logout = async () => {
     try {
       await api.post("/auth/logout");
-    } catch {}
+    } catch {
+      // Logout should always succeed locally even if the server call fails
+      // (e.g. token already expired) — we still clear local state below.
+    }
     clearToken();
     setUser(null);
     setClaimants([]);

@@ -79,7 +79,7 @@ export function UpgradeModalProvider({ children }) {
     // Listen for the custom event dispatched by the axios interceptor
     // (see snippet at bottom of file). Using a window event keeps this
     // decoupled from api.js so either file can be edited independently.
-    const handler = (e) => show(e.detail);
+    const handler = (evt) => show(evt.detail);
     window.addEventListener("upgrade-required", handler);
     return () => window.removeEventListener("upgrade-required", handler);
   }, [show]);
@@ -92,7 +92,7 @@ export function UpgradeModalProvider({ children }) {
       // Case Worker subscription after initial checkout.
       const { data } = await api.post("/billing/checkout", { tier, interval, seats: 1 });
       window.location.href = data.checkout_url;
-    } catch (e) {
+    } catch {
       setCheckingOut(null);
     }
   };

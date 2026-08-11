@@ -64,7 +64,7 @@ export function SubscriptionProvider({ children }) {
     try {
       const { data } = await api.get("/billing/status");
       setStatus(data);
-    } catch (e) {
+    } catch {
       // Not logged in yet, or billing route not reachable — default to free
       setStatus({ tier: "free", usage: {}, subscription: null });
     } finally {
