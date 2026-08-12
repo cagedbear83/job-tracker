@@ -70,9 +70,8 @@ export default function AuditLog() {
       setLoading(false);
     }
   };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    load(); /* eslint-disable-next-line */
+    load();
   }, [action, entity]);
 
   const onSearch = (e) => {
