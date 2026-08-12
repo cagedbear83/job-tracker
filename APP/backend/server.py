@@ -2646,19 +2646,9 @@ async def health_ready():
 app.include_router(api)
 
 
-# ============== Security headers ==============
-@app.middleware("http")
-async def security_headers(request: Request, call_next):
-    response = await call_next(request)
-    response.headers.setdefault("X-Content-Type-Options", "nosniff")
-    response.headers.setdefault("X-Frame-Options", "DENY")
-    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
-    response.headers.setdefault("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
-    if os.environ.get("ENABLE_HSTS", "false").lower() in ("1", "true", "yes"):
-        response.headers.setdefault("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
-    return response
-
-
+# ============== CORS (must be registered before other middleware so it
+# wraps outermost — this ensures CORS headers are attached even on error
+# responses, e.g. HTTPException from /auth/verify-email) ==============
 origins_env = os.environ.get("CORS_ORIGINS", "*")
 allow_credentials = True
 if origins_env.strip() == "*":
@@ -2674,6 +2664,20 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# ============== Security headers ==============
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
+    if os.environ.get("ENABLE_HSTS", "false").lower() in ("1", "true", "yes"):
+        response.headers.setdefault("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
+    return response
+
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
