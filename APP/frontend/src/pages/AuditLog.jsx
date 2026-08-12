@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { api, formatApiError } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -55,7 +55,7 @@ export default function AuditLog() {
   const [action, setAction] = useState("ALL");
   const [entity, setEntity] = useState("ALL");
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -69,10 +69,10 @@ export default function AuditLog() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [query, action, entity]);
   useEffect(() => {
     load();
-  }, [action, entity]);
+  }, [load]);
 
   const onSearch = (e) => {
     e.preventDefault();
