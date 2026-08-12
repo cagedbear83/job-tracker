@@ -41,3 +41,5 @@ python-dotenv==1.2.2
 # --- Production hardening ---
 slowapi==0.1.9                    # per-IP rate limiting on auth endpoints
 sentry-sdk[fastapi]==2.20.0       # error tracking (no-op unless SENTRY_DSN set)
+
+# cache bust 20260812172107
