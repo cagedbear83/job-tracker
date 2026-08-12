@@ -29,13 +29,13 @@ const PaginationItem = React.forwardRef(({ className, ...props }, ref) => (
 ))
 PaginationItem.displayName = "PaginationItem"
 
-// eslint-disable-next-line jsx-a11y/anchor-has-content
 const PaginationLink = ({
   className,
   isActive,
   size = "icon",
   ...props
 }) => (
+  // eslint-disable-next-line jsx-a11y/anchor-has-content
   <a
     aria-current={isActive ? "page" : undefined}
     className={cn(buttonVariants({
