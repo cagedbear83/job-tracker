@@ -641,20 +641,40 @@ async def register(request: Request, body: RegisterIn):
     }
     await db.users.insert_one(user_doc)
 
-    await db.profiles.insert_one(
-        {
-            "id": str(uuid.uuid4()),
-            "user_id": uid,
-            "full_name": f"{body.first_name} {body.last_name}".strip(),
-            "phone": body.phone,
-            "date_of_birth": body.dob,
-            "address": body.address,
-            "city": body.city,
-            "zip": body.zip,
-            "claimant_id": body.claimant_id or "",
-            "is_primary": True,
-            "created_at": datetime.now(timezone.utc),
-        }
+    # Store the registration details using the canonical profile schema
+    # (ProfileIn) so the Profile page, claimant list, and IDES reports all read
+    # them back. Writing ad-hoc keys here (full_name / zip / is_primary) is what
+    # caused registration data to silently not appear on the profile.
+    pid = str(uuid.uuid4())
+    now_iso = datetime.now(timezone.utc).isoformat()
+    profile_doc = {
+        "id": pid,
+        "user_id": uid,
+        "updated_at": now_iso,
+        "created_at": now_iso,
+        "label": "Primary",
+        "first_name": body.first_name,
+        "last_name": body.last_name,
+        "middle_initial": "",
+        "claimant_id": body.claimant_id or "",
+        "address": body.address,
+        "city": body.city,
+        "state": "IL",
+        "zip_code": body.zip,
+        "phone": body.phone,
+        "occupation": "",
+        "reminders_enabled": True,
+        "reminder_email": "",
+        "sms_enabled": False,
+        # Not part of ProfileIn, but collected at registration — keep it so the
+        # data isn't lost. Profile edits use $set, so this survives updates.
+        "date_of_birth": body.dob,
+    }
+    await db.profiles.insert_one(profile_doc)
+    # Make this the active claimant explicitly (rather than relying on the
+    # first-profile fallback), matching how create_claimant behaves.
+    await db.users.update_one(
+        {"id": uid}, {"$set": {"active_claimant_id": pid}}
     )
 
     verification_token = secrets.token_urlsafe(32)
@@ -843,90 +863,12 @@ async def upsert_profile(body: ProfileIn, user=Depends(get_current_user)):
     return doc
 
 
-@api.get("/claimants")
-async def list_claimants(user=Depends(get_current_user)):
-    items = (
-        await db.profiles.find({"user_id": user["id"]}, {"_id": 0})
-        .sort("label", 1)
-        .to_list(100)
-    )
-    active = await get_active_claimant_id(user["id"])
-    return {"items": items, "active_id": active}
-
-
-@api.post("/claimants")
-async def create_claimant(body: ProfileIn, user=Depends(get_current_user)):
-    pid = str(uuid.uuid4())
-    now = datetime.now(timezone.utc).isoformat()
-    doc = {"id": pid, "user_id": user["id"], "updated_at": now, **body.model_dump()}
-    await db.profiles.insert_one(doc)
-    u = await db.users.find_one({"id": user["id"]}, {"_id": 0, "active_claimant_id": 1})
-    if not u or not u.get("active_claimant_id"):
-        await db.users.update_one(
-            {"id": user["id"]}, {"$set": {"active_claimant_id": pid}}
-        )
-    await log_audit(
-        user["id"], "CREATE", "claimant", pid, f"Claimant created: {body.label}"
-    )
-    doc.pop("_id", None)
-    return doc
-
-
-@api.put("/claimants/{cid}")
-async def update_claimant(cid: str, body: ProfileIn, user=Depends(get_current_user)):
-    existing = await db.profiles.find_one(
-        {"id": cid, "user_id": user["id"]}, {"_id": 0}
-    )
-    if not existing:
-        raise HTTPException(status_code=404, detail="Not found")
-    update = body.model_dump()
-    update["updated_at"] = datetime.now(timezone.utc).isoformat()
-    await db.profiles.update_one({"id": cid, "user_id": user["id"]}, {"$set": update})
-    diff = diff_dict(existing, update, list(body.model_dump().keys()))
-    await log_audit(
-        user["id"], "UPDATE", "claimant", cid, f"Claimant '{body.label}' — {diff}"
-    )
-    return {**existing, **update}
-
-
-@api.delete("/claimants/{cid}")
-async def delete_claimant(cid: str, user=Depends(get_current_user)):
-    res = await db.profiles.delete_one({"id": cid, "user_id": user["id"]})
-    if res.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Not found")
-    await db.benefit_weeks.delete_many({"claimant_id": cid, "user_id": user["id"]})
-    await db.contacts.delete_many({"claimant_id": cid, "user_id": user["id"]})
-    u = await db.users.find_one({"id": user["id"]}, {"_id": 0, "active_claimant_id": 1})
-    if u and u.get("active_claimant_id") == cid:
-        nxt = await db.profiles.find_one({"user_id": user["id"]}, {"_id": 0, "id": 1})
-        await db.users.update_one(
-            {"id": user["id"]},
-            {"$set": {"active_claimant_id": nxt["id"] if nxt else None}},
-        )
-    await log_audit(
-        user["id"],
-        "DELETE",
-        "claimant",
-        cid,
-        "Claimant + all its weeks/contacts deleted",
-    )
-    return {"ok": True}
-
-
-@api.post("/claimants/{cid}/set-active")
-async def set_active_claimant(cid: str, user=Depends(get_current_user)):
-    p = await db.profiles.find_one({"id": cid, "user_id": user["id"]}, {"_id": 0})
-    if not p:
-        raise HTTPException(status_code=404, detail="Not found")
-    await db.users.update_one({"id": user["id"]}, {"$set": {"active_claimant_id": cid}})
-    await log_audit(
-        user["id"],
-        "SWITCH",
-        "claimant",
-        cid,
-        f"Switched to claimant: {p.get('label', '')}",
-    )
-    return {"ok": True, "active_id": cid}
+# ============== Claimant management endpoints removed ==============
+# The multi-claimant feature was removed for regular users. Each user now has a
+# single profile, managed via GET/PUT /profile above. The list/create/update/
+# delete/set-active endpoints were intentionally deleted so extra profiles can't
+# be created via the API. `get_active_claimant_id` is retained because every
+# per-user query (weeks, contacts, reports) still scopes by the active profile.
 
 
 # ============== Benefit Weeks ==============
@@ -2557,6 +2499,52 @@ async def on_startup():
         await db.invites.create_index("code", unique=True)
     except Exception as e:
         logging.info(f"invites indexes: {e}")
+
+    # One-time migration: earlier registration code wrote profile docs with
+    # ad-hoc keys (full_name / zip / is_primary) that the rest of the app never
+    # reads, so those users' details didn't show on their profile. Rewrite any
+    # such legacy docs into the canonical ProfileIn schema. Idempotent: matches
+    # only docs that still have a legacy key.
+    try:
+        legacy_migrated = 0
+        async for p in db.profiles.find(
+            {"$or": [
+                {"full_name": {"$exists": True}},
+                {"zip": {"$exists": True}},
+                {"is_primary": {"$exists": True}},
+            ]}
+        ):
+            full_name = (p.get("full_name") or "").strip()
+            first = p.get("first_name")
+            last = p.get("last_name")
+            if not first and not last and full_name:
+                parts = full_name.split(None, 1)
+                first = parts[0]
+                last = parts[1] if len(parts) > 1 else ""
+            set_fields = {
+                "label": p.get("label") or "Primary",
+                "first_name": first or "",
+                "last_name": last or "",
+                "middle_initial": p.get("middle_initial", ""),
+                "state": p.get("state") or "IL",
+                "zip_code": p.get("zip_code") or p.get("zip", ""),
+                "occupation": p.get("occupation", ""),
+                "reminders_enabled": p.get("reminders_enabled", True),
+                "reminder_email": p.get("reminder_email", ""),
+                "sms_enabled": p.get("sms_enabled", False),
+            }
+            await db.profiles.update_one(
+                {"id": p["id"]},
+                {
+                    "$set": set_fields,
+                    "$unset": {"full_name": "", "zip": "", "is_primary": ""},
+                },
+            )
+            legacy_migrated += 1
+        if legacy_migrated:
+            logging.info(f"Migrated {legacy_migrated} legacy profile(s) to canonical schema")
+    except Exception as e:
+        logging.warning(f"Legacy profile migration skipped: {e}")
 
     demo_user_enabled = os.environ.get("ENABLE_DEMO_USER", "true").lower() in ("1", "true", "yes")
     demo_email = os.environ.get("DEMO_USER_EMAIL", "demo@illinoistracker.test").lower()

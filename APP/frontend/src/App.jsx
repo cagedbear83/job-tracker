@@ -21,7 +21,6 @@ const Landing       = lazy(() => import("@/pages/Landing"));
 const InviteSignup  = lazy(() => import("@/pages/InviteSignup"));
 const Dashboard     = lazy(() => import("@/pages/Dashboard"));
 const Profile       = lazy(() => import("@/pages/Profile"));
-const Claimants     = lazy(() => import("@/pages/Claimants"));
 const CalendarPage  = lazy(() => import("@/pages/Calendar"));
 const AdminPage     = lazy(() => import("@/pages/Admin"));
 const BenefitWeeks  = lazy(() => import("@/pages/BenefitWeeks"));
@@ -145,7 +144,6 @@ export function App() {
                 }
               >
                 <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/claimants" element={<Claimants />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/weeks" element={<BenefitWeeks />} />
                 <Route path="/weeks/:id" element={<WeekDetail />} />

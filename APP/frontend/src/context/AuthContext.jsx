@@ -1,10 +1,4 @@
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  useCallback,
-} from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { api, formatApiError } from "../lib/api";
 import { getToken, setToken, clearToken } from "../lib/tokenStorage";
 
@@ -33,19 +27,6 @@ function isTokenExpired(token) {
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [claimants, setClaimants] = useState([]);
-  const [activeClaimantId, setActiveClaimantId] = useState(null);
-
-  const refreshClaimants = useCallback(async () => {
-    try {
-      const { data } = await api.get("/claimants");
-      setClaimants(data.items || []);
-      setActiveClaimantId(data.active_id || null);
-    } catch {
-      setClaimants([]);
-      setActiveClaimantId(null);
-    }
-  }, []);
 
   useEffect(() => {
     const t = getToken();
@@ -61,22 +42,20 @@ export function AuthProvider({ children }) {
 
     api
       .get("/auth/me")
-      .then(async (r) => {
+      .then((r) => {
         setUser(r.data);
-        if (r.data.role !== "admin") await refreshClaimants();
       })
       .catch(() => {
         clearToken();
         setUser(null);
       })
       .finally(() => setLoading(false));
-  }, [refreshClaimants]);
+  }, []);
 
   const login = async (email, password) => {
     const { data } = await api.post("/auth/login", { email, password });
     setToken(data.token);
     setUser(data.user);
-    if (data.user.role !== "admin") await refreshClaimants();
     return data.user;
   };
 
@@ -96,13 +75,6 @@ export function AuthProvider({ children }) {
     }
     clearToken();
     setUser(null);
-    setClaimants([]);
-    setActiveClaimantId(null);
-  };
-
-  const setActiveClaimant = async (id) => {
-    await api.post(`/claimants/${id}/set-active`);
-    setActiveClaimantId(id);
   };
 
   return (
@@ -113,10 +85,6 @@ export function AuthProvider({ children }) {
         login,
         register,
         logout,
-        claimants,
-        activeClaimantId,
-        refreshClaimants,
-        setActiveClaimant,
       }}
     >
       {children}

@@ -3,13 +3,6 @@ import { useState } from "react";
 import { useTheme } from "next-themes";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import {
   HouseIcon,
@@ -18,7 +11,6 @@ import {
   UploadSimpleIcon,
   ClockCounterClockwiseIcon,
   SignOutIcon,
-  UsersThreeIcon,
   ShieldCheckIcon,
   CalendarCheckIcon,
   ListIcon,
@@ -26,7 +18,6 @@ import {
   SunIcon,
   MoonIcon,
 } from "@phosphor-icons/react";
-import { toast } from "sonner";
 
 const userNav = [
   {
@@ -36,14 +27,8 @@ const userNav = [
     testid: "nav-dashboard",
   },
   {
-    to: "/claimants",
-    label: "Claimants",
-    Icon: UsersThreeIcon,
-    testid: "nav-claimants",
-  },
-  {
     to: "/profile",
-    label: "Quick Profile",
+    label: "Profile",
     Icon: IdentificationCardIcon,
     testid: "nav-profile",
   },
@@ -90,8 +75,7 @@ const adminNav = [
 ];
 
 export default function Layout() {
-  const { user, logout, claimants, activeClaimantId, setActiveClaimant } =
-    useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
   const isAdmin = user?.role === "admin";
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -102,18 +86,7 @@ export default function Layout() {
     navigate("/login");
   };
 
-  const onSwitch = async (id) => {
-    try {
-      await setActiveClaimant(id);
-      toast.success("Switched claimant");
-      window.location.reload();
-    } catch {
-      toast.error("Could not switch claimant");
-    }
-  };
-
   const navItems = isAdmin ? adminNav : userNav;
-  const activeClaimant = claimants.find((c) => c.id === activeClaimantId);
 
   return (
     <div className="min-h-screen bg-white">
@@ -178,38 +151,6 @@ export default function Layout() {
               </div>
             </div>
           </div>
-
-          {!isAdmin && claimants.length > 0 && (
-            <div
-              className="flex items-center gap-2"
-              data-testid="active-claimant-switcher"
-            >
-              <span className="kbd-label">Claimant:</span>
-              <Select value={activeClaimantId || ""} onValueChange={onSwitch}>
-                <SelectTrigger
-                  className="rounded-none border-zinc-300 min-w-[200px]"
-                  data-testid="claimant-select-trigger"
-                >
-                  <SelectValue placeholder="Select claimant">
-                    {activeClaimant
-                      ? `${activeClaimant.label || "Untitled"} — ${activeClaimant.first_name} ${activeClaimant.last_name}`
-                      : "Select"}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {claimants.map((c) => (
-                    <SelectItem
-                      key={c.id}
-                      value={c.id}
-                      data-testid={`claimant-option-${c.id}`}
-                    >
-                      {c.label || "Untitled"} — {c.first_name} {c.last_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
 
           <div className="flex items-center gap-4">
             <div className="text-right hidden sm:block">
