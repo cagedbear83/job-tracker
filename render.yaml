@@ -29,12 +29,21 @@ services:
         sync: false
       - key: CORS_ORIGINS
         sync: false
+      # Public URL of THIS backend (scheme + host, no trailing slash). Used to
+      # build the email verification link. Set in the dashboard.
+      - key: PUBLIC_BACKEND_URL
+        sync: false
       # --- Production defaults ---
       - key: ENABLE_DEMO_USER
         value: "false"
       - key: ENABLE_HSTS
         value: "true"
       - key: RATE_LIMIT_ENABLED
+        value: "true"
+      # Behind a proxy/load balancer, key rate limits off X-Forwarded-For so
+      # users aren't bucketed under one IP. Safe here since the platform sets
+      # the header; disable only if not behind a trusted proxy.
+      - key: TRUST_PROXY
         value: "true"
       - key: WEB_CONCURRENCY
         value: "1"
@@ -81,6 +90,10 @@ services:
         sync: false
       - key: CORS_ORIGINS
         sync: false
+      # Public URL of THIS backend (scheme + host, no trailing slash). Used to
+      # build the email verification link. Set in the dashboard.
+      - key: PUBLIC_BACKEND_URL
+        sync: false
       # --- Staging defaults ---
       # Rate limiting stays ON even in staging: this is a real, internet-
       # reachable deployment, and disabling it removes brute-force/
@@ -94,6 +107,11 @@ services:
       - key: ENABLE_HSTS
         value: "true"
       - key: RATE_LIMIT_ENABLED
+        value: "true"
+      # Behind a proxy/load balancer, key rate limits off X-Forwarded-For so
+      # users aren't bucketed under one IP. Safe here since the platform sets
+      # the header; disable only if not behind a trusted proxy.
+      - key: TRUST_PROXY
         value: "true"
       - key: WEB_CONCURRENCY
         value: "1"

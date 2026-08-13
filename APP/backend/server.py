@@ -770,6 +770,12 @@ async def verify_email(token: str):
     if not user:
         return _to_login("verify_error=invalid")
     expires = user.get("verification_token_expires")
+    if isinstance(expires, str):
+        expires = datetime.fromisoformat(expires)
+    if expires and expires.tzinfo is None:
+        # Mongo returns datetimes tz-naive (stored as UTC); make it aware
+        # before comparing, matching the token-expiry handling elsewhere.
+        expires = expires.replace(tzinfo=timezone.utc)
     if expires and datetime.now(timezone.utc) > expires:
         return _to_login("verify_error=expired")
     await db.users.update_one(
