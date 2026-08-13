@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { formatApiError } from "@/lib/api";
 import { Input } from "@/components/ui/input";
@@ -7,12 +7,24 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
+const VERIFY_ERROR_MESSAGES = {
+  invalid: "That verification link is invalid. Request a new one by registering again.",
+  expired: "That verification link has expired. Register again to get a new one.",
+};
+
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+
+  const verified = searchParams.get("verified") === "1";
+  const verifyError = searchParams.get("verify_error");
+  const verifyErrorMessage = verifyError
+    ? VERIFY_ERROR_MESSAGES[verifyError] || "We couldn't verify your email. Please try again."
+    : null;
 
   const onSubmit = async (e) => {
     e.preventDefault();
@@ -57,6 +69,26 @@ export default function Login() {
 
       <div className="flex items-center justify-center p-8">
         <form onSubmit={onSubmit} className="w-full max-w-md space-y-6" data-testid="login-form">
+          {verified && (
+            <div
+              role="status"
+              className="rounded-none border border-green-300 bg-green-50 px-4 py-3 text-sm text-green-800"
+              data-testid="verify-success-banner"
+            >
+              <span className="font-semibold">Email verified.</span> You can now sign in.
+            </div>
+          )}
+
+          {verifyErrorMessage && (
+            <div
+              role="alert"
+              className="rounded-none border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800"
+              data-testid="verify-error-banner"
+            >
+              {verifyErrorMessage}
+            </div>
+          )}
+
           <div>
             <div className="brand-bar w-20 mb-4" />
             <div className="kbd-label">Authentication</div>

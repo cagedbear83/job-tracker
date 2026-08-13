@@ -35,7 +35,12 @@ from fastapi import (
     Request,
     UploadFile,
 )
-from fastapi.responses import JSONResponse, Response, StreamingResponse
+from fastapi.responses import (
+    JSONResponse,
+    RedirectResponse,
+    Response,
+    StreamingResponse,
+)
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from starlette.middleware.cors import CORSMiddleware
@@ -104,6 +109,15 @@ RATE_LIMIT_REGISTER = os.environ.get("RATE_LIMIT_REGISTER", "3/hour")
 RATE_LIMIT_FORGOT = os.environ.get("RATE_LIMIT_FORGOT", "3/hour")
 RATE_LIMIT_REMINDER_TEST = os.environ.get("RATE_LIMIT_REMINDER_TEST", "10/hour")
 
+# When the app runs behind a trusted reverse proxy / load balancer (e.g.
+# DigitalOcean App Platform), request.client.host is the PROXY's IP, not the
+# real client's. Using it as the rate-limit key would bucket every user
+# together under one IP, so the per-IP auth limits trip collectively. When
+# TRUST_PROXY is on we key off the left-most X-Forwarded-For hop instead.
+# SECURITY: only enable this when actually behind a proxy that sets
+# X-Forwarded-For — otherwise clients can spoof the header to evade limits.
+TRUST_PROXY = os.environ.get("TRUST_PROXY", "true").lower() in ("1", "true", "yes")
+
 # ---- Account lockout settings ----
 # After this many consecutive failed login attempts, the account is locked
 # for LOCKOUT_DURATION_MINUTES. Both values are overridable via env.
@@ -135,8 +149,16 @@ MAX_SCREENSHOT_PIXELS = 25_000_000
 
 if _SLOWAPI_AVAILABLE:
     _storage_uri = os.environ.get("RATE_LIMIT_STORAGE_URI", "").strip() or None
+    def _rate_limit_key(request: Request) -> str:
+        if TRUST_PROXY:
+            xff = request.headers.get("x-forwarded-for", "")
+            if xff:
+                # Left-most entry is the original client (set by the edge).
+                return xff.split(",")[0].strip()
+        return get_remote_address(request)
+
     limiter = Limiter(
-        key_func=get_remote_address,
+        key_func=_rate_limit_key,
         enabled=RATE_LIMIT_ENABLED,
         storage_uri=_storage_uri,
     )
@@ -647,9 +669,15 @@ async def register(request: Request, body: RegisterIn):
             }
         },
     )
-    verify_url = (
-        f"{os.environ.get('FRONTEND_URL')}/verify-email?token={verification_token}"
-    )
+    # Point the verification link at the BACKEND, not the SPA. The backend
+    # verifies the token and 302-redirects the browser to the frontend. This
+    # removes the cross-origin XHR the SPA used to make (no CORS surface) and
+    # replaces an XHR burst with a single top-level navigation, which is far
+    # less likely to trip edge rate limiting.
+    backend_base = os.environ.get("PUBLIC_BACKEND_URL", "").rstrip("/") or str(
+        request.base_url
+    ).rstrip("/")
+    verify_url = f"{backend_base}/api/auth/verify-email?token={verification_token}"
     await send_email(
         email,
         "Verify your Illinois UI Tracker email",
@@ -728,14 +756,22 @@ async def login(request: Request, body: LoginIn):
 
 @api.get("/auth/verify-email")
 async def verify_email(token: str):
+    # This route is opened directly by the browser via the emailed link, so it
+    # responds with a redirect to the frontend login page rather than JSON.
+    # Because it's a top-level navigation (not a cross-origin XHR), CORS never
+    # applies here.
+    frontend = os.environ.get("FRONTEND_URL", "").rstrip("/")
+
+    def _to_login(params: str) -> RedirectResponse:
+        # 303 forces the browser to follow with a GET regardless of method.
+        return RedirectResponse(url=f"{frontend}/login?{params}", status_code=303)
+
     user = await db.users.find_one({"verification_token": token})
     if not user:
-        raise HTTPException(
-            status_code=400, detail="Invalid or expired verification token"
-        )
+        return _to_login("verify_error=invalid")
     expires = user.get("verification_token_expires")
     if expires and datetime.now(timezone.utc) > expires:
-        raise HTTPException(status_code=400, detail="Verification link has expired")
+        return _to_login("verify_error=expired")
     await db.users.update_one(
         {"id": user["id"]},
         {
@@ -743,7 +779,7 @@ async def verify_email(token: str):
             "$unset": {"verification_token": "", "verification_token_expires": ""},
         },
     )
-    return {"message": "Email verified successfully"}
+    return _to_login("verified=1")
 
 
 @api.post("/auth/logout")
