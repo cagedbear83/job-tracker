@@ -27,21 +27,21 @@ function getPasswordStrength(password, email, name) {
 
   // Blocklist checks
   if (COMMON_PASSWORDS.has(lower)) {
-    return { score: 0, label: "Too common — this password has been breached", color: "text-red-500" };
+    return { score: 0, label: "Too common — this password has been breached", color: "text-destructive" };
   }
   if (emailLocal && lower.includes(emailLocal) && emailLocal.length > 2) {
-    return { score: 0, label: "Password cannot contain your email address", color: "text-red-500" };
+    return { score: 0, label: "Password cannot contain your email address", color: "text-destructive" };
   }
   if (namePart && lower.includes(namePart) && namePart.length > 2) {
-    return { score: 0, label: "Password cannot contain your name", color: "text-red-500" };
+    return { score: 0, label: "Password cannot contain your name", color: "text-destructive" };
   }
   if (lower.includes("illinoisjobtracker") || lower.includes("iltracker")) {
-    return { score: 0, label: "Password cannot contain the site name", color: "text-red-500" };
+    return { score: 0, label: "Password cannot contain the site name", color: "text-destructive" };
   }
 
   // Length is the primary entropy driver (NIST SP 800-63B)
   const len = password.length;
-  if (len < 12) return { score: 1, label: "Too short — minimum 12 characters", color: "text-red-500" };
+  if (len < 12) return { score: 1, label: "Too short — minimum 12 characters", color: "text-destructive" };
 
   // Score based on length + character variety (entropy proxy)
   let score = 0;
@@ -56,7 +56,7 @@ function getPasswordStrength(password, email, name) {
   if (score <= 1.5) return { score: 2, label: "Weak", color: "text-orange-500" };
   if (score <= 2.5) return { score: 3, label: "Fair", color: "text-yellow-500" };
   if (score <= 3.5) return { score: 4, label: "Strong", color: "text-green-500" };
-  return { score: 5, label: "Very strong", color: "text-green-600" };
+  return { score: 5, label: "Very strong", color: "text-[#16A34A]" };
 }
 
 const STRENGTH_BARS = [
@@ -64,7 +64,7 @@ const STRENGTH_BARS = [
   { min: 2, active: "bg-orange-500" },
   { min: 3, active: "bg-yellow-500" },
   { min: 4, active: "bg-green-500" },
-  { min: 5, active: "bg-green-600" },
+  { min: 5, active: "bg-[#16A34A]" },
 ];
 
 export default function Register() {
@@ -134,7 +134,7 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white p-8">
+    <div className="min-h-screen flex items-center justify-center bg-background p-8">
       <form
         onSubmit={onSubmit}
         className="w-full max-w-md space-y-6"
@@ -146,11 +146,11 @@ export default function Register() {
           <h2 className="font-display font-black text-3xl tracking-tighter mt-1">
             Register
           </h2>
-          <p className="text-sm text-zinc-600 mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             Already have an account?{" "}
             <Link
               to="/login"
-              className="text-[#0033A0] font-semibold underline"
+              className="text-primary font-semibold underline"
               data-testid="link-login"
             >
               Sign in
@@ -166,7 +166,7 @@ export default function Register() {
               <Input
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
-                className="rounded-none border-zinc-300 mt-2"
+                className="rounded-none border-border mt-2"
                 data-testid="register-firstName-input"
               />
             </div>
@@ -175,7 +175,7 @@ export default function Register() {
               <Input
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
-                className="rounded-none border-zinc-300 mt-2"
+                className="rounded-none border-border mt-2"
                 data-testid="register-lastName-input"
               />
             </div>
@@ -187,7 +187,7 @@ export default function Register() {
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="(312) 555-5555"
-              className="rounded-none border-zinc-300 mt-2"
+              className="rounded-none border-border mt-2"
               data-testid="register-phone-input"
             />
           </div>
@@ -197,7 +197,7 @@ export default function Register() {
               type="date"
               value={dob}
               onChange={(e) => setDob(e.target.value)}
-              className="rounded-none border-zinc-300 mt-2"
+              className="rounded-none border-border mt-2"
               data-testid="register-dob-input"
             />
           </div>
@@ -206,7 +206,7 @@ export default function Register() {
             <Input
               value={address}
               onChange={(e) => setAddress(e.target.value)}
-              className="rounded-none border-zinc-300 mt-2"
+              className="rounded-none border-border mt-2"
               data-testid="register-address-input"
             />
           </div>
@@ -216,7 +216,7 @@ export default function Register() {
               <Input
                 value={city}
                 onChange={(e) => setCity(e.target.value)}
-                className="rounded-none border-zinc-300 mt-2"
+                className="rounded-none border-border mt-2"
                 data-testid="register-city-input"
               />
             </div>
@@ -225,7 +225,7 @@ export default function Register() {
               <Input
                 value={zip}
                 onChange={(e) => setZip(e.target.value)}
-                className="rounded-none border-zinc-300 mt-2"
+                className="rounded-none border-border mt-2"
                 data-testid="register-zip-input"
               />
             </div>
@@ -236,7 +236,7 @@ export default function Register() {
               value={claimantId}
               onChange={(e) => setClaimantId(e.target.value)}
               placeholder="1234567"
-              className="rounded-none border-zinc-300 mt-2"
+              className="rounded-none border-border mt-2"
               data-testid="register-claimantId-input"
             />
           </div>
@@ -251,7 +251,7 @@ export default function Register() {
               name="name"
               value={form.name}
               onChange={handleInputChange}
-              className="rounded-none border-zinc-300 mt-2"
+              className="rounded-none border-border mt-2"
               data-testid="register-name-input"
             />
           </div>
@@ -263,7 +263,7 @@ export default function Register() {
               name="email"
               value={form.email}
               onChange={handleInputChange}
-              className="rounded-none border-zinc-300 mt-2"
+              className="rounded-none border-border mt-2"
               data-testid="register-email-input"
             />
           </div>
@@ -278,13 +278,13 @@ export default function Register() {
                 name="password"
                 value={form.password}
                 onChange={handleInputChange}
-                className="rounded-none border-zinc-300 pr-10"
+                className="rounded-none border-border pr-10"
                 data-testid="register-password-input"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-muted-foreground"
                 aria-label={showPassword ? "Hide password" : "Show password"}
               >
                 {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -299,7 +299,7 @@ export default function Register() {
                     <div
                       key={i}
                       className={`h-1 flex-1 rounded-full transition-colors duration-200 ${
-                        strength.score >= bar.min ? bar.active : "bg-zinc-200"
+                        strength.score >= bar.min ? bar.active : "bg-secondary"
                       }`}
                     />
                   ))}
@@ -308,17 +308,17 @@ export default function Register() {
                   {strength.label}
                 </p>
                 {passwordTooLong && (
-                  <p className="text-xs text-red-500">
+                  <p className="text-xs text-destructive">
                     Maximum 64 characters allowed ({form.password.length}/64)
                   </p>
                 )}
                 {!passwordTooLong && form.password.length < 12 && (
-                  <p className="text-xs text-zinc-400">
+                  <p className="text-xs text-muted-foreground">
                     {12 - form.password.length} more character{12 - form.password.length !== 1 ? "s" : ""} needed
                   </p>
                 )}
                 {form.password.length >= 12 && !passwordTooLong && strength.score >= 2 && (
-                  <p className="text-xs text-zinc-400">
+                  <p className="text-xs text-muted-foreground">
                     Tip: longer passphrases (e.g. "lake sunrise coffee 42") are easier to remember and harder to crack.
                   </p>
                 )}
@@ -340,24 +340,24 @@ export default function Register() {
                     ? passwordsMatch
                       ? "border-green-500"
                       : "border-red-400"
-                    : "border-zinc-300"
+                    : "border-border"
                 }`}
                 data-testid="register-confirmPassword-input"
               />
               <button
                 type="button"
                 onClick={() => setShowConfirm((v) => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-muted-foreground"
                 aria-label={showConfirm ? "Hide password" : "Show password"}
               >
                 {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             </div>
             {confirmPassword.length > 0 && !passwordsMatch && (
-              <p className="text-xs text-red-500 mt-1">Passwords do not match.</p>
+              <p className="text-xs text-destructive mt-1">Passwords do not match.</p>
             )}
             {confirmPassword.length > 0 && passwordsMatch && (
-              <p className="text-xs text-green-600 mt-1">✓ Passwords match.</p>
+              <p className="text-xs text-[#16A34A] mt-1">✓ Passwords match.</p>
             )}
           </div>
         </div>
@@ -365,7 +365,7 @@ export default function Register() {
         <Button
           type="submit"
           disabled={!canSubmit}
-          className="w-full rounded-none bg-[#0033A0] hover:bg-[#002266] text-white h-11 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full rounded-none bg-primary hover:bg-primary/90 text-white h-11 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
           data-testid="register-submit-button"
         >
           {busy ? "Creating account..." : "Create account"}

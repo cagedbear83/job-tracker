@@ -54,7 +54,7 @@ export default function PrivacyPolicy() {
             this policy.
           </p>
           <div className="mt-4 rounded-md border border-amber-400/40 bg-amber-400/10 px-4 py-3">
-            <p className="text-xs text-amber-700 dark:text-amber-300 font-medium">
+            <p className="text-xs text-[#EAB308] dark:text-amber-300 font-medium">
               {APP_NAME} is a private tool developed by {COMPANY}. It is{" "}
               <strong>not affiliated with, endorsed by, or connected to</strong> the
               Illinois Department of Employment Security (IDES) or the State of

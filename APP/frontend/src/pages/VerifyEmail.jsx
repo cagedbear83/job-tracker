@@ -30,29 +30,30 @@ export default function VerifyEmail() {
   }, [token]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-zinc-50 to-zinc-100 p-4">
-      <div className="w-full max-w-md bg-white rounded-lg border border-zinc-200 shadow-sm p-8">
-        <div className="text-center">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="w-full max-w-md border border-border bg-card">
+        <div className="brand-bar" />
+        <div className="p-8 text-center">
           <h1 className="font-display font-black text-2xl tracking-tight mb-2">
             Email Verification
           </h1>
 
           {noToken ? (
             <div className="space-y-4 py-8">
-              <div className="text-4xl">✕</div>
-              <p className="text-sm text-zinc-700 font-medium">
+              <div className="text-4xl text-destructive">✕</div>
+              <p className="text-sm text-foreground font-medium">
                 No verification token provided.
               </p>
               <div className="space-y-2 mt-6">
                 <Link to="/login">
-                  <Button className="rounded-none bg-[#0033A0] hover:bg-[#002266] w-full">
+                  <Button className="rounded-none bg-primary hover:bg-primary/90 w-full">
                     Back to Login
                   </Button>
                 </Link>
                 <Link to="/register">
                   <Button
                     variant="outline"
-                    className="rounded-none w-full border-zinc-300"
+                    className="rounded-none w-full border-border"
                   >
                     Create New Account
                   </Button>
@@ -62,9 +63,9 @@ export default function VerifyEmail() {
           ) : (
             <div className="space-y-4 py-8">
               <div className="flex justify-center">
-                <div className="animate-spin rounded-full h-8 w-8 border border-[#0033A0] border-t-transparent" />
+                <div className="animate-spin rounded-full h-8 w-8 border border-primary border-t-transparent" />
               </div>
-              <p className="text-sm text-zinc-600">
+              <p className="text-sm text-muted-foreground">
                 Verifying your email address...
               </p>
             </div>

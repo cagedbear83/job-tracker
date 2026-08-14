@@ -89,9 +89,9 @@ export default function Layout() {
   const navItems = isAdmin ? adminNav : userNav;
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-background">
       <div className="brand-bar" />
-      <header className="border-b border-zinc-200 bg-white">
+      <header className="border-b border-border bg-background">
         <div className="max-w-[1440px] mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3">
             <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
@@ -99,7 +99,7 @@ export default function Layout() {
                 <Button
                   variant="outline"
                   size="icon"
-                  className="rounded-none border-zinc-300 md:hidden"
+                  className="rounded-none border-border md:hidden"
                   data-testid="mobile-nav-trigger"
                 >
                   <ListIcon size={18} weight="bold" />
@@ -111,13 +111,13 @@ export default function Layout() {
                 data-testid="mobile-nav-drawer"
               >
                 <div className="brand-bar" />
-                <div className="px-4 py-4 border-b border-zinc-200">
+                <div className="px-4 py-4 border-b border-border">
                   <div className="font-display font-black text-base">
                     Illinois UI Tracker
                   </div>
                   <div className="kbd-label mt-1">Work Search Compliance</div>
                 </div>
-                <nav className="border-b border-zinc-200">
+                <nav className="border-b border-border">
                   {navItems.map(({ to, label, Icon, testid }) => (
                     <NavLink
                       key={to}
@@ -127,8 +127,8 @@ export default function Layout() {
                       className={({ isActive }) =>
                         `flex items-center gap-3 px-4 py-3 text-sm border-l-2 ${
                           isActive
-                            ? "border-[#0033A0] bg-[#F4F4F5] text-zinc-900 font-semibold"
-                            : "border-transparent text-zinc-600"
+                            ? "border-primary bg-secondary text-foreground font-semibold"
+                            : "border-transparent text-muted-foreground"
                         }`
                       }
                     >
@@ -139,11 +139,11 @@ export default function Layout() {
                 </nav>
               </SheetContent>
             </Sheet>
-            <div className="w-9 h-9 bg-[#0033A0] flex items-center justify-center text-white font-display font-black tracking-tight">
+            <div className="w-9 h-9 bg-primary flex items-center justify-center text-white font-display font-black tracking-tight">
               IL
             </div>
             <div>
-              <div className="font-display font-black text-base leading-none tracking-tight text-zinc-900">
+              <div className="font-display font-black text-base leading-none tracking-tight text-foreground">
                 Illinois UI Tracker
               </div>
               <div className="kbd-label mt-1">
@@ -155,7 +155,7 @@ export default function Layout() {
           <div className="flex items-center gap-4">
             <div className="text-right hidden sm:block">
               <div
-                className="text-sm font-semibold text-zinc-900"
+                className="text-sm font-semibold text-foreground"
                 data-testid="header-user-name"
               >
                 {user?.name}
@@ -164,7 +164,7 @@ export default function Layout() {
             </div>
             <Button
               variant="outline"
-              className="rounded-none border-zinc-300 hover:border-[#0033A0] hover:text-[#0033A0]"
+              className="rounded-none border-border hover:border-primary hover:text-primary"
               onClick={onLogout}
               data-testid="logout-button"
             >
@@ -176,7 +176,7 @@ export default function Layout() {
 
       <div className="max-w-[1440px] mx-auto px-4 sm:px-6 py-6 grid grid-cols-12 gap-6">
         <aside className="hidden md:block col-span-12 md:col-span-3 lg:col-span-2">
-          <nav className="border border-zinc-200 bg-white">
+          <nav className="border border-border bg-background">
             {navItems.map(({ to, label, Icon, testid }) => (
               <NavLink
                 key={to}
@@ -186,8 +186,8 @@ export default function Layout() {
                 className={({ isActive }) =>
                   `flex items-center gap-3 px-4 py-3 text-sm border-l-2 transition-colors ${
                     isActive
-                      ? "border-[#0033A0] bg-[#F4F4F5] text-zinc-900 font-semibold"
-                      : "border-transparent text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
+                      ? "border-primary bg-secondary text-foreground font-semibold"
+                      : "border-transparent text-muted-foreground hover:bg-secondary hover:text-foreground"
                   }`
                 }
               >
@@ -200,7 +200,7 @@ export default function Layout() {
           <button
             type="button"
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            className="mt-3 w-full flex items-center gap-2 px-4 py-2 text-xs text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50 border-t border-zinc-200 transition-colors"
+            className="mt-3 w-full flex items-center gap-2 px-4 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-secondary border-t border-border transition-colors"
             aria-label="Toggle dark mode"
           >
             {theme === "dark"
@@ -210,9 +210,9 @@ export default function Layout() {
           </button>
 
           {!isAdmin && (
-            <div className="mt-4 p-4 border border-zinc-200 bg-[#F4F4F5] dark:bg-zinc-800 dark:border-zinc-700">
+            <div className="mt-4 p-4 border border-border bg-secondary">
               <div className="kbd-label mb-1">Reminder</div>
-              <p className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed">
+              <p className="text-xs text-muted-foreground leading-relaxed">
                 Illinois requires a minimum of <b>3 work-search contacts</b> per
                 benefit week (Sun–Sat).
               </p>

@@ -198,14 +198,14 @@ export default function DocumentsPage() {
           <h1 className="font-display font-black text-4xl tracking-tighter mt-1">
             My Documents
           </h1>
-          <p className="text-sm text-zinc-600 mt-2 max-w-2xl">
+          <p className="text-sm text-muted-foreground mt-2 max-w-2xl">
             Upload photos or scans of IDES letters, forms, and correspondence.
             Supported formats: JPEG, PNG, WEBP, PDF — max {MAX_MB} MB each.
           </p>
         </div>
         <FeatureGate feature="document_storage_mb">
           <Button
-            className="rounded-none bg-[#0033A0] hover:bg-[#002266]"
+            className="rounded-none bg-primary hover:bg-primary/90"
             onClick={() => { setForm(blankForm()); setOpen(true); }}
             data-testid="upload-doc-button"
           >
@@ -216,16 +216,16 @@ export default function DocumentsPage() {
 
       {/* ── Document grid ── */}
       {loading ? (
-        <div className="text-sm text-zinc-500 py-12 text-center">Loading…</div>
+        <div className="text-sm text-muted-foreground py-12 text-center">Loading…</div>
       ) : docs.length === 0 ? (
-        <div className="border border-dashed border-zinc-300 bg-zinc-50 py-16 text-center">
-          <FileTextIcon size={40} weight="thin" className="mx-auto text-zinc-300 mb-3" />
-          <p className="text-sm text-zinc-500">No documents yet.</p>
-          <p className="text-xs text-zinc-400 mt-1">
+        <div className="border border-dashed border-border bg-secondary py-16 text-center">
+          <FileTextIcon size={40} weight="thin" className="mx-auto text-muted-foreground mb-3" />
+          <p className="text-sm text-muted-foreground">No documents yet.</p>
+          <p className="text-xs text-muted-foreground mt-1">
             Upload a photo or scan of IDES paperwork to get started.
           </p>
           <Button
-            className="mt-4 rounded-none bg-[#0033A0] hover:bg-[#002266]"
+            className="mt-4 rounded-none bg-primary hover:bg-primary/90"
             onClick={() => { setForm(blankForm()); setOpen(true); }}
           >
             <UploadSimpleIcon size={14} weight="bold" className="mr-2" />
@@ -237,15 +237,15 @@ export default function DocumentsPage() {
           {docs.map((doc) => (
             <div
               key={doc.id}
-              className="border border-zinc-200 bg-white hover:border-zinc-400 transition-colors"
+              className="border border-border bg-background hover:border-muted-foreground transition-colors"
               data-testid={`doc-card-${doc.id}`}
             >
               {/* Icon / preview placeholder */}
-              <div className="bg-zinc-50 border-b border-zinc-200 h-28 flex items-center justify-center">
+              <div className="bg-secondary border-b border-border h-28 flex items-center justify-center">
                 {isImage(doc.content_type) ? (
-                  <ImageIcon size={36} weight="thin" className="text-zinc-300" />
+                  <ImageIcon size={36} weight="thin" className="text-muted-foreground" />
                 ) : (
-                  <FileIcon size={36} weight="thin" className="text-zinc-300" />
+                  <FileIcon size={36} weight="thin" className="text-muted-foreground" />
                 )}
               </div>
 
@@ -256,12 +256,12 @@ export default function DocumentsPage() {
                 </div>
 
                 {/* Title */}
-                <div className="font-semibold text-sm text-zinc-900 leading-tight line-clamp-2">
+                <div className="font-semibold text-sm text-foreground leading-tight line-clamp-2">
                   {doc.title}
                 </div>
 
                 {/* Meta */}
-                <div className="text-xs text-zinc-400 space-y-0.5">
+                <div className="text-xs text-muted-foreground space-y-0.5">
                   {doc.received_date && (
                     <div>Received: {formatDate(doc.received_date)}</div>
                   )}
@@ -271,7 +271,7 @@ export default function DocumentsPage() {
                 </div>
 
                 {doc.notes && (
-                  <p className="text-xs text-zinc-500 line-clamp-2 border-t border-zinc-100 pt-2">
+                  <p className="text-xs text-muted-foreground line-clamp-2 border-t border-border pt-2">
                     {doc.notes}
                   </p>
                 )}
@@ -281,7 +281,7 @@ export default function DocumentsPage() {
                   <Button
                     size="sm"
                     variant="outline"
-                    className="rounded-none border-zinc-300 flex-1 text-xs"
+                    className="rounded-none border-border flex-1 text-xs"
                     onClick={() => viewFile(doc)}
                   >
                     <ArrowSquareOutIcon size={12} weight="bold" className="mr-1.5" />
@@ -292,7 +292,7 @@ export default function DocumentsPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="rounded-none border-zinc-300 text-red-600 hover:border-red-300"
+                        className="rounded-none border-border text-destructive hover:border-destructive/30"
                         data-testid={`delete-doc-${doc.id}`}
                       >
                         <TrashIcon size={12} weight="bold" />
@@ -308,7 +308,7 @@ export default function DocumentsPage() {
                       <AlertDialogFooter>
                         <AlertDialogCancel className="rounded-none">Cancel</AlertDialogCancel>
                         <AlertDialogAction
-                          className="rounded-none bg-red-600 hover:bg-red-700"
+                          className="rounded-none bg-destructive hover:bg-destructive/90"
                           onClick={() => remove(doc.id)}
                         >
                           Delete
@@ -338,7 +338,7 @@ export default function DocumentsPage() {
               role="button"
               tabIndex={0}
               className={`border-2 border-dashed rounded-none p-6 text-center cursor-pointer transition-colors
-                ${dragOver ? "border-[#0033A0] bg-blue-50" : "border-zinc-300 hover:border-zinc-400"}`}
+                ${dragOver ? "border-primary bg-blue-50" : "border-border hover:border-muted-foreground"}`}
               onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
               onDragLeave={() => setDragOver(false)}
               onDrop={onDrop}
@@ -351,18 +351,18 @@ export default function DocumentsPage() {
               }}
               data-testid="drop-zone"
             >
-              <UploadSimpleIcon size={28} weight="thin" className="mx-auto text-zinc-400 mb-2" />
+              <UploadSimpleIcon size={28} weight="thin" className="mx-auto text-muted-foreground mb-2" />
               {form.file ? (
                 <div>
-                  <div className="text-sm font-semibold text-zinc-800">{form.file.name}</div>
-                  <div className="text-xs text-zinc-400 mt-1">{formatBytes(form.file.size)}</div>
+                  <div className="text-sm font-semibold text-foreground">{form.file.name}</div>
+                  <div className="text-xs text-muted-foreground mt-1">{formatBytes(form.file.size)}</div>
                 </div>
               ) : (
                 <div>
-                  <div className="text-sm text-zinc-600">
-                    Drag & drop or <span className="text-[#0033A0] font-semibold">browse</span>
+                  <div className="text-sm text-muted-foreground">
+                    Drag & drop or <span className="text-primary font-semibold">browse</span>
                   </div>
-                  <div className="text-xs text-zinc-400 mt-1">
+                  <div className="text-xs text-muted-foreground mt-1">
                     JPEG · PNG · WEBP · PDF — max {MAX_MB} MB
                   </div>
                 </div>
@@ -379,7 +379,7 @@ export default function DocumentsPage() {
 
             {/* Title */}
             <div>
-              <Label className="kbd-label">Title <span className="text-red-500">*</span></Label>
+              <Label className="kbd-label">Title <span className="text-destructive">*</span></Label>
               <Input
                 value={form.title}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
@@ -395,7 +395,7 @@ export default function DocumentsPage() {
               <select
                 value={form.document_type}
                 onChange={(e) => setForm({ ...form, document_type: e.target.value })}
-                className="w-full mt-2 border border-zinc-300 rounded-none px-3 py-2 text-sm focus:outline-none focus:border-[#0033A0]"
+                className="w-full mt-2 border border-border rounded-none px-3 py-2 text-sm focus:outline-none focus:border-primary"
                 data-testid="doc-type-select"
               >
                 {DOC_TYPES.map((t) => (
@@ -407,7 +407,7 @@ export default function DocumentsPage() {
             {/* Received date */}
             <div>
               <Label className="kbd-label">
-                Date Received <span className="text-zinc-400 normal-case font-normal">(optional)</span>
+                Date Received <span className="text-muted-foreground normal-case font-normal">(optional)</span>
               </Label>
               <Input
                 type="date"
@@ -421,7 +421,7 @@ export default function DocumentsPage() {
             {/* Notes */}
             <div>
               <Label className="kbd-label">
-                Notes <span className="text-zinc-400 normal-case font-normal">(optional)</span>
+                Notes <span className="text-muted-foreground normal-case font-normal">(optional)</span>
               </Label>
               <Input
                 value={form.notes}
@@ -438,7 +438,7 @@ export default function DocumentsPage() {
               Cancel
             </Button>
             <Button
-              className="rounded-none bg-[#0033A0] hover:bg-[#002266]"
+              className="rounded-none bg-primary hover:bg-primary/90"
               onClick={upload}
               disabled={uploading || !form.file}
               data-testid="doc-upload-submit"

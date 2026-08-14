@@ -28,7 +28,7 @@ export function FeatureGate({ feature, metered = false, children, showUsage = fa
       return (
         <div className="inline-flex items-center gap-2">
           {children}
-          <span className="text-[10px] font-semibold text-zinc-400 tabular-nums">
+          <span className="text-[10px] font-semibold text-muted-foreground tabular-nums">
             {usage.used}/{usage.limit}
           </span>
         </div>
@@ -50,7 +50,7 @@ export function FeatureGate({ feature, metered = false, children, showUsage = fa
   return (
     <div className="inline-flex items-center gap-1.5">
       {disabledChild}
-      <LockSimpleIcon size={13} weight="bold" className="text-zinc-400" />
+      <LockSimpleIcon size={13} weight="bold" className="text-muted-foreground" />
     </div>
   );
 }
@@ -59,7 +59,7 @@ export function FeatureGate({ feature, metered = false, children, showUsage = fa
    don't want to disable a whole button, just flag it visually. */
 export function PremiumBadge() {
   return (
-    <span className="inline-flex items-center gap-1 text-[9px] font-bold tracking-widest uppercase text-[#0033A0] bg-[#E8EDF7] border border-[#C5D1ED] px-1.5 py-0.5">
+    <span className="inline-flex items-center gap-1 text-[9px] font-bold tracking-widest uppercase text-primary bg-[#E8EDF7] border border-[#C5D1ED] px-1.5 py-0.5">
       <LockSimpleIcon size={9} weight="bold" />
       Pro
     </span>

@@ -59,7 +59,7 @@ export default function Terms() {
 
           {/* IDES disclaimer banner */}
           <div className="mt-4 rounded-md border border-amber-400/40 bg-amber-400/10 px-4 py-3">
-            <p className="text-xs text-amber-700 dark:text-amber-300 font-medium">
+            <p className="text-xs text-[#EAB308] dark:text-amber-300 font-medium">
               <strong>Non-Affiliation Notice:</strong> {APP_NAME} is a private
               organizational tool developed by {COMPANY}. It is not affiliated
               with, endorsed by, sponsored by, or connected to the Illinois

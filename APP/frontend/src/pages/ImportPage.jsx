@@ -89,14 +89,14 @@ export default function ImportPage() {
         <h1 className="font-display font-black text-4xl tracking-tighter mt-1">
           Import Work Searches
         </h1>
-        <p className="text-sm text-zinc-600 mt-2 max-w-2xl">
+        <p className="text-sm text-muted-foreground mt-2 max-w-2xl">
           Import contacts in bulk from a CSV file or extract them from a
           screenshot of Indeed, LinkedIn or other job boards using AI vision
           (Gemini).
         </p>
       </div>
 
-      <div className="border border-zinc-200 bg-white p-6">
+      <div className="border border-border bg-background p-6">
         <Label className="kbd-label">Target Benefit Week</Label>
         <Select value={weekId} onValueChange={setWeekId}>
           <SelectTrigger
@@ -121,9 +121,9 @@ export default function ImportPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="border-2 border-dashed border-zinc-300 p-8 bg-white">
+        <div className="border-2 border-dashed border-border p-8 bg-background">
           <div className="flex items-center gap-3 mb-4">
-            <FileCsvIcon size={28} weight="bold" className="text-[#0033A0]" />
+            <FileCsvIcon size={28} weight="bold" className="text-primary" />
             <div>
               <div className="kbd-label">Method 1</div>
               <h3 className="font-display font-bold text-xl tracking-tight">
@@ -131,7 +131,7 @@ export default function ImportPage() {
               </h3>
             </div>
           </div>
-          <p className="text-xs text-zinc-600 mb-4 leading-relaxed">
+          <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
             Headers supported:{" "}
             <code className="font-mono">
               date, employer, address, method, position, type, contact, result,
@@ -143,13 +143,13 @@ export default function ImportPage() {
             accept=".csv"
             aria-label="Choose CSV file to import"
             onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
-            className="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:border file:border-zinc-300 file:bg-[#F4F4F5] file:text-zinc-900 file:font-semibold file:rounded-none hover:file:bg-zinc-200"
+            className="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:border file:border-border file:bg-secondary file:text-foreground file:font-semibold file:rounded-none hover:file:bg-secondary"
             data-testid="csv-file-input"
           />
           <Button
             disabled={busy || !csvFile || !weekId}
             onClick={importCsv}
-            className="mt-4 w-full rounded-none bg-[#0033A0] hover:bg-[#002266]"
+            className="mt-4 w-full rounded-none bg-primary hover:bg-primary/90"
             data-testid="csv-import-button"
           >
             <UploadSimpleIcon size={16} weight="bold" className="mr-2" />{" "}
@@ -157,9 +157,9 @@ export default function ImportPage() {
           </Button>
         </div>
 
-        <div className="border-2 border-dashed border-zinc-300 p-8 bg-white">
+        <div className="border-2 border-dashed border-border p-8 bg-background">
           <div className="flex items-center gap-3 mb-4">
-            <ImageIcon size={28} weight="bold" className="text-[#0033A0]" />
+            <ImageIcon size={28} weight="bold" className="text-primary" />
             <div>
               <div className="kbd-label">Method 2 · AI-Powered</div>
               <h3 className="font-display font-bold text-xl tracking-tight">
@@ -167,7 +167,7 @@ export default function ImportPage() {
               </h3>
             </div>
           </div>
-          <p className="text-xs text-zinc-600 mb-4 leading-relaxed">
+          <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
             Drop a screenshot from Indeed, LinkedIn, ZipRecruiter or any job
             board. Gemini extracts employer, position and date.
           </p>
@@ -176,14 +176,14 @@ export default function ImportPage() {
             accept="image/png,image/jpeg,image/webp"
             aria-label="Choose screenshot image to import"
             onChange={(e) => setImgFile(e.target.files?.[0] || null)}
-            className="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:border file:border-zinc-300 file:bg-[#F4F4F5] file:text-zinc-900 file:font-semibold file:rounded-none hover:file:bg-zinc-200"
+            className="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:border file:border-border file:bg-secondary file:text-foreground file:font-semibold file:rounded-none hover:file:bg-secondary"
             data-testid="screenshot-file-input"
           />
           <FeatureGate feature="ai_screenshot_import" metered showUsage>
             <Button
               disabled={busy || !imgFile || !weekId}
               onClick={importScreenshot}
-              className="mt-4 w-full rounded-none bg-[#0033A0] hover:bg-[#002266]"
+              className="mt-4 w-full rounded-none bg-primary hover:bg-primary/90"
               data-testid="screenshot-import-button"
             >
               <UploadSimpleIcon size={16} weight="bold" className="mr-2" />{" "}
@@ -194,14 +194,14 @@ export default function ImportPage() {
       </div>
 
       {results.length > 0 && (
-        <div className="border border-zinc-200 bg-white">
-          <div className="px-6 py-4 border-b border-zinc-200">
+        <div className="border border-border bg-background">
+          <div className="px-6 py-4 border-b border-border">
             <div className="kbd-label">Recent Imports</div>
             <h3 className="font-display font-bold text-lg tracking-tight">
               Result Log
             </h3>
           </div>
-          <div className="divide-y divide-zinc-100">
+          <div className="divide-y divide-border">
             {results.map((r, i) => (
               <div
                 key={i}
@@ -214,7 +214,7 @@ export default function ImportPage() {
                   className="text-[#16A34A]"
                 />
                 <span className="font-semibold">{r.type}</span>
-                <span className="text-zinc-600">
+                <span className="text-muted-foreground">
                   added {r.count} contact{r.count === 1 ? "" : "s"}
                 </span>
                 {r.contacts?.slice(0, 3).map((c, j) => (

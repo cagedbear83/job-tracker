@@ -212,14 +212,14 @@ export default function CalendarPage() {
           <h1 className="font-display font-black text-4xl tracking-tighter mt-1">
             Calendar
           </h1>
-          <p className="text-sm text-zinc-600 mt-2 max-w-2xl">
+          <p className="text-sm text-muted-foreground mt-2 max-w-2xl">
             Click any day to view or add IDES events. Green/red badges show
             benefit-week compliance.
           </p>
         </div>
         <FeatureGate feature="calendar_events">
           <Button
-            className="rounded-none bg-[#0033A0] hover:bg-[#002266]"
+            className="rounded-none bg-primary hover:bg-primary/90"
             onClick={() => openNewEvent(iso(today))}
             data-testid="add-event-button"
           >
@@ -240,23 +240,23 @@ export default function CalendarPage() {
             {t.label}
           </span>
         ))}
-        <span className="inline-flex items-center gap-1.5 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider border border-green-600 text-green-700 bg-green-50">
+        <span className="inline-flex items-center gap-1.5 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider border border-green-600 text-[#16A34A] bg-[#16A34A]/10">
           <CheckCircleIcon size={10} weight="fill" /> Week ≥3 contacts
         </span>
-        <span className="inline-flex items-center gap-1.5 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider border border-red-600 text-red-700 bg-red-50">
+        <span className="inline-flex items-center gap-1.5 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider border border-red-600 text-destructive bg-destructive/10">
           <WarningIcon size={10} weight="fill" /> Week &lt;3 contacts
         </span>
       </div>
 
       {/* ── Calendar grid ── */}
-      <div className="border border-zinc-200 bg-white">
+      <div className="border border-border bg-background">
         {/* Header nav */}
-        <div className="px-6 py-4 border-b border-zinc-200 flex items-center justify-between">
+        <div className="px-6 py-4 border-b border-border flex items-center justify-between">
           <button
             type="button"
             aria-label="Previous month"
             onClick={prev}
-            className="text-sm font-semibold border border-zinc-300 px-3 py-1 hover:border-[#0033A0]"
+            className="text-sm font-semibold border border-border px-3 py-1 hover:border-primary"
             data-testid="calendar-prev"
           >
             ← Prev
@@ -266,7 +266,7 @@ export default function CalendarPage() {
             type="button"
             aria-label="Next month"
             onClick={next}
-            className="text-sm font-semibold border border-zinc-300 px-3 py-1 hover:border-[#0033A0]"
+            className="text-sm font-semibold border border-border px-3 py-1 hover:border-primary"
             data-testid="calendar-next"
           >
             Next →
@@ -274,9 +274,9 @@ export default function CalendarPage() {
         </div>
 
         {/* Day-of-week headers */}
-        <div className="grid grid-cols-7 border-b border-zinc-200">
+        <div className="grid grid-cols-7 border-b border-border">
           {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-            <div key={d} className="kbd-label py-2 px-3 text-center border-r last:border-r-0 border-zinc-200">
+            <div key={d} className="kbd-label py-2 px-3 text-center border-r last:border-r-0 border-border">
               {d}
             </div>
           ))}
@@ -305,13 +305,13 @@ export default function CalendarPage() {
                     openDay(dateStr);
                   }
                 }}
-                className={`min-h-[96px] border-b border-r border-zinc-100 p-2 cursor-pointer transition-colors
-                  ${inMonth ? "bg-white hover:bg-zinc-50" : "bg-[#FAFAFA] hover:bg-zinc-100"}
-                  ${isToday ? "ring-2 ring-[#0033A0] ring-inset" : ""}`}
+                className={`min-h-[96px] border-b border-r border-border p-2 cursor-pointer transition-colors
+                  ${inMonth ? "bg-background hover:bg-secondary" : "bg-[#FAFAFA] hover:bg-secondary"}
+                  ${isToday ? "ring-2 ring-primary ring-inset" : ""}`}
                 data-testid={`cal-cell-${dateStr}`}
               >
                 {/* Date number */}
-                <div className={`text-xs font-mono-data ${inMonth ? "text-zinc-900" : "text-zinc-400"}`}>
+                <div className={`text-xs font-mono-data ${inMonth ? "text-foreground" : "text-muted-foreground"}`}>
                   {d.getDate()}
                 </div>
 
@@ -326,8 +326,8 @@ export default function CalendarPage() {
                     <div
                       className={`text-[10px] font-semibold uppercase tracking-wider inline-flex items-center gap-1 px-1.5 py-0.5 border
                         ${matched.contact_count >= 3
-                          ? "border-[#16A34A] text-[#16A34A] bg-green-50"
-                          : "border-[#DC2626] text-[#DC2626] bg-red-50"}`}
+                          ? "border-[#16A34A] text-[#16A34A] bg-[#16A34A]/10"
+                          : "border-[#DC2626] text-[#DC2626] bg-destructive/10"}`}
                     >
                       {matched.contact_count >= 3
                         ? <CheckCircleIcon size={10} weight="fill" />
@@ -354,7 +354,7 @@ export default function CalendarPage() {
                       );
                     })}
                     {dayEvts.length > MAX_DOTS && (
-                      <div className="text-[10px] text-zinc-400 pl-1">
+                      <div className="text-[10px] text-muted-foreground pl-1">
                         +{dayEvts.length - MAX_DOTS} more
                       </div>
                     )}
@@ -365,7 +365,7 @@ export default function CalendarPage() {
           })}
         </div>
 
-        <div className="px-6 py-3 border-t border-zinc-200 flex items-center gap-4 text-xs text-zinc-600">
+        <div className="px-6 py-3 border-t border-border flex items-center gap-4 text-xs text-muted-foreground">
           <CalendarBlankIcon size={14} weight="bold" />
           <span>
             {weeks.length} logged week{weeks.length !== 1 ? "s" : ""} ·{" "}
@@ -384,7 +384,7 @@ export default function CalendarPage() {
           </DialogHeader>
 
           {dayEvents.length === 0 ? (
-            <p className="text-sm text-zinc-500 py-2">No events on this day.</p>
+            <p className="text-sm text-muted-foreground py-2">No events on this day.</p>
           ) : (
             <div className="space-y-2">
               {dayEvents.map((evt) => {
@@ -399,16 +399,16 @@ export default function CalendarPage() {
                       <div className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: t.color }}>
                         {t.label}
                       </div>
-                      <div className="text-sm font-semibold text-zinc-900 truncate">{evt.title}</div>
+                      <div className="text-sm font-semibold text-foreground truncate">{evt.title}</div>
                       {evt.notes && (
-                        <div className="text-xs text-zinc-500 mt-1 line-clamp-2">{evt.notes}</div>
+                        <div className="text-xs text-muted-foreground mt-1 line-clamp-2">{evt.notes}</div>
                       )}
                     </div>
                     <div className="flex gap-1 shrink-0">
                       <button
                         type="button"
                         onClick={() => openEditEvent(evt)}
-                        className="p-1 text-zinc-400 hover:text-[#0033A0]"
+                        className="p-1 text-muted-foreground hover:text-primary"
                         aria-label="Edit event"
                       >
                         <PencilSimpleIcon size={14} weight="bold" />
@@ -416,7 +416,7 @@ export default function CalendarPage() {
                       <button
                         type="button"
                         onClick={() => deleteEvent(evt.id)}
-                        className="p-1 text-zinc-400 hover:text-red-600"
+                        className="p-1 text-muted-foreground hover:text-destructive"
                         aria-label="Delete event"
                       >
                         <TrashIcon size={14} weight="bold" />
@@ -433,7 +433,7 @@ export default function CalendarPage() {
               Close
             </Button>
             <Button
-              className="rounded-none bg-[#0033A0] hover:bg-[#002266]"
+              className="rounded-none bg-primary hover:bg-primary/90"
               onClick={() => openNewEvent(selectedDay)}
             >
               <PlusIcon size={14} weight="bold" className="mr-1.5" /> Add Event
@@ -461,8 +461,8 @@ export default function CalendarPage() {
                     key={t.value}
                     className={`flex items-center gap-2 p-2 border cursor-pointer text-sm transition-colors
                       ${form.event_type === t.value
-                        ? "border-[#0033A0] bg-[#EEF2FF] font-semibold text-[#0033A0]"
-                        : "border-zinc-200 hover:border-zinc-400"}`}
+                        ? "border-primary bg-[#EEF2FF] font-semibold text-primary"
+                        : "border-border hover:border-muted-foreground"}`}
                   >
                     <input
                       type="radio"
@@ -509,7 +509,7 @@ export default function CalendarPage() {
             {/* Notes */}
             <div>
               <Label className="kbd-label">
-                Notes <span className="text-zinc-400 normal-case font-normal">(optional)</span>
+                Notes <span className="text-muted-foreground normal-case font-normal">(optional)</span>
               </Label>
               <Input
                 value={form.notes}
@@ -526,7 +526,7 @@ export default function CalendarPage() {
               Cancel
             </Button>
             <Button
-              className="rounded-none bg-[#0033A0] hover:bg-[#002266]"
+              className="rounded-none bg-primary hover:bg-primary/90"
               onClick={saveEvent}
               disabled={saving}
               data-testid="event-save-button"

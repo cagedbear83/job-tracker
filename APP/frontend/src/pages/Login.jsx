@@ -41,14 +41,14 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen grid grid-cols-1 md:grid-cols-2 bg-white">
+    <div className="min-h-screen grid grid-cols-1 md:grid-cols-2 bg-background">
       <div className="hidden md:block relative">
         <img
           src="https://images.unsplash.com/photo-1657639789999-837194c7d6aa?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2MDV8MHwxfHNlYXJjaHwxfHxpbGxpbm9pcyUyMGNoaWNhZ28lMjBza3lsaW5lfGVufDB8fHx8MTc3ODU0ODUxN3ww&ixlib=rb-4.1.0&q=85"
           alt="Chicago Skyline"
           className="w-full h-full object-cover"
         />
-        <div className="absolute inset-0 bg-[#0033A0]/55" />
+        <div className="absolute inset-0 bg-primary/55" />
         <div className="absolute inset-0 p-12 flex flex-col justify-between text-white">
           <div className="brand-bar w-32" />
           <div>
@@ -72,7 +72,7 @@ export default function Login() {
           {verified && (
             <div
               role="status"
-              className="rounded-none border border-green-300 bg-green-50 px-4 py-3 text-sm text-green-800"
+              className="rounded-none border border-[#16A34A]/40 bg-[#16A34A]/10 px-4 py-3 text-sm text-[#16A34A]"
               data-testid="verify-success-banner"
             >
               <span className="font-semibold">Email verified.</span> You can now sign in.
@@ -82,7 +82,7 @@ export default function Login() {
           {verifyErrorMessage && (
             <div
               role="alert"
-              className="rounded-none border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800"
+              className="rounded-none border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
               data-testid="verify-error-banner"
             >
               {verifyErrorMessage}
@@ -93,9 +93,9 @@ export default function Login() {
             <div className="brand-bar w-20 mb-4" />
             <div className="kbd-label">Authentication</div>
             <h2 className="font-display font-black text-3xl tracking-tighter mt-1">Sign in</h2>
-            <p className="text-sm text-zinc-600 mt-1">
+            <p className="text-sm text-muted-foreground mt-1">
               Don't have an account?{" "}
-              <Link to="/register" className="text-[#0033A0] font-semibold underline" data-testid="link-register">
+              <Link to="/register" className="text-primary font-semibold underline" data-testid="link-register">
                 Create one
               </Link>
             </p>
@@ -111,7 +111,7 @@ export default function Login() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="rounded-none border-zinc-300 mt-2"
+                className="rounded-none border-border mt-2"
                 data-testid="login-email-input"
               />
             </div>
@@ -124,7 +124,7 @@ export default function Login() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="rounded-none border-zinc-300 mt-2"
+                className="rounded-none border-border mt-2"
                 data-testid="login-password-input"
               />
             </div>
@@ -133,14 +133,14 @@ export default function Login() {
           <Button
             type="submit"
             disabled={busy}
-            className="w-full rounded-none bg-[#0033A0] hover:bg-[#002266] text-white h-11 font-semibold"
+            className="w-full rounded-none bg-primary hover:bg-primary/90 text-white h-11 font-semibold"
             data-testid="login-submit-button"
           >
             {busy ? "Signing in..." : "Sign in"}
           </Button>
 
           <div className="text-xs flex justify-between items-center">
-            <Link to="/forgot-password" className="text-[#0033A0] underline font-semibold" data-testid="link-forgot">
+            <Link to="/forgot-password" className="text-primary underline font-semibold" data-testid="link-forgot">
               Forgot password?
             </Link>
           </div>

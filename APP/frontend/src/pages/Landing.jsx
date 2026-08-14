@@ -14,23 +14,23 @@ import {
 } from "@phosphor-icons/react";
 
 const Feature = ({ Icon, title, desc }) => (
-  <div className="border border-zinc-200 bg-white p-6">
-    <Icon size={28} weight="bold" className="text-[#0033A0]" />
+  <div className="border border-border bg-background p-6">
+    <Icon size={28} weight="bold" className="text-primary" />
     <h3 className="font-display font-bold text-lg tracking-tight mt-3">
       {title}
     </h3>
-    <p className="text-sm text-zinc-600 mt-2 leading-relaxed">{desc}</p>
+    <p className="text-sm text-muted-foreground mt-2 leading-relaxed">{desc}</p>
   </div>
 );
 
 export default function Landing() {
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-background">
       <div className="brand-bar" />
-      <header className="border-b border-zinc-200 bg-white">
+      <header className="border-b border-border bg-background">
         <div className="max-w-[1440px] mx-auto px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-[#0033A0] flex items-center justify-center text-white font-display font-black tracking-tight">
+            <div className="w-9 h-9 bg-primary flex items-center justify-center text-white font-display font-black tracking-tight">
               IL
             </div>
             <div>
@@ -44,7 +44,7 @@ export default function Landing() {
             <Link to="/login">
               <Button
                 variant="outline"
-                className="rounded-none border-zinc-300"
+                className="rounded-none border-border"
                 data-testid="landing-signin-button"
               >
                 Sign in
@@ -52,7 +52,7 @@ export default function Landing() {
             </Link>
             <Link to="/register">
               <Button
-                className="rounded-none bg-[#0033A0] hover:bg-[#002266]"
+                className="rounded-none bg-primary hover:bg-primary/90"
                 data-testid="landing-signup-button"
               >
                 Get started
@@ -62,7 +62,7 @@ export default function Landing() {
         </div>
       </header>
 
-      <section className="border-b border-zinc-200">
+      <section className="border-b border-border">
         <div className="max-w-[1440px] mx-auto px-6 py-16 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
           <div>
             <div className="kbd-label">
@@ -71,9 +71,9 @@ export default function Landing() {
             <h1 className="font-display font-black text-5xl sm:text-6xl tracking-tighter mt-3 leading-[1.05]">
               Stay compliant.
               <br />
-              <span className="text-[#0033A0]">Get paid.</span>
+              <span className="text-primary">Get paid.</span>
             </h1>
-            <p className="text-base text-zinc-700 mt-5 max-w-xl leading-relaxed">
+            <p className="text-base text-foreground mt-5 max-w-xl leading-relaxed">
               Track every work-search contact, certify Sun–Sat benefit weeks,
               and generate official-style ADJ034F reports for IDES — backed by a
               full audit trail.
@@ -81,7 +81,7 @@ export default function Landing() {
             <div className="mt-6 flex flex-wrap gap-3">
               <Link to="/register">
                 <Button
-                  className="rounded-none bg-[#0033A0] hover:bg-[#002266] h-12 px-6 font-semibold"
+                  className="rounded-none bg-primary hover:bg-primary/90 h-12 px-6 font-semibold"
                   data-testid="hero-cta-signup"
                 >
                   Create free account{" "}
@@ -91,14 +91,14 @@ export default function Landing() {
               <Link to="/login">
                 <Button
                   variant="outline"
-                  className="rounded-none border-zinc-300 h-12 px-6 font-semibold"
+                  className="rounded-none border-border h-12 px-6 font-semibold"
                   data-testid="hero-cta-signin"
                 >
                   Have an invite? Sign in
                 </Button>
               </Link>
             </div>
-            <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-zinc-500">
+            <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
               <span className="inline-flex items-center gap-1">
                 <CheckCircleIcon
                   size={14}
@@ -125,14 +125,14 @@ export default function Landing() {
               </span>
             </div>
           </div>
-          <div className="relative border border-zinc-200 bg-white aspect-[4/3] overflow-hidden">
+          <div className="relative border border-border bg-background aspect-[4/3] overflow-hidden">
             <img
               src="https://images.unsplash.com/photo-1657639789999-837194c7d6aa?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2MDV8MHwxfHNlYXJjaHwxfHxpbGxpbm9pcyUyMGNoaWNhZ28lMjBza3lsaW5lfGVufDB8fHx8MTc3ODU0ODUxN3ww&ixlib=rb-4.1.0&q=85"
               alt="Chicago skyline"
               className="w-full h-full object-cover"
             />
-            <div className="absolute inset-0 bg-[#0033A0]/30" />
-            <div className="absolute bottom-6 left-6 right-6 bg-white border border-zinc-300 p-4">
+            <div className="absolute inset-0 bg-primary/30" />
+            <div className="absolute bottom-6 left-6 right-6 bg-background border border-border p-4">
               <div className="kbd-label">Active week</div>
               <div className="flex items-center justify-between mt-2">
                 <div className="font-display font-bold text-xl tracking-tight">
@@ -147,7 +147,7 @@ export default function Landing() {
         </div>
       </section>
 
-      <section className="border-b border-zinc-200">
+      <section className="border-b border-border">
         <div className="max-w-[1440px] mx-auto px-6 py-16">
           <div className="kbd-label">Built for Illinois UI Compliance</div>
           <h2 className="font-display font-bold text-3xl tracking-tight mt-2">
@@ -210,23 +210,23 @@ export default function Landing() {
             <h2 className="font-display font-bold text-3xl tracking-tight mt-2">
               Invite a claimant in one click
             </h2>
-            <p className="text-base text-zinc-700 mt-4 leading-relaxed">
+            <p className="text-base text-foreground mt-4 leading-relaxed">
               Send a single-use signup link to anyone you're helping. They land
               on a pre-filled registration page with their claimant profile
               already created.
             </p>
             <Link
               to="/login"
-              className="inline-flex items-center gap-2 text-[#0033A0] font-semibold underline mt-4 text-sm"
+              className="inline-flex items-center gap-2 text-primary font-semibold underline mt-4 text-sm"
             >
               Admin sign-in <ArrowRightIcon size={14} weight="bold" />
             </Link>
           </div>
-          <div className="bg-[#F4F4F5] border border-zinc-200 p-6">
+          <div className="bg-secondary border border-border p-6">
             <div className="kbd-label">Workflow</div>
             <ol className="mt-3 space-y-3 text-sm">
               <li className="flex gap-3">
-                <span className="w-6 h-6 bg-[#0033A0] text-white text-xs font-bold inline-flex items-center justify-center">
+                <span className="w-6 h-6 bg-primary text-white text-xs font-bold inline-flex items-center justify-center">
                   1
                 </span>
                 <span>
@@ -235,13 +235,13 @@ export default function Landing() {
                 </span>
               </li>
               <li className="flex gap-3">
-                <span className="w-6 h-6 bg-[#0033A0] text-white text-xs font-bold inline-flex items-center justify-center">
+                <span className="w-6 h-6 bg-primary text-white text-xs font-bold inline-flex items-center justify-center">
                   2
                 </span>
                 <span>Mailgun emails a 14-day single-use signup link.</span>
               </li>
               <li className="flex gap-3">
-                <span className="w-6 h-6 bg-[#0033A0] text-white text-xs font-bold inline-flex items-center justify-center">
+                <span className="w-6 h-6 bg-primary text-white text-xs font-bold inline-flex items-center justify-center">
                   3
                 </span>
                 <span>
@@ -250,7 +250,7 @@ export default function Landing() {
                 </span>
               </li>
               <li className="flex gap-3">
-                <span className="w-6 h-6 bg-[#0033A0] text-white text-xs font-bold inline-flex items-center justify-center">
+                <span className="w-6 h-6 bg-primary text-white text-xs font-bold inline-flex items-center justify-center">
                   4
                 </span>
                 <span>Weekly reminders begin automatically.</span>
@@ -260,9 +260,9 @@ export default function Landing() {
         </div>
       </section>
 
-      <footer className="border-t border-zinc-200 bg-[#F4F4F5]">
+      <footer className="border-t border-border bg-secondary">
         <div className="max-w-[1440px] mx-auto px-6 py-6 flex items-center justify-between flex-wrap gap-3">
-          <div className="text-xs text-zinc-500">
+          <div className="text-xs text-muted-foreground">
             Unofficial tool — not affiliated with the Illinois Department of
             Employment Security. Mirrors ADJ034F form structure for personal
             record-keeping.
@@ -270,11 +270,11 @@ export default function Landing() {
           <div className="flex gap-4 text-xs">
             <Link
               to="/login"
-              className="text-[#0033A0] font-semibold underline"
+              className="text-primary font-semibold underline"
             >
               Sign in
             </Link>
-            <Link to="/forgot-password" className="text-zinc-600 underline">
+            <Link to="/forgot-password" className="text-muted-foreground underline">
               Forgot password
             </Link>
           </div>

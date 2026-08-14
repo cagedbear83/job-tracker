@@ -49,18 +49,18 @@ export default function InviteSignup() {
 
   if (err) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white p-8">
+      <div className="min-h-screen flex items-center justify-center bg-background p-8">
         <div
-          className="max-w-md w-full border border-[#DC2626] bg-red-50 p-6"
+          className="max-w-md w-full border border-[#DC2626] bg-destructive/10 p-6"
           data-testid="invite-error"
         >
           <h2 className="font-display font-bold text-xl text-[#DC2626]">
             Invite invalid
           </h2>
-          <p className="text-sm text-zinc-700 mt-2">{err}</p>
+          <p className="text-sm text-foreground mt-2">{err}</p>
           <Link
             to="/login"
-            className="inline-block mt-4 text-[#0033A0] font-semibold underline"
+            className="inline-block mt-4 text-primary font-semibold underline"
           >
             Go to sign in
           </Link>
@@ -76,7 +76,7 @@ export default function InviteSignup() {
     );
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white p-8">
+    <div className="min-h-screen flex items-center justify-center bg-background p-8">
       <form
         onSubmit={submit}
         className="w-full max-w-md space-y-6"
@@ -90,21 +90,21 @@ export default function InviteSignup() {
           <h2 className="font-display font-black text-3xl tracking-tighter mt-1">
             Accept invite
           </h2>
-          <p className="text-sm text-zinc-600 mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             A case worker has set up your account.
           </p>
         </div>
 
-        <div className="border border-zinc-200 bg-[#F4F4F5] p-4 space-y-2 text-sm">
+        <div className="border border-border bg-secondary p-4 space-y-2 text-sm">
           <div className="flex items-center gap-2">
-            <EnvelopeIcon size={14} weight="bold" className="text-[#0033A0]" />{" "}
+            <EnvelopeIcon size={14} weight="bold" className="text-primary" />{" "}
             <span className="font-semibold">{invite.email}</span>
           </div>
           <div className="flex items-center gap-2">
             <UserCircleIcon
               size={14}
               weight="bold"
-              className="text-[#0033A0]"
+              className="text-primary"
             />{" "}
             Claimant label:{" "}
             <span className="font-semibold">{invite.claimant_label}</span>
@@ -118,7 +118,7 @@ export default function InviteSignup() {
             required
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
-            className="rounded-none mt-2 border-zinc-300"
+            className="rounded-none mt-2 border-border"
             data-testid="invite-name-input"
           />
         </div>
@@ -131,7 +131,7 @@ export default function InviteSignup() {
             minLength={6}
             value={form.password}
             onChange={(e) => setForm({ ...form, password: e.target.value })}
-            className="rounded-none mt-2 border-zinc-300"
+            className="rounded-none mt-2 border-border"
             data-testid="invite-password-input"
           />
         </div>
@@ -144,19 +144,19 @@ export default function InviteSignup() {
             minLength={6}
             value={form.confirm}
             onChange={(e) => setForm({ ...form, confirm: e.target.value })}
-            className="rounded-none mt-2 border-zinc-300"
+            className="rounded-none mt-2 border-border"
             data-testid="invite-confirm-input"
           />
         </div>
         <Button
           type="submit"
           disabled={busy}
-          className="w-full rounded-none bg-[#0033A0] hover:bg-[#002266] h-11 font-semibold"
+          className="w-full rounded-none bg-primary hover:bg-primary/90 h-11 font-semibold"
           data-testid="invite-submit-button"
         >
           {busy ? "Creating account..." : "Accept & create account"}
         </Button>
-        <div className="text-xs text-zinc-500">
+        <div className="text-xs text-muted-foreground">
           By accepting you agree this is an unofficial tool not affiliated with
           IDES.
         </div>

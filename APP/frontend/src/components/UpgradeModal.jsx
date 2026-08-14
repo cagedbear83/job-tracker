@@ -104,13 +104,13 @@ export function UpgradeModalProvider({ children }) {
         <DialogContent className="rounded-none max-w-3xl">
           <DialogHeader>
             <div className="flex items-center gap-2">
-              <CrownIcon size={20} weight="fill" className="text-[#0033A0]" />
+              <CrownIcon size={20} weight="fill" className="text-primary" />
               <DialogTitle className="font-display tracking-tight">
                 Upgrade to unlock this feature
               </DialogTitle>
             </div>
             {reason?.message && (
-              <p className="text-sm text-zinc-600 mt-2">{reason.message}</p>
+              <p className="text-sm text-muted-foreground mt-2">{reason.message}</p>
             )}
           </DialogHeader>
 
@@ -120,8 +120,8 @@ export function UpgradeModalProvider({ children }) {
               onClick={() => setBillingInterval("monthly")}
               className={`px-4 py-1.5 text-sm font-semibold border transition-colors ${
                 interval === "monthly"
-                  ? "bg-[#0033A0] text-white border-[#0033A0]"
-                  : "bg-white text-zinc-600 border-zinc-300 hover:border-zinc-400"
+                  ? "bg-primary text-white border-primary"
+                  : "bg-background text-muted-foreground border-border hover:border-muted-foreground"
               }`}
             >
               Monthly
@@ -130,8 +130,8 @@ export function UpgradeModalProvider({ children }) {
               onClick={() => setBillingInterval("annual")}
               className={`px-4 py-1.5 text-sm font-semibold border transition-colors ${
                 interval === "annual"
-                  ? "bg-[#0033A0] text-white border-[#0033A0]"
-                  : "bg-white text-zinc-600 border-zinc-300 hover:border-zinc-400"
+                  ? "bg-primary text-white border-primary"
+                  : "bg-background text-muted-foreground border-border hover:border-muted-foreground"
               }`}
             >
               Annual <span className="text-[10px] font-bold text-[#16A34A]">SAVE ~20%</span>
@@ -143,11 +143,11 @@ export function UpgradeModalProvider({ children }) {
               <div
                 key={plan.tier}
                 className={`border p-5 flex flex-col ${
-                  plan.highlight ? "border-[#0033A0] border-2" : "border-zinc-200"
+                  plan.highlight ? "border-primary border-2" : "border-border"
                 }`}
               >
                 {plan.highlight && (
-                  <span className="text-[10px] font-bold tracking-widest text-[#0033A0] uppercase mb-2">
+                  <span className="text-[10px] font-bold tracking-widest text-primary uppercase mb-2">
                     Most Popular
                   </span>
                 )}
@@ -156,17 +156,17 @@ export function UpgradeModalProvider({ children }) {
                 </h3>
                 <div className="flex items-baseline gap-1 mt-1">
                   <span className="text-2xl font-black">{plan.price[interval]}</span>
-                  <span className="text-sm text-zinc-500">{plan.period[interval]}</span>
+                  <span className="text-sm text-muted-foreground">{plan.period[interval]}</span>
                 </div>
                 {plan.subnote && (
-                  <div className="text-xs text-zinc-500 mb-3 mt-0.5">
+                  <div className="text-xs text-muted-foreground mb-3 mt-0.5">
                     {plan.subnote[interval]}
                   </div>
                 )}
                 {!plan.subnote && <div className="mb-4" />}
                 <ul className="space-y-2 flex-1 mb-4">
                   {plan.features.map((f) => (
-                    <li key={f} className="flex items-start gap-2 text-sm text-zinc-700">
+                    <li key={f} className="flex items-start gap-2 text-sm text-foreground">
                       <CheckIcon size={14} weight="bold" className="text-[#16A34A] mt-0.5 flex-shrink-0" />
                       {f}
                     </li>
@@ -175,8 +175,8 @@ export function UpgradeModalProvider({ children }) {
                 <Button
                   className={`rounded-none w-full ${
                     plan.highlight
-                      ? "bg-[#0033A0] hover:bg-[#002266]"
-                      : "bg-zinc-900 hover:bg-zinc-800"
+                      ? "bg-primary hover:bg-primary/90"
+                      : "bg-foreground text-background hover:bg-foreground/90"
                   }`}
                   disabled={checkingOut === plan.tier}
                   onClick={() => handleUpgrade(plan.tier)}
@@ -189,7 +189,7 @@ export function UpgradeModalProvider({ children }) {
 
           <button
             onClick={() => setOpen(false)}
-            className="absolute top-4 right-4 text-zinc-400 hover:text-zinc-700"
+            className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"
           >
             <XIcon size={18} weight="bold" />
           </button>
