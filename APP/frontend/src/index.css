@@ -95,3 +95,21 @@ table.compliance-table tbody tr:hover { background: hsl(var(--secondary)); }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: hsl(var(--border)); }
 ::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground)); }
+
+/* Instant press feedback — tight, no bounce (matches the Swiss/flat system).
+   Responds on pointer-down via :active so the press reads as direct. */
+button, [role="button"] { transition: transform 100ms ease-out, background-color 150ms ease, border-color 150ms ease, color 150ms ease; }
+button:active:not(:disabled), [role="button"]:active:not([aria-disabled="true"]) { transform: scale(0.98); }
+
+/* Accessibility: honor reduced-motion and reduced-transparency preferences. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  [class*="backdrop-blur"] { backdrop-filter: none !important; }
+}

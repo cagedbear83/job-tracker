@@ -200,29 +200,32 @@ export default function Dashboard() {
               >
                 <XAxis
                   dataKey="week_start"
-                  tick={{ fontSize: 11, fontFamily: "IBM Plex Sans" }}
-                  stroke="#52525B"
+                  tick={{ fontSize: 11, fontFamily: "IBM Plex Sans", fill: "hsl(var(--muted-foreground))" }}
+                  stroke="hsl(var(--border))"
                 />
                 <YAxis
                   allowDecimals={false}
-                  tick={{ fontSize: 11 }}
-                  stroke="#52525B"
+                  tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                  stroke="hsl(var(--border))"
                 />
                 <Tooltip
-                  cursor={{ fill: "#F4F4F5" }}
+                  cursor={{ fill: "hsl(var(--secondary))" }}
                   contentStyle={{
-                    border: "1px solid #D4D4D8",
+                    background: "hsl(var(--popover))",
+                    color: "hsl(var(--popover-foreground))",
+                    border: "1px solid hsl(var(--border))",
                     borderRadius: 0,
                     fontFamily: "IBM Plex Sans",
                     fontSize: 12,
                   }}
+                  labelStyle={{ color: "hsl(var(--popover-foreground))" }}
                   formatter={(v, n, p) => [
                     `${v} contacts`,
                     p?.payload?.compliant ? "Compliant" : "Non-compliant",
                   ]}
                   labelFormatter={(l) => `Week of ${l}`}
                 />
-                <ReferenceLine y={3} stroke="#0033A0" strokeDasharray="4 4" />
+                <ReferenceLine y={3} stroke="hsl(var(--primary))" strokeDasharray="4 4" />
                 <Bar dataKey="contacts" radius={0}>
                   {trend.map((entry, idx) => (
                     <Cell
