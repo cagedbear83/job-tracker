@@ -75,7 +75,6 @@ export default function Profile() {
 
   useEffect(() => {
     load().finally(() => setLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const setField = (k, v) => setForm((f) => ({ ...f, [k]: v }));
