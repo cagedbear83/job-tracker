@@ -98,6 +98,11 @@ api = APIRouter(prefix="/api")
 # ---- Stripe billing (checkout, portal, webhook, status) ----
 import billing as billing_logic
 
+# ---- Subscription tier enforcement (gate_feature / gate_metered) ----
+# These raise HTTP 402 when a user's plan doesn't include a feature or has
+# exhausted a metered quota. gate_metered also increments the usage counter.
+import subscription as sub
+
 # ---- Rate limiting ----
 RATE_LIMIT_ENABLED = os.environ.get("RATE_LIMIT_ENABLED", "true").lower() in (
     "1",
@@ -1075,6 +1080,7 @@ async def list_calendar_events(user=Depends(get_current_user)):
 async def create_calendar_event(
     body: CalendarEventIn, user=Depends(get_current_user)
 ):
+    await sub.gate_feature(db, user["id"], "calendar_events")
     doc = {
         "id": str(uuid.uuid4()),
         "user_id": user["id"],
@@ -1098,6 +1104,7 @@ async def create_calendar_event(
 async def update_calendar_event(
     eid: str, body: CalendarEventIn, user=Depends(get_current_user)
 ):
+    await sub.gate_feature(db, user["id"], "calendar_events")
     existing = await db.calendar_events.find_one(
         {"id": eid, "user_id": user["id"]}, {"_id": 0}
     )
@@ -1154,6 +1161,21 @@ async def upload_document(
     claimant_id: str = Form(""),
     user=Depends(get_current_user),
 ):
+    # Tier enforcement: document storage. Free tier is 0 MB (uploads disabled);
+    # paid tiers have a total-storage cap. Check the tier before reading the
+    # file so free users are rejected without doing the upload work.
+    tier = await sub.get_user_tier(db, user["id"])
+    storage_mb = sub.get_tier_limits(tier).get("document_storage_mb") or 0
+    if storage_mb <= 0:
+        raise HTTPException(
+            status_code=402,
+            detail={
+                "error": "upgrade_required",
+                "feature": "document_storage_mb",
+                "message": "Document storage requires a paid plan. Upgrade to upload documents.",
+            },
+        )
+
     if file.content_type not in DOC_MIME_ALLOWLIST:
         raise HTTPException(
             status_code=415,
@@ -1164,6 +1186,27 @@ async def upload_document(
         raise HTTPException(
             status_code=413,
             detail=f"File too large. Maximum size is {MAX_DOC_BYTES // (1024*1024)} MB.",
+        )
+
+    # Enforce the plan's total-storage cap across all of this user's documents.
+    agg = await db.document_files.aggregate(
+        [
+            {"$match": {"user_id": user["id"]}},
+            {"$group": {"_id": None, "total": {"$sum": "$file_size"}}},
+        ]
+    ).to_list(1)
+    used_bytes = agg[0]["total"] if agg else 0
+    if used_bytes + len(raw) > storage_mb * 1024 * 1024:
+        raise HTTPException(
+            status_code=402,
+            detail={
+                "error": "quota_exceeded",
+                "feature": "document_storage_mb",
+                "message": (
+                    f"This upload would exceed your {storage_mb} MB storage limit. "
+                    "Delete a document or upgrade for more space."
+                ),
+            },
         )
     import base64
     file_b64 = base64.b64encode(raw).decode("ascii")
@@ -1337,6 +1380,10 @@ async def import_screenshot(
     if not api_key:
         raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured")
 
+    # Tier enforcement: metered AI import. Gated AFTER input validation so a
+    # bad upload doesn't burn quota, and BEFORE the (paid) Gemini call.
+    await sub.gate_metered(db, user["id"], "ai_screenshot_import")
+
     prompt = (
         "You extract job posting details from screenshots of job boards like Indeed, LinkedIn, "
         "ZipRecruiter, Glassdoor. Output STRICT JSON only, no prose, no markdown. "
@@ -1419,6 +1466,10 @@ async def report_pdf(week_id: str, user=Depends(get_current_user)):
     w = await db.benefit_weeks.find_one({"id": week_id, "user_id": user["id"]})
     if not w:
         raise HTTPException(status_code=404, detail="Week not found")
+
+    # Tier enforcement: metered PDF exports (free = 3/month, paid = unlimited).
+    # Gated after the week is confirmed so a 404 doesn't consume quota.
+    await sub.gate_metered(db, user["id"], "pdf_exports_per_month")
 
     contacts = (
         await db.contacts.find({"benefit_week_id": week_id, "user_id": user["id"]})
@@ -1557,8 +1608,11 @@ async def export_contacts_csv(
 ):
     q = {"user_id": user["id"]}
     if week_id:
+        # Single-week export is available on every tier.
         q["benefit_week_id"] = week_id
     else:
+        # Exporting the full history is a paid feature.
+        await sub.gate_feature(db, user["id"], "csv_export_full_history")
         cid = await get_active_claimant_id(user["id"])
         if cid:
             q["$or"] = [{"claimant_id": cid}, {"claimant_id": {"$exists": False}}]
@@ -1887,6 +1941,7 @@ async def _broadcast_reminders(kind: str):
 # ============== Dashboard Trend ==============
 @api.get("/dashboard/trend")
 async def dashboard_trend(weeks: int = 12, user=Depends(get_current_user)):
+    await sub.gate_feature(db, user["id"], "advanced_analytics")
     cid = await get_active_claimant_id(user["id"])
     q = {"user_id": user["id"]}
     if cid:
@@ -2064,6 +2119,7 @@ class OtpVerifyIn(BaseModel):
 
 @api.post("/sms/send-otp")
 async def sms_send_otp(body: OtpSendIn, user=Depends(get_current_user)):
+    await sub.gate_feature(db, user["id"], "sms_reminders")
     c = await db.profiles.find_one({"id": body.claimant_id, "user_id": user["id"]}, {"_id": 0})
     if not c:
         raise HTTPException(status_code=404, detail="Claimant not found")

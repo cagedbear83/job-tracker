@@ -166,6 +166,23 @@ def get_tier_limits(tier: Tier) -> dict:
     return TIER_LIMITS.get(tier, TIER_LIMITS[Tier.FREE])
 
 
+# When a subscription record has no resolvable current_period_end (e.g. Stripe
+# didn't include it in the payload), grant this many days of grace from the
+# record's last update instead of unlimited access — then fail closed to FREE.
+SUBSCRIPTION_GRACE_DAYS = int(os.environ.get("SUBSCRIPTION_GRACE_DAYS", "3"))
+
+
+def _as_aware_utc(dt):
+    """Normalize a Mongo/ISO datetime to an aware UTC datetime, or None."""
+    if not dt:
+        return None
+    if isinstance(dt, str):
+        dt = datetime.fromisoformat(dt)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
 async def get_user_tier(db, user_id: str) -> Tier:
     """
     Resolve a user's effective tier. Falls back to FREE if no active
@@ -180,9 +197,21 @@ async def get_user_tier(db, user_id: str) -> Tier:
     if status not in ("active", "trialing"):
         return Tier.FREE
 
-    period_end = sub.get("current_period_end")
-    if period_end and period_end < datetime.now(timezone.utc):
-        return Tier.FREE
+    now = datetime.now(timezone.utc)
+    period_end = _as_aware_utc(sub.get("current_period_end"))
+    if period_end is not None:
+        # Motor returns datetimes tz-naive (stored as UTC); the webhook writes
+        # them tz-aware. Normalizing (above) avoids a naive-vs-aware TypeError
+        # that would otherwise blow up every gated route + billing/status.
+        if period_end < now:
+            return Tier.FREE
+    else:
+        # No resolvable period end. Rather than grant paid access indefinitely,
+        # allow a short grace window measured from the record's last update,
+        # then fail closed. If we can't even establish an anchor, downgrade now.
+        anchor = _as_aware_utc(sub.get("updated_at") or sub.get("created_at"))
+        if anchor is None or now > anchor + timedelta(days=SUBSCRIPTION_GRACE_DAYS):
+            return Tier.FREE
 
     return Tier(sub.get("tier", Tier.FREE))
 

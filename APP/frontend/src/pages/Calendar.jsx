@@ -10,6 +10,7 @@ import {
   PencilSimpleIcon,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { FeatureGate } from "@/components/FeatureGate";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -216,13 +217,15 @@ export default function CalendarPage() {
             benefit-week compliance.
           </p>
         </div>
-        <Button
-          className="rounded-none bg-[#0033A0] hover:bg-[#002266]"
-          onClick={() => openNewEvent(iso(today))}
-          data-testid="add-event-button"
-        >
-          <PlusIcon size={16} weight="bold" className="mr-2" /> Add Event
-        </Button>
+        <FeatureGate feature="calendar_events">
+          <Button
+            className="rounded-none bg-[#0033A0] hover:bg-[#002266]"
+            onClick={() => openNewEvent(iso(today))}
+            data-testid="add-event-button"
+          >
+            <PlusIcon size={16} weight="bold" className="mr-2" /> Add Event
+          </Button>
+        </FeatureGate>
       </div>
 
       {/* ── Event type legend ── */}

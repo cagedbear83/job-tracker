@@ -3,6 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { api, formatApiError, API } from "@/lib/api";
 import { getToken } from "@/lib/tokenStorage";
 import { Button } from "@/components/ui/button";
+import { FeatureGate } from "@/components/FeatureGate";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -325,29 +326,31 @@ export default function WeekDetail() {
               </>
             )}
           </Button>
-          <Button
-            variant="outline"
-            className="rounded-none border-zinc-300 min-w-[190px]"
-            onClick={downloadPdf}
-            disabled={downloadingPdf}
-            data-testid="download-pdf-button"
-          >
-            {downloadingPdf ? (
-              <>
-                <CircleNotchIcon
-                  size={16}
-                  weight="bold"
-                  className="mr-2 animate-spin"
-                />
-                Generating Report...
-              </>
-            ) : (
-              <>
-                <FilePdfIcon size={16} weight="bold" className="mr-2" />{" "}
-                Download Report (PDF)
-              </>
-            )}
-          </Button>
+          <FeatureGate feature="pdf_exports_per_month" metered showUsage>
+            <Button
+              variant="outline"
+              className="rounded-none border-zinc-300 min-w-[190px]"
+              onClick={downloadPdf}
+              disabled={downloadingPdf}
+              data-testid="download-pdf-button"
+            >
+              {downloadingPdf ? (
+                <>
+                  <CircleNotchIcon
+                    size={16}
+                    weight="bold"
+                    className="mr-2 animate-spin"
+                  />
+                  Generating Report...
+                </>
+              ) : (
+                <>
+                  <FilePdfIcon size={16} weight="bold" className="mr-2" />{" "}
+                  Download Report (PDF)
+                </>
+              )}
+            </Button>
+          </FeatureGate>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               <Button

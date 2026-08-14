@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, formatApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { FeatureGate } from "@/components/FeatureGate";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -178,15 +179,17 @@ export default function ImportPage() {
             className="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:border file:border-zinc-300 file:bg-[#F4F4F5] file:text-zinc-900 file:font-semibold file:rounded-none hover:file:bg-zinc-200"
             data-testid="screenshot-file-input"
           />
-          <Button
-            disabled={busy || !imgFile || !weekId}
-            onClick={importScreenshot}
-            className="mt-4 w-full rounded-none bg-[#0033A0] hover:bg-[#002266]"
-            data-testid="screenshot-import-button"
-          >
-            <UploadSimpleIcon size={16} weight="bold" className="mr-2" />{" "}
-            {busy ? "Extracting..." : "Extract with AI"}
-          </Button>
+          <FeatureGate feature="ai_screenshot_import" metered showUsage>
+            <Button
+              disabled={busy || !imgFile || !weekId}
+              onClick={importScreenshot}
+              className="mt-4 w-full rounded-none bg-[#0033A0] hover:bg-[#002266]"
+              data-testid="screenshot-import-button"
+            >
+              <UploadSimpleIcon size={16} weight="bold" className="mr-2" />{" "}
+              {busy ? "Extracting..." : "Extract with AI"}
+            </Button>
+          </FeatureGate>
         </div>
       </div>
 

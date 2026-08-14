@@ -11,6 +11,7 @@ import {
   ImageIcon,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { FeatureGate } from "@/components/FeatureGate";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -202,13 +203,15 @@ export default function DocumentsPage() {
             Supported formats: JPEG, PNG, WEBP, PDF — max {MAX_MB} MB each.
           </p>
         </div>
-        <Button
-          className="rounded-none bg-[#0033A0] hover:bg-[#002266]"
-          onClick={() => { setForm(blankForm()); setOpen(true); }}
-          data-testid="upload-doc-button"
-        >
-          <PlusIcon size={16} weight="bold" className="mr-2" /> Upload Document
-        </Button>
+        <FeatureGate feature="document_storage_mb">
+          <Button
+            className="rounded-none bg-[#0033A0] hover:bg-[#002266]"
+            onClick={() => { setForm(blankForm()); setOpen(true); }}
+            data-testid="upload-doc-button"
+          >
+            <PlusIcon size={16} weight="bold" className="mr-2" /> Upload Document
+          </Button>
+        </FeatureGate>
       </div>
 
       {/* ── Document grid ── */}

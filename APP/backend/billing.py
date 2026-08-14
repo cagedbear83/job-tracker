@@ -44,6 +44,30 @@ stripe.api_key = os.environ.get("STRIPE_SECRET_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 
 
+def _period_end(sub_obj) -> Optional[datetime]:
+    """
+    Read `current_period_end` as an aware UTC datetime across Stripe API
+    versions. Older versions expose it on the Subscription object; the 2025
+    ("basil") versions moved it onto the subscription items. Works with both
+    dict-like webhook payloads and stripe-python objects. Returns None if it
+    can't be found (caller then leaves the stored value untouched).
+    """
+    def _get(obj, key):
+        if isinstance(obj, dict):
+            return obj.get(key)
+        return getattr(obj, key, None)
+
+    ts = _get(sub_obj, "current_period_end")
+    if ts is None:
+        items = _get(sub_obj, "items")
+        data = _get(items, "data") if items is not None else None
+        if data:
+            ts = _get(data[0], "current_period_end")
+    if ts is None:
+        return None
+    return datetime.fromtimestamp(ts, tz=timezone.utc)
+
+
 class CheckoutRequest(BaseModel):
     tier: Tier
     interval: str = "monthly"        # "monthly" or "annual"
@@ -158,9 +182,7 @@ async def handle_stripe_webhook(db, request: Request) -> dict:
                     "stripe_customer_id": customer_id,
                     "stripe_subscription_id": subscription_id,
                     "status": stripe_sub.status,
-                    "current_period_end": datetime.fromtimestamp(
-                        stripe_sub.current_period_end, tz=timezone.utc
-                    ),
+                    "current_period_end": _period_end(stripe_sub),
                     "cancel_at_period_end": stripe_sub.cancel_at_period_end,
                     "updated_at": datetime.now(timezone.utc),
                 }},
@@ -171,16 +193,20 @@ async def handle_stripe_webhook(db, request: Request) -> dict:
         subscription_id = data["id"]
         status = data["status"] if event_type.endswith("updated") else "canceled"
 
+        set_fields = {
+            "status": status,
+            "cancel_at_period_end": data.get("cancel_at_period_end", False),
+            "updated_at": datetime.now(timezone.utc),
+        }
+        # Only overwrite the period end if we could resolve it (its location in
+        # the payload varies by Stripe API version); never crash on a KeyError.
+        period_end = _period_end(data)
+        if period_end is not None:
+            set_fields["current_period_end"] = period_end
+
         await db.subscriptions.update_one(
             {"stripe_subscription_id": subscription_id},
-            {"$set": {
-                "status": status,
-                "current_period_end": datetime.fromtimestamp(
-                    data["current_period_end"], tz=timezone.utc
-                ),
-                "cancel_at_period_end": data.get("cancel_at_period_end", False),
-                "updated_at": datetime.now(timezone.utc),
-            }},
+            {"$set": set_fields},
         )
 
     elif event_type == "invoice.payment_failed":

@@ -2,12 +2,15 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, formatApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { useSubscription } from "@/hooks/useSubscription";
+import { useUpgradeModal } from "@/components/UpgradeModal";
 import {
   CheckCircleIcon,
   WarningIcon,
   CalendarBlankIcon,
   PlusIcon,
   TrendUpIcon,
+  LockSimpleIcon,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import {
@@ -35,6 +38,9 @@ function Metric({ label, value, accent, testid }) {
 }
 
 export default function Dashboard() {
+  const { hasFeature } = useSubscription();
+  const { show } = useUpgradeModal();
+  const canAnalytics = hasFeature("advanced_analytics");
   const [stats, setStats] = useState(null);
   const [weeks, setWeeks] = useState([]);
   const [trend, setTrend] = useState([]);
@@ -56,11 +62,17 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
+    // Advanced analytics is a paid feature — skip the request entirely on the
+    // free tier (the backend would return 402) and show a locked card instead.
+    if (!canAnalytics) {
+      setTrend([]);
+      return;
+    }
     api
       .get(`/dashboard/trend?weeks=${range}`)
       .then((r) => setTrend(r.data))
       .catch(() => {});
-  }, [range]);
+  }, [range, canAnalytics]);
 
   return (
     <div className="space-y-6" data-testid="dashboard-page">
@@ -109,7 +121,33 @@ export default function Dashboard() {
         />
       </div>
 
-      {trend.length > 0 && (
+      {!canAnalytics && (
+        <button
+          type="button"
+          onClick={() =>
+            show({
+              feature: "advanced_analytics",
+              message:
+                "Compliance trend analytics are available on paid plans.",
+            })
+          }
+          className="w-full text-left border border-zinc-200 bg-white p-6 flex items-center justify-between hover:bg-zinc-50 transition-colors"
+          data-testid="trend-locked"
+        >
+          <div>
+            <div className="kbd-label flex items-center gap-2">
+              <TrendUpIcon size={12} weight="bold" /> Compliance Trend
+            </div>
+            <p className="text-sm text-zinc-600 mt-1">
+              See your work-search compliance over time. Upgrade to unlock
+              analytics.
+            </p>
+          </div>
+          <LockSimpleIcon size={20} weight="bold" className="text-zinc-400" />
+        </button>
+      )}
+
+      {canAnalytics && trend.length > 0 && (
         <div
           className="border border-zinc-200 bg-white"
           data-testid="trend-chart"
