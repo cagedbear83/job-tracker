@@ -451,6 +451,10 @@ async def get_current_user(request: Request) -> dict:
     )
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
+    if user.get("deleted"):
+        # Account is scheduled for deletion — access is revoked immediately even
+        # though the data isn't purged until purge_after.
+        raise HTTPException(status_code=401, detail="Account has been deleted")
     return user
 
 
@@ -757,6 +761,12 @@ async def login(request: Request, body: LoginIn):
             detail = "Invalid email or password."
         raise HTTPException(status_code=401, detail=detail)
 
+    if user.get("deleted"):
+        raise HTTPException(
+            status_code=403,
+            detail="This account has been deleted.",
+        )
+
     if not user.get("email_verified", False):
         raise HTTPException(
             status_code=403,
@@ -874,6 +884,122 @@ async def upsert_profile(body: ProfileIn, user=Depends(get_current_user)):
 # delete/set-active endpoints were intentionally deleted so extra profiles can't
 # be created via the API. `get_active_claimant_id` is retained because every
 # per-user query (weeks, contacts, reports) still scopes by the active profile.
+
+
+# ============== Account Deletion (soft delete + scheduled purge) ==============
+# Number of days a soft-deleted account is retained before its data is hard-
+# purged from every collection. Access is revoked immediately on deletion.
+ACCOUNT_PURGE_GRACE_DAYS = int(os.environ.get("ACCOUNT_PURGE_GRACE_DAYS", "30"))
+
+# Collections that store a row per user, keyed by `user_id`.
+_USER_SCOPED_COLLECTIONS = [
+    "profiles", "benefit_weeks", "contacts", "calendar_events",
+    "document_files", "audit_log", "password_resets", "subscriptions",
+    "usage_counters", "otp_codes",
+]
+# Collections keyed by the profile/claimant id.
+_PROFILE_SCOPED_COLLECTIONS = ["sms_log"]
+# Collections keyed by the account email.
+_EMAIL_SCOPED_COLLECTIONS = ["login_attempts", "email_events", "invites"]
+
+
+class DeleteAccountIn(BaseModel):
+    email: str
+    confirm_name: str
+    confirm: bool = False
+
+
+async def _purge_user_everywhere(uid: str, email: str) -> dict:
+    """
+    Hard-delete every trace of a user across all collections. Used by the
+    scheduled purge job (and could be called directly for an immediate purge).
+    Returns a per-collection deleted-count map for logging.
+    """
+    # Gather the user's profile ids so we can clean profile-scoped collections.
+    pids = [
+        p["id"]
+        async for p in db.profiles.find({"user_id": uid}, {"_id": 0, "id": 1})
+    ]
+    counts = {}
+    for coll in _USER_SCOPED_COLLECTIONS:
+        res = await db[coll].delete_many({"user_id": uid})
+        counts[coll] = res.deleted_count
+    if pids:
+        for coll in _PROFILE_SCOPED_COLLECTIONS:
+            res = await db[coll].delete_many({"claimant_id": {"$in": pids}})
+            counts[coll] = res.deleted_count
+    if email:
+        for coll in _EMAIL_SCOPED_COLLECTIONS:
+            res = await db[coll].delete_many({"email": email})
+            counts[coll] = counts.get(coll, 0) + res.deleted_count
+    res = await db.users.delete_one({"id": uid})
+    counts["users"] = res.deleted_count
+    return counts
+
+
+async def _purge_due_accounts() -> None:
+    """Scheduled: hard-purge accounts whose grace window has elapsed."""
+    now = datetime.now(timezone.utc)
+    async for u in db.users.find(
+        {"deleted": True}, {"_id": 0, "id": 1, "email": 1, "purge_after": 1}
+    ):
+        purge_after = u.get("purge_after")
+        if isinstance(purge_after, str):
+            purge_after = datetime.fromisoformat(purge_after)
+        if purge_after and purge_after.tzinfo is None:
+            purge_after = purge_after.replace(tzinfo=timezone.utc)
+        if not purge_after or now >= purge_after:
+            counts = await _purge_user_everywhere(u["id"], u.get("email", ""))
+            logging.info(f"Purged deleted account {u.get('email')}: {counts}")
+
+
+@api.post("/account/delete")
+async def delete_account(body: DeleteAccountIn, user=Depends(get_current_user)):
+    """
+    Soft-delete the authenticated user's account. Requires the user to re-type
+    their login email, their profile name, and check the confirmation box. The
+    account is deactivated immediately (all tokens rejected) and its data is
+    hard-purged after ACCOUNT_PURGE_GRACE_DAYS.
+    """
+    if not body.confirm:
+        raise HTTPException(status_code=400, detail="You must check the confirmation box.")
+
+    # Verify the typed email matches the account email (defense in depth — the
+    # deletion targets the authenticated user regardless).
+    if body.email.strip().lower() != (user.get("email") or "").lower():
+        raise HTTPException(status_code=400, detail="The email you entered does not match your account.")
+
+    # Verify the typed name matches the profile's first + last name.
+    profile = await db.profiles.find_one({"user_id": user["id"]}, {"_id": 0})
+    expected_name = ""
+    if profile:
+        expected_name = f"{profile.get('first_name', '')} {profile.get('last_name', '')}".strip()
+
+    def _norm(s: str) -> str:
+        return " ".join((s or "").split()).lower()
+
+    if not expected_name or _norm(body.confirm_name) != _norm(expected_name):
+        raise HTTPException(status_code=400, detail="The name you entered does not match your profile.")
+
+    now = datetime.now(timezone.utc)
+    await db.users.update_one(
+        {"id": user["id"]},
+        {"$set": {
+            "deleted": True,
+            "deletion_requested_at": now,
+            "purge_after": now + timedelta(days=ACCOUNT_PURGE_GRACE_DAYS),
+            # Rotate the session marker so any outstanding token is dead.
+            "active_claimant_id": None,
+        }},
+    )
+    await log_audit(
+        user["id"], "DELETE", "account", user["id"],
+        f"Account soft-deleted; scheduled purge after {ACCOUNT_PURGE_GRACE_DAYS} days",
+    )
+    return {
+        "ok": True,
+        "purge_after": (now + timedelta(days=ACCOUNT_PURGE_GRACE_DAYS)).isoformat(),
+    }
 
 
 # ============== Benefit Weeks ==============
@@ -2689,17 +2815,23 @@ async def on_startup():
                 {"$set": {"claimant_id": active}},
             )
 
-    if os.environ.get("MAILGUN_API_KEY"):
-        try:
-            scheduler = AsyncIOScheduler(timezone=pytz.timezone("America/Chicago"))
+    # The scheduler always runs (it hosts the account-purge job); reminder jobs
+    # are only added when Mailgun is configured.
+    try:
+        scheduler = AsyncIOScheduler(timezone=pytz.timezone("America/Chicago"))
+        # Daily hard-purge of soft-deleted accounts past their grace window.
+        scheduler.add_job(
+            _purge_due_accounts, CronTrigger(hour=3, minute=30), id="purge_accounts"
+        )
+        if os.environ.get("MAILGUN_API_KEY"):
             scheduler.add_job(_broadcast_reminders, CronTrigger(day_of_week="sun", hour=9, minute=0), args=["sunday"], id="rem_sun")
             scheduler.add_job(_broadcast_reminders, CronTrigger(day_of_week="wed", hour=9, minute=0), args=["wednesday"], id="rem_wed")
             scheduler.add_job(_broadcast_reminders, CronTrigger(day_of_week="fri", hour=9, minute=0), args=["friday"], id="rem_fri")
             scheduler.add_job(_broadcast_reminders, CronTrigger(day_of_week="sat", hour=9, minute=0), args=["saturday"], id="rem_sat")
-            scheduler.start()
-            logging.info("Reminder scheduler started (America/Chicago)")
-        except Exception as e:
-            logging.warning(f"Could not start reminder scheduler: {e}")
+        scheduler.start()
+        logging.info("Scheduler started (America/Chicago) — purge job active")
+    except Exception as e:
+        logging.warning(f"Could not start scheduler: {e}")
 
 
 @app.on_event("shutdown")
