@@ -39,6 +39,7 @@ from pydantic import BaseModel
 
 from typing import Optional
 from subscription import Tier, get_checkout_line_items, get_user_tier, get_usage_summary
+import Disputes as dispute_engine
 
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
@@ -214,6 +215,37 @@ async def handle_stripe_webhook(db, request: Request) -> dict:
         await db.subscriptions.update_one(
             {"stripe_customer_id": customer_id},
             {"$set": {"status": "past_due", "updated_at": datetime.now(timezone.utc)}},
+        )
+
+    # ── Dispute engine ingestion (see Disputes.py) ──────────────────────
+    # Feeds the admin-platform Disputes tab (routers/admin_disputes.py).
+    # charge.succeeded is the denominator for the chargeback rate;
+    # charge.dispute.* are the numerator. Email alerting
+    # (Disputes.check_and_alert) is NOT wired in here — see that function's
+    # docstring for what it needs if someone wants to add it later.
+    elif event_type == "charge.succeeded":
+        await dispute_engine.record_charge(db, data["id"])
+
+    elif event_type in (
+        "charge.dispute.created", "charge.dispute.updated", "charge.dispute.closed",
+    ):
+        customer_id = data.get("customer") if isinstance(data.get("customer"), str) else None
+        user_id = None
+        if customer_id:
+            sub = await db.subscriptions.find_one({"stripe_customer_id": customer_id}, {"_id": 0, "user_id": 1})
+            user_id = sub["user_id"] if sub else None
+        await dispute_engine.upsert_dispute(
+            db,
+            {
+                "id": data["id"],
+                "charge_id": data.get("charge"),
+                "amount_cents": data.get("amount"),
+                "currency": data.get("currency", "usd"),
+                "reason": data.get("reason"),
+                "status": data.get("status"),
+                "evidence_due_by": (data.get("evidence_details") or {}).get("due_by"),
+            },
+            user_id,
         )
 
     return {"received": True}

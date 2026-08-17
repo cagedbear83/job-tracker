@@ -6,8 +6,24 @@ from core import app, api
 from core import _broadcast_reminders, _purge_due_accounts
 from routers import account, admin, audit, auth, billing_routes, calendar, contact, contacts, dashboard, documents, imports, invites, misc, profile, reminders, reports, sms, webhooks, weeks
 
+# ---- Admin portal integration (ported from the standalone admin_portal
+# module) — new admin-platform surface, namespaced under /api/admin/platform
+# to avoid colliding with the existing /api/admin/* routes in routers/admin.py
+# and routers/invites.py. See routers/admin_platform_compliance.py's module
+# docstring for the full rationale.
+from routers import (
+    admin_platform_users,
+    admin_platform_subscriptions,
+    admin_platform_comps,
+    admin_platform_refunds,
+    admin_platform_system,
+    admin_platform_compliance,
+    admin_disputes,
+)
+
 # Attach every domain router onto the /api router before mounting it.
-for _r in (account.router, admin.router, audit.router, auth.router, billing_routes.router, calendar.router, contact.router, contacts.router, dashboard.router, documents.router, imports.router, invites.router, misc.router, profile.router, reminders.router, reports.router, sms.router, webhooks.router, weeks.router):
+for _r in (account.router, admin.router, audit.router, auth.router, billing_routes.router, calendar.router, contact.router, contacts.router, dashboard.router, documents.router, imports.router, invites.router, misc.router, profile.router, reminders.router, reports.router, sms.router, webhooks.router, weeks.router,
+           admin_platform_users.router, admin_platform_subscriptions.router, admin_platform_comps.router, admin_platform_refunds.router, admin_platform_system.router, admin_platform_compliance.router, admin_disputes.router):
     api.include_router(_r)
 
 

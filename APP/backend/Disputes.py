@@ -1,14 +1,30 @@
 """
-Dispute / chargeback engine (core logic, dependency-injected — no server imports).
+Dispute / chargeback engine (core logic, dependency-injected — no FastAPI
+router here; see routers/admin_disputes.py for the HTTP surface).
 
 Used by:
-  - stripe_webhook.py  (paste-in to server.py) for ingesting Stripe events
-  - admin_disputes.py  (admin portal) for the response workflow
+  - billing.py's handle_stripe_webhook()  — ingests charge.succeeded /
+    charge.dispute.* Stripe events into the collections below.
+  - routers/admin_disputes.py             — the admin portal's response
+    workflow (list, evidence assembly, submit-to-Stripe).
 
 Collections:
   disputes         one doc per Stripe dispute (status, amount, reason, due_by, user)
   payment_events   lightweight {created_at} per successful charge (rate denominator)
   dispute_alerts   record of threshold alerts already sent (dedup)
+
+FIX HISTORY (this integration): this file previously failed to import at
+all — `tags+["admin:disputes"]` (should be `=`), `overrides: duct = Field(...)`
+(typo'd type annotation), a dangling `from server import db` (this codebase's
+db lives in core.py, and every function below already takes `db` as an
+explicit parameter — the module-level import was unused dead code), and a
+stray `import disputes` (self-import — this *is* the disputes module). The
+router construction and request models (`SubmitEvidence`, `MarkSubmitted`)
+that used to live in this file have moved to routers/admin_disputes.py,
+matching this file's own docstring ("no server imports") and the pattern
+every other admin_platform_*.py router follows (engine/logic separate from
+the router). Nothing here was behaviorally changed beyond fixing the syntax
+errors and removing the misplaced router code.
 """
 
 from __future__ import annotations
@@ -16,33 +32,16 @@ from __future__ import annotations
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel, Field
-
-from rbac import require_admin, require_staff, verify_step_up
-from admin_audit import log_admin_action, AuditAction
-import disputes
-from server import db # <-- SEAM
-
-router = APIRouter(prefix="/disputes", tags+["admin:disputes"])
 
 
-def _refund_policy_ur1() -> str:
+def _refund_policy_url() -> str:
     return os.environ.get(
         "REFUND_POLICY_URL",
         f"{os.environ.get('FRONTEND_URL', 'http://localhost:3000')}/refund-policy",
-        )
+    )
 
 
-class SubmitEvidence(BaseModel):
-    step_up_password: str
-    overrides: duct = Field(default_factory=dict, description="optional evidence field overrides")
-
-class MarkSubmitted(BaseModel):
-    note: str = Field("", description="e.g. 'submitted in Stripe dashboard'")
-
-
-# ── Thresholds (env-overridable; defaults are your chosen conservative levels) ──
+# ── Thresholds (env-overridable; defaults are conservative levels) ──
 WARN_RATE = float(os.environ.get("CHARGEBACK_WARN_RATE", "0.005"))       # 0.50%
 CRITICAL_RATE = float(os.environ.get("CHARGEBACK_CRITICAL_RATE", "0.0075"))  # 0.75%
 CRITICAL_COUNT = int(os.environ.get("CHARGEBACK_CRITICAL_COUNT", "100"))
@@ -117,6 +116,13 @@ async def check_and_alert(db, send_email, log_audit, reminder_html,
     """
     Recompute metrics; if the alert level rose above what we last alerted in this
     window, email the admin(s). Deduped so a flurry of disputes doesn't spam.
+
+    Not currently called anywhere (email alerting wasn't wired into the
+    webhook ingestion in this pass — see billing.py's handle_stripe_webhook
+    module comment). Left intact for whoever wires it in: it needs a
+    send_email(addr, subject, html) callable, a log_audit(actor, action,
+    entity, entity_id, detail) callable, and a reminder_html(title, body)
+    template renderer, all of which already exist in core.py.
     """
     m = await compute_metrics(db)
     level = m["level"]
