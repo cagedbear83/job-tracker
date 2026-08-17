@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { Toaster } from "@/components/ui/sonner";
 import { UpgradeModalProvider } from "@/components/UpgradeModal";
 import { SubscriptionProvider } from "@/hooks/useSubscription";
+import RequireRole from "@/components/RequireRole";
 
 // Eagerly load Layout and auth-wall pages — needed before any route renders
 import Layout from "@/components/Layout";
@@ -23,6 +24,7 @@ const Dashboard     = lazy(() => import("@/pages/Dashboard"));
 const Profile       = lazy(() => import("@/pages/Profile"));
 const CalendarPage  = lazy(() => import("@/pages/Calendar"));
 const AdminPage     = lazy(() => import("@/pages/Admin"));
+const AdminPlatform = lazy(() => import("@/pages/AdminPlatform"));
 const BenefitWeeks  = lazy(() => import("@/pages/BenefitWeeks"));
 const WeekDetail    = lazy(() => import("@/pages/WeekDetail"));
 const ImportPage    = lazy(() => import("@/pages/ImportPage"));
@@ -65,6 +67,27 @@ function LandingOrApp() {
   if (loading) return null;
   if (user) return <Navigate to="/dashboard" replace />;
   return <Landing />;
+}
+
+// Derives the new admin-platform role from the existing session until the
+// platform_role migration (backend/admin_rbac_migration.py) has run — mirrors
+// rbac.py's own legacy-role fallback so frontend and backend agree.
+function platformRoleFor(user) {
+  if (user?.platform_role) return user.platform_role;
+  return user?.role === "admin" ? "platform_admin" : "user";
+}
+
+// Gates the new /admin/platform surface (see src/pages/AdminPlatform.jsx).
+// Kept separate from the existing /admin route/page — the two are
+// independent admin surfaces, matching the backend's namespacing.
+function AdminPlatformRoute() {
+  const { user } = useAuth();
+  const role = platformRoleFor(user);
+  return (
+    <RequireRole atLeast="support_staff" role={role} fallback={<Navigate to="/dashboard" replace />}>
+      <AdminPlatform currentRole={role} />
+    </RequireRole>
+  );
 }
 
 export function App() {
@@ -152,6 +175,7 @@ export function App() {
                 <Route path="/import" element={<ImportPage />} />
                 <Route path="/audit" element={<AuditLog />} />
                 <Route path="/admin" element={<AdminPage />} />
+                <Route path="/admin/platform" element={<AdminPlatformRoute />} />
                 <Route path="/sms-opt-in" element={<SmsOptIn />} />
                 <Route path="/privacy" element={<PrivacyPolicy />} />
                 <Route path="/terms" element={<Terms />} />
