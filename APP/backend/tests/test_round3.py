@@ -33,14 +33,14 @@ def test_integrations_status_admin(AH):
     r = requests.get(f"{API}/admin/integrations/status", headers=AH, timeout=30)
     assert r.status_code == 200
     d = r.json()
-    assert "mailgun" in d and "twilio" in d
+    assert "mailgun" in d and "clicksend" in d
     assert d["mailgun"]["configured"] is True
     assert "from" in d["mailgun"]
     assert "verified_domain" in d["mailgun"]
     assert "fallback_from" in d["mailgun"]
     assert "dns_records_url" in d["mailgun"]
-    assert d["twilio"]["configured"] is True
-    assert d["twilio"]["from_number"]
+    assert d["clicksend"]["configured"] is True
+    assert d["clicksend"]["from_number"]
 
 
 def test_integrations_status_non_admin_403(H):
@@ -181,10 +181,10 @@ def test_invite_create_non_admin_403(H):
 def test_sms_code_path_via_friday_reminder(H):
     """Enable SMS on Primary claimant and trigger friday reminder. Verify endpoint
     runs without error and REMINDER_FRIDAY email audit exists. Don't assert on SMS
-    audit since Twilio trial may reject the unverified number."""
+    audit since ClickSend may reject an unconfigured/unfunded sender."""
     cs = requests.get(f"{API}/claimants", headers=H, timeout=30).json()["items"]
     primary = next(c for c in cs if c.get("label") == "Primary")
-    # Set sms_enabled=true with a clearly-test number — Twilio will reject (trial),
+    # Set sms_enabled=true with a clearly-test number — ClickSend may reject it,
     # but the code path must be exercised. Use an obvious test number to avoid charges.
     body = {**{k: primary.get(k, "") for k in [
         "label", "first_name", "last_name", "middle_initial", "claimant_id_last4",

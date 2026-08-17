@@ -1,7 +1,7 @@
 # Illinois UI Job Search Tracker — Project State
 **Owner:** Kyle Gagen — KMG123 Enterprises LLC  
-**Last Updated:** August 14, 2026  
-**Version:** 1.3
+**Last Updated:** August 17, 2026  
+**Version:** 1.4
 
 ---
 
@@ -20,10 +20,23 @@
 | Frontend Host (marketing) | Vercel — cagedbear83/ijt-marketing |
 | Domain Registrar | IONOS (illinoisjobtracker.app), name.com (illinoisjobtracker.com) |
 | Email | Mailgun — mail.illinoisjobtracker.app |
-| SMS | Twilio — +1 (833) 610-0453 (toll-free, verification pending) |
+| SMS | ClickSend (migrated from Twilio; sender number/ID setup pending) |
 | AI | Google Gemini 2.0 Flash |
 | Secrets Manager | Doppler |
 | Support Email | support@illinoisjobtracker.app |
+
+---
+
+## 🗓️ Session Update — August 17, 2026
+
+### SMS provider swap: Twilio → ClickSend
+- [x] Replaced Twilio with ClickSend for OTP verification texts and SMS reminders. Motivation: avoid Twilio's toll-free number verification process.
+- [x] `core.py`: `send_sms()` now calls ClickSend's REST API (`POST https://rest.clicksend.com/v3/sms/send`, HTTP Basic auth) directly via the `requests` library already used for Mailgun — no new SDK dependency. Removed `twilio` from `requirements.txt`.
+- [x] Env vars renamed: `TWILIO_ACCOUNT_SID`/`TWILIO_AUTH_TOKEN`/`TWILIO_FROM_NUMBER` → `CLICKSEND_USERNAME`/`CLICKSEND_API_KEY`/`CLICKSEND_FROM_NUMBER` (`.env.example`, `docker-compose.yml`, `render.yaml` for both prod + staging).
+- [x] Admin System-health panel check renamed `twilio` → `clicksend` (`admin_platform_system.py`); no frontend change needed since it renders check keys generically.
+- [x] Updated the Twilio-specific OTP failure message in `routers/sms.py` to reference ClickSend instead.
+- [ ] **Action needed from Kyle:** create/confirm a ClickSend account, generate an API key (Dashboard → API Credentials), set `CLICKSEND_USERNAME` + `CLICKSEND_API_KEY` in Doppler/DigitalOcean/Render (replacing the old `TWILIO_*` secrets), and optionally buy/verify a ClickSend sender number or Sender ID for `CLICKSEND_FROM_NUMBER`.
+- [ ] Old `TWILIO_*` secrets can be removed from Doppler once the new ClickSend ones are confirmed working.
 
 ---
 
@@ -94,7 +107,7 @@ Backend is deploying and running (verified in live DigitalOcean runtime logs). T
 | Database driver | Motor (async MongoDB) |
 | Auth | JWT + bcrypt |
 | Email | Mailgun REST API |
-| SMS | Twilio |
+| SMS | ClickSend REST API |
 | AI | Google Gemini 2.0 Flash |
 | PDF | pypdf — fills real ADJ034F form |
 | Scheduler | APScheduler (AsyncIO) — reminders + account purge |
@@ -155,7 +168,7 @@ Backend is deploying and running (verified in live DigitalOcean runtime logs). T
 - [x] ADJ034F PDF generation (pypdf fills real state form — ephemeral)
 - [x] CSV export (ephemeral)
 - [x] Email reminders via Mailgun (Sun/Wed/Fri/Sat)
-- [x] SMS reminders via Twilio (toll-free pending verification)
+- [x] SMS reminders via ClickSend
 - [x] AI screenshot import — Google Gemini 2.0 Flash
 - [x] Admin panel with RBAC, audit log, impersonation
 - [x] Invite-only signup with 14-day single-use codes
@@ -199,8 +212,7 @@ Backend is deploying and running (verified in live DigitalOcean runtime logs). T
 
 ### Infrastructure
 - [ ] Doppler — MongoDB re-setup
-- [ ] Doppler — Twilio re-setup
-- [ ] Twilio toll-free verification — follow up if not approved within 7 business days
+- [ ] Doppler — swap Twilio secrets for `CLICKSEND_USERNAME`/`CLICKSEND_API_KEY`/`CLICKSEND_FROM_NUMBER`
 - [ ] `git rm APP/frontend/src/pages/Claimants.jsx` (orphaned after multi-claimant removal)
 
 ---
@@ -262,7 +274,7 @@ Backend is deploying and running (verified in live DigitalOcean runtime logs). T
 | db.claimants → db.profiles at server.py line 431 | P1 | **Resolved / not present** — code uses db.profiles throughout |
 | ADJ034F.pdf missing from assets/ | P0 | Open — place manually (download from ides.illinois.gov) |
 | Gemini AI hitting quota immediately | P1 | Blocked on Google Cloud billing |
-| Twilio toll-free not verified | P2 | Submitted — follow up if >7 days |
+| Twilio toll-free not verified | P2 | **Resolved / moot** — swapped SMS provider to ClickSend this session |
 
 ---
 

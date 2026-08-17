@@ -641,11 +641,11 @@ export default function AdminPage() {
                   <div>
                     <div className="kbd-label">SMS Provider</div>
                     <h3 className="font-display font-bold text-xl tracking-tight">
-                      Twilio
+                      ClickSend
                     </h3>
                   </div>
                   <div className="ml-auto">
-                    {status.twilio.configured ? (
+                    {status.clicksend.configured ? (
                       <span className="inline-flex items-center gap-1 text-xs font-bold text-[#16A34A]">
                         <CheckCircleIcon size={12} weight="fill" /> CONFIGURED
                       </span>
@@ -660,7 +660,7 @@ export default function AdminPage() {
                   <div>
                     <span className="kbd-label">From number:</span>{" "}
                     <code className="font-mono text-xs">
-                      {status.twilio.from_number || "—"}
+                      {status.clicksend.from_number || "—"}
                     </code>
                   </div>
                   <div className="border border-border bg-secondary p-3 text-xs mt-2">
@@ -673,8 +673,8 @@ export default function AdminPage() {
                       schedule.
                     </p>
                     <p className="text-foreground mt-2">
-                      Twilio trial accounts can only SMS verified numbers —
-                      verify recipient numbers in the Twilio Console.
+                      Sent via ClickSend's REST API — check the ClickSend
+                      dashboard for account balance and sender configuration.
                     </p>
                   </div>
                 </div>

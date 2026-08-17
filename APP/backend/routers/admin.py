@@ -100,10 +100,10 @@ async def bulk_invite(body: BulkInviteIn, admin=Depends(require_admin)):
 @router.get("/admin/integrations/status")
 async def integrations_status(admin=Depends(require_admin)):
     has_mailgun = bool(os.environ.get("MAILGUN_API_KEY"))
-    has_twilio = bool(
-        os.environ.get("TWILIO_ACCOUNT_SID")
-        and os.environ.get("TWILIO_AUTH_TOKEN")
-        and os.environ.get("TWILIO_FROM_NUMBER")
+    has_clicksend = bool(
+        os.environ.get("CLICKSEND_USERNAME")
+        and os.environ.get("CLICKSEND_API_KEY")
+        and os.environ.get("CLICKSEND_FROM_NUMBER")
     )
     return {
         "mailgun": {
@@ -113,8 +113,8 @@ async def integrations_status(admin=Depends(require_admin)):
             "fallback_from": os.environ.get("MAILGUN_FALLBACK_FROM", "onboarding@mailgun.com"),
             "dns_records_url": "https://app.mailgun.com/mg/sending/domains",
         },
-        "twilio": {
-            "configured": has_twilio,
-            "from_number": os.environ.get("TWILIO_FROM_NUMBER", ""),
+        "clicksend": {
+            "configured": has_clicksend,
+            "from_number": os.environ.get("CLICKSEND_FROM_NUMBER", ""),
         },
     }

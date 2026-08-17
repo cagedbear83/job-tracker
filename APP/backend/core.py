@@ -44,7 +44,6 @@ from fastapi.responses import (
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from starlette.middleware.cors import CORSMiddleware
-from twilio.rest import Client as TwilioClient
 
 # Optional production dependencies — degrade gracefully if a deploy has not
 # reinstalled requirements yet, rather than crashing the whole API.
@@ -520,17 +519,30 @@ async def send_email(to_email: str, subject: str, html: str) -> bool:
 
 
 def send_sms(to_number: str, body: str) -> bool:
-    sid = os.environ.get("TWILIO_ACCOUNT_SID", "")
-    token = os.environ.get("TWILIO_AUTH_TOKEN", "")
-    from_num = os.environ.get("TWILIO_FROM_NUMBER", "")
-    if not (sid and token and from_num and to_number):
+    username = os.environ.get("CLICKSEND_USERNAME", "")
+    api_key = os.environ.get("CLICKSEND_API_KEY", "")
+    from_num = os.environ.get("CLICKSEND_FROM_NUMBER", "")
+    if not (username and api_key and to_number):
         return False
     try:
-        client = TwilioClient(sid, token)
-        client.messages.create(from_=from_num, to=to_number, body=body[:1500])
-        return True
+        message = {"source": "job-tracker", "to": to_number, "body": body[:1500]}
+        if from_num:
+            message["from"] = from_num
+        response = http_requests.post(
+            "https://rest.clicksend.com/v3/sms/send",
+            auth=(username, api_key),
+            json={"messages": [message]},
+        )
+        if response.status_code == 200:
+            status = (response.json().get("data", {}).get("messages") or [{}])[0].get("status", "")
+            if status == "SUCCESS":
+                return True
+            logging.warning(f"ClickSend SMS not accepted: {status} — {response.text}")
+            return False
+        logging.warning(f"ClickSend failed: {response.status_code} {response.text}")
+        return False
     except Exception as e:
-        logging.warning(f"Twilio SMS failed: {e}")
+        logging.warning(f"ClickSend SMS error: {e}")
         return False
 
 
@@ -565,7 +577,7 @@ async def send_sms_rate_limited(
                 "sent_at": datetime.now(timezone.utc),
             }
         )
-    return ok, "ok" if ok else "twilio-error"
+    return ok, "ok" if ok else "clicksend-error"
 
 
 def to_public_user(u: dict) -> UserPublic:

@@ -7,7 +7,7 @@
 # Sentry project (core.py already wires SENTRY_DSN) and reports which
 # integrations are configured. Checks are best-effort and never throw.
 #
-# All the env var names below (MAILGUN_*, TWILIO_*, GEMINI_API_KEY,
+# All the env var names below (MAILGUN_*, CLICKSEND_*, GEMINI_API_KEY,
 # STRIPE_SECRET_KEY, SENTRY_DSN) already match this codebase's core.py /
 # .env.example exactly — no renaming was needed.
 from __future__ import annotations
@@ -41,7 +41,7 @@ async def system_health():
     checks = {
         "mongodb": {"ok": mongo_ok, "error": mongo_err},
         "mailgun": {"configured": _configured("MAILGUN_API_KEY", "MAILGUN_DOMAIN")},
-        "twilio": {"configured": _configured("TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN")},
+        "clicksend": {"configured": _configured("CLICKSEND_USERNAME", "CLICKSEND_API_KEY")},
         "gemini": {"configured": _configured("GEMINI_API_KEY")},
         "stripe": {
             "configured": bool(os.environ.get("STRIPE_SECRET_KEY")),

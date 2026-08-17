@@ -60,15 +60,15 @@ def test_sms_send_otp_rejects_non_e164(H, primary_claimant):
 
 
 def test_sms_send_otp_e164_writes_otp_row(H, primary_claimant, mdb):
-    """E.164 phone — twilio will fail in trial mode (returns 502) but DB row must exist + audit logged."""
+    """E.164 phone — ClickSend may fail without a funded/configured account (returns 502) but DB row must exist + audit logged."""
     headers, _ = H
-    phone = "+15005550006"  # Twilio magic test-success number; still rate-limited via send_sms_rate_limited
+    phone = "+15005550006"  # obvious test number; still rate-limited via send_sms_rate_limited
     # Clear previous rate-limit row to ensure clean run
     mdb.sms_log.delete_many({"phone": phone})
     r = requests.post(f"{API}/sms/send-otp",
                       json={"claimant_id": primary_claimant["id"], "phone": phone},
                       headers=headers, timeout=30)
-    # Either 200 (sent) or 502 (twilio reject) — both indicate code path executed
+    # Either 200 (sent) or 502 (clicksend reject) — both indicate code path executed
     assert r.status_code in (200, 502), r.text
     # OTP row created
     rec = mdb.otp_codes.find_one({"claimant_id": primary_claimant["id"], "phone": phone},

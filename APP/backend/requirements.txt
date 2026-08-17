@@ -26,8 +26,7 @@ APScheduler==3.11.2
 pytz==2026.2
 
 # --- Integrations ---
-requests==2.34.2                  # Mailgun HTTP API + helper scripts
-twilio==9.10.9                    # SMS reminders / OTP
+requests==2.34.2                  # Mailgun + ClickSend HTTP APIs, helper scripts
 google-generativeai==0.8.6        # Gemini screenshot OCR
 pillow==12.2.0                    # image handling for screenshot import
 stripe==11.1.0                    # Stripe payment processing

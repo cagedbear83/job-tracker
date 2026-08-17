@@ -19,7 +19,7 @@ Job Tracker is designed to help manage the job search workflow by storing applic
 - **Backend:** FastAPI, Uvicorn, Motor/PyMongo (MongoDB), Pydantic
 - **Auth:** PyJWT, bcrypt
 - **Scheduling:** APScheduler
-- **Integrations:** Mailgun (email, via REST), Twilio (SMS), Google Gemini (screenshot OCR)
+- **Integrations:** Mailgun (email, via REST), ClickSend (SMS, via REST), Google Gemini (screenshot OCR)
 - **Reporting:** pypdf (fills the IDES ADJ034F form)
 - **Frontend:** React 19, React Router, Tailwind CSS, shadcn/ui, Recharts
 

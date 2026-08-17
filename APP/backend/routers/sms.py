@@ -35,7 +35,7 @@ async def sms_send_otp(body: OtpSendIn, user=Depends(get_current_user)):
     if not sent:
         raise HTTPException(
             status_code=502,
-            detail=f"Could not send SMS ({reason}). Make sure the number is verified in Twilio for trial accounts.",
+            detail=f"Could not send SMS ({reason}). Check that ClickSend is configured and the account has SMS credit.",
         )
     return {"ok": True, "expires_in_minutes": 10}
 
