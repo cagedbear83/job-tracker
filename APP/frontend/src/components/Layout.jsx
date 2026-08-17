@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -79,7 +79,14 @@ export default function Layout() {
   const navigate = useNavigate();
   const isAdmin = user?.role === "admin";
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const { theme, setTheme } = useTheme();
+  // Drive the toggle off resolvedTheme (what's actually on screen), not `theme`
+  // — with enableSystem on, `theme` can be the literal "system", which made the
+  // button's label/icon disagree with the rendered colors. `mounted` guards the
+  // first client paint so the icon isn't wrong before the theme is known.
+  const { resolvedTheme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const isDark = mounted && resolvedTheme === "dark";
 
   const onLogout = async () => {
     await logout();
@@ -199,14 +206,14 @@ export default function Layout() {
           {/* Dark mode toggle */}
           <button
             type="button"
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            onClick={() => setTheme(isDark ? "light" : "dark")}
             className="mt-3 w-full flex items-center gap-2 px-4 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-secondary border-t border-border transition-colors"
             aria-label="Toggle dark mode"
           >
-            {theme === "dark"
+            {isDark
               ? <SunIcon size={14} weight="bold" />
               : <MoonIcon size={14} weight="bold" />}
-            {theme === "dark" ? "Light mode" : "Dark mode"}
+            {isDark ? "Light mode" : "Dark mode"}
           </button>
 
           {!isAdmin && (
