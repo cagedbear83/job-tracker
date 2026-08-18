@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { api, formatApiError } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { Input } from "@/components/ui/input";
@@ -260,15 +260,36 @@ export default function Profile() {
 
         {/* SMS */}
         <div className="border-t border-border pt-4">
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex items-start gap-2 text-sm cursor-pointer">
             <input
               type="checkbox"
               checked={form.sms_enabled}
               onChange={(e) => setField("sms_enabled", e.target.checked)}
+              className="mt-0.5"
               data-testid="profile-sms-toggle"
             />
-            <DeviceMobileIcon size={16} weight="bold" />
-            Also send SMS reminders (standard message rates may apply)
+            <span>
+              <span className="inline-flex items-center gap-1 font-medium">
+                <DeviceMobileIcon size={16} weight="bold" />
+                Also send SMS reminders
+              </span>
+              <span className="block text-xs text-muted-foreground mt-1 leading-relaxed">
+                By checking this box, you agree to receive automated SMS
+                certification-deadline reminders from{" "}
+                <strong>Illinois UI Job Search Tracker</strong> at the phone
+                number below. Message frequency varies. Message and data
+                rates may apply. Reply <strong>HELP</strong> for help and{" "}
+                <strong>STOP</strong> to opt out at any time. View our{" "}
+                <Link to="/terms" className="text-primary underline" target="_blank">
+                  Terms &amp; Conditions
+                </Link>{" "}
+                and{" "}
+                <Link to="/privacy" className="text-primary underline" target="_blank">
+                  Privacy Policy
+                </Link>
+                .
+              </span>
+            </span>
           </label>
           {form.sms_enabled && (
             <div className="mt-3 flex flex-wrap items-center gap-3">
