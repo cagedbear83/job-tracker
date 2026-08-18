@@ -234,6 +234,7 @@ class RegisterIn(BaseModel):
     first_name: str = ""
     last_name: str = ""
     phone: str = ""
+    sms_opt_in: bool = False
     dob: Optional[str] = None
     address: str = ""
     city: str = ""
@@ -279,6 +280,9 @@ class Profile(ProfileIn):
     updated_at: datetime
     sms_phone: str = ""
     sms_verified: bool = False
+    # Consent evidence: when the user opted in to SMS (registration or later).
+    # Not part of ProfileIn — not directly editable via PUT /profile.
+    sms_opt_in_at: Optional[str] = None
 
 
 class ForgotPwIn(BaseModel):

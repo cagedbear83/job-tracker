@@ -1,6 +1,5 @@
 // APP/frontend/src/pages/PrivacyPolicy.jsx
 // Drop-in replacement. Uses the app's existing semantic Tailwind tokens.
-// ⚠️ ATTORNEY REVIEW REQUIRED before taking live payments or publishing publicly.
 
 import { useEffect } from "react";
 
@@ -255,7 +254,7 @@ export default function PrivacyPolicy() {
                     data: "Email address, email content",
                   },
                   {
-                    vendor: "Twilio",
+                    vendor: "ClickSend",
                     purpose: "SMS reminders (opt-in only)",
                     data: "Phone number, reminder message",
                   },
@@ -326,28 +325,47 @@ export default function PrivacyPolicy() {
 
         {/* 6. SMS */}
         <Section title="6. SMS Communications">
-          <p>
-            If you opt in to SMS reminders, the following terms apply:
-          </p>
-          <ul className="list-disc list-inside space-y-1 pl-2 mt-2">
-            <li>
-              Message frequency is approximately 1–3 messages per week per active
-              claimant, depending on your certification schedule.
-            </li>
-            <li>Message and data rates may apply.</li>
-            <li>
-              You may opt out at any time by replying <strong>STOP</strong> to any
-              message. You may re-opt-in by replying <strong>START</strong>.
-            </li>
-            <li>
-              Reply <strong>HELP</strong> for assistance. You may also contact us
-              at {SUPPORT_EMAIL}.
-            </li>
-            <li>
-              SMS messages are sent via Twilio. Your phone number is not shared
-              with any other party.
-            </li>
-          </ul>
+          <SubSection title="Data Collection">
+            <p>
+              We collect your mobile phone number only when you affirmatively
+              opt in to SMS reminders — either at registration or later from
+              your Claimant profile — and verify it with a one-time passcode
+              (OTP) before any messages are sent.
+            </p>
+          </SubSection>
+          <SubSection title="Data Usage">
+            <p>
+              Your phone number is used solely to send you the SMS reminders
+              you opted into. Message frequency varies and is approximately
+              1–3 messages per week per active claimant, depending on your
+              certification schedule.
+            </p>
+          </SubSection>
+          <SubSection title="Data Sharing">
+            <p>
+              We do not sell or share your mobile phone number with third
+              parties for their marketing purposes. We share it only with our
+              SMS delivery provider (ClickSend) solely to transmit your
+              reminder messages.
+            </p>
+          </SubSection>
+          <SubSection title="Opt-Out">
+            <p>
+              You may opt out at any time by replying <strong>STOP</strong> to
+              any message. You may receive one confirmation message of your
+              opt-out. You may re-opt-in by replying <strong>START</strong>, or
+              from your Claimant profile.
+            </p>
+          </SubSection>
+          <SubSection title="Help">
+            <p>
+              Reply <strong>HELP</strong> to any message for assistance, or
+              contact us at {SUPPORT_EMAIL}.
+            </p>
+          </SubSection>
+          <SubSection title="Message and Data Rates">
+            <p>Message and data rates may apply to any messages sent or received.</p>
+          </SubSection>
         </Section>
 
         {/* 7. Your Rights */}

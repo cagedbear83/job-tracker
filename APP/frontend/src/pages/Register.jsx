@@ -73,6 +73,7 @@ export default function Register() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
+  const [smsOptIn, setSmsOptIn] = useState(false);
   const [dob, setDob] = useState("");
   const [address, setAddress] = useState("");
   const [city, setCity] = useState("");
@@ -118,6 +119,7 @@ export default function Register() {
         first_name: firstName,
         last_name: lastName,
         phone: phone,
+        sms_opt_in: smsOptIn,
         dob: dob,
         address: address,
         city: city,
@@ -190,6 +192,30 @@ export default function Register() {
               className="rounded-none border-border mt-2"
               data-testid="register-phone-input"
             />
+            <label className="flex items-start gap-2 mt-3 text-xs text-muted-foreground leading-relaxed cursor-pointer">
+              <input
+                type="checkbox"
+                checked={smsOptIn}
+                onChange={(e) => setSmsOptIn(e.target.checked)}
+                className="mt-0.5 w-4 h-4 accent-primary flex-shrink-0"
+                data-testid="register-sms-optin-checkbox"
+              />
+              <span>
+                I agree to receive automated SMS text message reminders from
+                Illinois UI Job Search Tracker at the phone number provided
+                above. Message frequency varies. Message and data rates may
+                apply. Reply <strong>STOP</strong> to cancel, <strong>HELP</strong>{" "}
+                for help. See our{" "}
+                <Link to="/privacy" className="text-primary underline" target="_blank">
+                  Privacy Policy
+                </Link>{" "}
+                and{" "}
+                <Link to="/terms" className="text-primary underline" target="_blank">
+                  Terms &amp; Conditions
+                </Link>
+                . This is optional and not required to create an account.
+              </span>
+            </label>
           </div>
           <div>
             <Label className="kbd-label">Date of Birth</Label>

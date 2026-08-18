@@ -57,7 +57,16 @@ async def register(request: Request, body: RegisterIn):
         "occupation": "",
         "reminders_enabled": True,
         "reminder_email": "",
-        "sms_enabled": False,
+        # sms_enabled reflects the Register-page opt-in checkbox. This only
+        # records consent — no SMS is actually sent until the phone number is
+        # verified via OTP (sets sms_phone + sms_verified; see routers/sms.py
+        # and the reminder-send check in core.py), so an opted-in-but-
+        # unverified profile never receives messages.
+        "sms_enabled": body.sms_opt_in,
+        # Consent timestamp — evidence of when/whether the user opted in,
+        # kept alongside the SMS_OPT_IN audit log entry below for carrier /
+        # TCPA compliance recordkeeping.
+        "sms_opt_in_at": now_iso if body.sms_opt_in else None,
         # Not part of ProfileIn, but collected at registration — keep it so the
         # data isn't lost. Profile edits use $set, so this survives updates.
         "date_of_birth": body.dob,
@@ -68,6 +77,11 @@ async def register(request: Request, body: RegisterIn):
     await db.users.update_one(
         {"id": uid}, {"$set": {"active_claimant_id": pid}}
     )
+    if body.sms_opt_in:
+        await log_audit(
+            uid, "SMS_OPT_IN", "claimant", pid,
+            f"Opted in to SMS reminders at registration (phone: {body.phone or 'not provided'})",
+        )
 
     verification_token = secrets.token_urlsafe(32)
     await db.users.update_one(

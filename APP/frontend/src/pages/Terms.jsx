@@ -1,6 +1,5 @@
 // APP/frontend/src/pages/Terms.jsx
 // Drop-in replacement. Uses the app's existing semantic Tailwind tokens.
-// ⚠️ ATTORNEY REVIEW REQUIRED before taking live payments or publishing publicly.
 
 import { useEffect } from "react";
 
@@ -283,20 +282,37 @@ export default function Terms() {
         {/* 7. SMS */}
         <Section title="7. SMS Reminders">
           <p>
-            If you opt in to SMS reminders:
+            By providing your mobile number and opting in, you agree that{" "}
+            {COMPANY} may send you periodic SMS text messages related to your
+            use of the Service, including but not limited to certification
+            deadline reminders.
           </p>
           <ul className="list-disc list-inside space-y-1 pl-2 mt-2">
             <li>
-              You consent to receive up to 3 automated text messages per week
-              per active claimant regarding certification deadlines.
+              Message frequency varies — up to 3 automated text messages per
+              week per active claimant, depending on your certification
+              schedule.
             </li>
             <li>Message and data rates may apply.</li>
             <li>
-              Reply <strong>STOP</strong> to unsubscribe at any time.
-              Reply <strong>HELP</strong> for help.
+              Reply <strong>STOP</strong> to cancel at any time — you may
+              receive a subsequent message confirming your opt-out. Reply{" "}
+              <strong>HELP</strong> for help, or contact us at {SUPPORT_EMAIL}.
             </li>
             <li>
               Opting out of SMS does not affect your ability to use the Service.
+            </li>
+            <li>
+              See our{" "}
+              <a href="/privacy" className="text-primary underline underline-offset-2">
+                Privacy Policy
+              </a>{" "}
+              for how we collect, use, and share information connected with
+              SMS messaging.
+            </li>
+            <li>
+              Carriers are not liable for delayed or undelivered messages. You
+              agree to notify us of any change to your mobile number.
             </li>
           </ul>
         </Section>

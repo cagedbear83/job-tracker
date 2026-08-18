@@ -177,7 +177,7 @@ export default function Landing() {
             <Feature
               Icon={EnvelopeSimpleIcon}
               title="Email + SMS Reminders"
-              desc="Sun / Wed / Fri / Sat nudges via Mailgun + Twilio. Never miss a week."
+              desc="Sun / Wed / Fri / Sat nudges via Mailgun + ClickSend. Never miss a week."
             />
             <Feature
               Icon={UsersThreeIcon}
