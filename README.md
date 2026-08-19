@@ -188,14 +188,11 @@ The backend exposes probes for load balancers / uptime monitors (outside the
 
 ### Hosted deploy
 
-See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for the full MongoDB Atlas +
-staging/production runbook. In short:
-
 - **Frontend → Vercel:** set the project root to `APP/frontend`; `vercel.json`
   handles the SPA rewrite, security headers, and asset caching. Set
   `REACT_APP_BACKEND_URL` (and optional `REACT_APP_SENTRY_DSN`) in the project.
-- **Backend → Render:** `render.yaml` is a Docker Blueprint with a
-  `/health/ready` health check. Provide `MONGO_URL` (e.g. MongoDB Atlas),
+- **Backend → DigitalOcean App Platform:** deployed via `APP/backend/Dockerfile`,
+  with a `/health/ready` health check. Provide `MONGO_URL` (e.g. MongoDB Atlas),
   `FRONTEND_URL`, and `CORS_ORIGINS` as secrets.
 
 For email and SMS in production, configure:
