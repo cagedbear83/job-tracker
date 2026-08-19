@@ -17,6 +17,7 @@ import {
   FolderOpenIcon,
   SunIcon,
   MoonIcon,
+  GearSixIcon,
 } from "@phosphor-icons/react";
 
 const userNav = [
@@ -74,6 +75,23 @@ const adminNav = [
   },
 ];
 
+// Link to the new admin-platform surface (src/pages/AdminPlatform.jsx).
+// Shown separately from adminNav/userNav since it's gated on platform_role
+// (support_staff or platform_admin), not the legacy binary role field.
+const platformNavItem = {
+  to: "/admin/platform",
+  label: "Admin Platform",
+  Icon: GearSixIcon,
+  testid: "nav-admin-platform",
+};
+
+// Mirrors rbac.py's legacy-role fallback and App.jsx's platformRoleFor():
+// treats role === "admin" as platform_admin until platform_role is backfilled.
+function platformRoleFor(user) {
+  if (user?.platform_role) return user.platform_role;
+  return user?.role === "admin" ? "platform_admin" : "user";
+}
+
 export default function Layout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -93,7 +111,14 @@ export default function Layout() {
     navigate("/login");
   };
 
-  const navItems = isAdmin ? adminNav : userNav;
+  const platformRole = platformRoleFor(user);
+  const canSeePlatformAdmin =
+    platformRole === "support_staff" || platformRole === "platform_admin";
+
+  const navItems = [
+    ...(isAdmin ? adminNav : userNav),
+    ...(canSeePlatformAdmin ? [platformNavItem] : []),
+  ];
 
   return (
     <div className="min-h-screen bg-background">
