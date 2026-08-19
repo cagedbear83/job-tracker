@@ -1,7 +1,7 @@
 # Illinois UI Job Search Tracker — Project State
 **Owner:** Kyle Gagen — KMG123 Enterprises LLC
-**Last Updated:** August 19, 2026
-**Version:** 1.5
+**Last Updated:** August 20, 2026
+**Version:** 1.6
 
 ---
 
@@ -20,7 +20,7 @@
 | Frontend Host (marketing) | Vercel — cagedbear83/ijt-marketing |
 | Domain Registrar | IONOS (illinoisjobtracker.app), name.com (illinoisjobtracker.com) |
 | Email | Mailgun — mail.illinoisjobtracker.app |
-| SMS | Twilio — +1 (833) 610-0453 (toll-free, verification pending) |
+| SMS | ClickSend — migrated from Twilio Aug 19-20 (see Completed section below). Toll-free number registration submitted to ClickSend; number pending carrier approval |
 | AI | Google Gemini 2.0 Flash |
 | Secrets Manager | Doppler |
 | Support Email | support@illinoisjobtracker.app |
@@ -60,7 +60,7 @@ Earlier root cause found and fixed: `subscription.py` content had been accidenta
 | Database driver | Motor (async MongoDB) |
 | Auth | JWT + bcrypt, single-active-session enforcement |
 | Email | Mailgun REST API |
-| SMS | Twilio |
+| SMS | ClickSend REST API (migrated from Twilio Aug 19-20) |
 | AI | Google Gemini 2.0 Flash |
 | PDF | pypdf — fills real ADJ034F form |
 | Scheduler | APScheduler (AsyncIO) |
@@ -109,6 +109,21 @@ Earlier root cause found and fixed: `subscription.py` content had been accidenta
 - [x] Full backend test suite run before/after integration — zero regressions
 - [x] End-to-end smoke test: booted the integrated backend locally (mocked Mongo), simulated a signed Stripe webhook, confirmed a dispute record was created and retrievable through the new router
 
+### SMS Provider Migration: Twilio → ClickSend + Toll-Free Compliance (Aug 19-20)
+- [x] Replaced Twilio with ClickSend across the backend. `core.py`'s `send_sms()` now calls ClickSend's REST API (`POST https://rest.clicksend.com/v3/sms/send`, HTTP Basic auth) directly via the `requests` library already used for Mailgun — no new SDK dependency added. Removed `twilio` from `requirements.txt`
+- [x] Env vars renamed everywhere they appeared: `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_FROM_NUMBER` → `CLICKSEND_USERNAME` / `CLICKSEND_API_KEY` / `CLICKSEND_FROM_NUMBER` (`.env.example`, `docker-compose.yml`; the since-deleted `render.yaml` was also updated before its removal)
+- [x] Admin surfaces updated: `admin_platform_system.py`'s `/admin/platform/system/health` check and `admin.py`'s `/admin/integrations/status` endpoint both renamed their `twilio` key to `clicksend`; `AdminPlatform.jsx` needed no change (renders check keys generically), but `Admin.jsx`'s Integrations tab card was hardcoded to "Twilio" and was updated to "ClickSend"
+- [x] `routers/sms.py`'s Twilio-trial-account OTP failure message rewritten for ClickSend; `Landing.jsx`'s feature-grid copy ("via Mailgun + Twilio") updated to ClickSend
+- [x] Backend tests (`test_round3.py`, `test_round4.py`) updated — assertions against the integrations-status response and code comments referencing Twilio trial numbers
+- [x] **Toll-free registration compliance** (new US carrier rules effective Sept 1, 2026, per ClickSend's US/Canada T&C + Privacy Policy guidance):
+  - `Register.jsx` — added an unchecked-by-default SMS opt-in checkbox directly below the phone field: business name, "message frequency varies," "message and data rates may apply," STOP/HELP instructions, links to Terms & Privacy. Optional — not required to submit the form
+  - `Profile.jsx` SMS card — full opt-in disclosure added around the existing SMS toggle (brand name, frequency, rates, HELP/STOP, clickable Terms/Privacy links opening in a new tab), matching ClickSend's required-elements checklist
+  - `PrivacyPolicy.jsx` / `Terms.jsx` (app) — SMS sections rewritten with explicit Data Collection / Usage / Sharing / Opt-Out / Rates subsections (including the required "we do not sell or share your number for third-party marketing" line); Twilio references swapped to ClickSend; the "⚠ ATTORNEY REVIEW REQUIRED" header comment removed from both files per Kyle's request
+  - `ijt-marketing/app/terms/page.tsx` + `app/privacy/page.tsx` — previously had **no** SMS-specific language at all; added matching "SMS text messaging terms" / "SMS communications" sections, reusing the pages' existing `{site.company}`/`{site.name}` tokens
+  - Backend consent wiring: `RegisterIn.sms_opt_in` (core.py) flows through `auth.py`'s `/auth/register` handler into `profile_doc.sms_enabled`, plus a `sms_opt_in_at` timestamp and an `SMS_OPT_IN` audit-log entry when checked — consent evidence for carrier/TCPA purposes. No SMS is ever sent from an opted-in-but-unverified profile — the reminder-send path still gates on `sms_verified` (OTP), so this only records consent, it doesn't bypass verification
+  - Provided Kyle with the "describe who you message and why" carrier-application text and 3 representative sample messages (1 OTP + 2 reminder) for the ClickSend toll-free application form
+- [x] `render.yaml` deleted by Kyle (Aug 19) — see Quick Reference and Known Bugs
+
 ### Infrastructure
 - [x] React/Vite frontend deployed to Vercel (illinoisjobtracker.app)
 - [x] FastAPI backend deployed to DigitalOcean via Dockerfile
@@ -140,7 +155,7 @@ Earlier root cause found and fixed: `subscription.py` content had been accidenta
 - [x] CSV export (ephemeral, never stored)
 - [x] Loading/error/empty/success states on WeekDetail page
 - [x] Email reminders via Mailgun (Sun/Wed/Fri/Sat schedule)
-- [x] SMS reminders via Twilio (toll-free pending verification)
+- [x] SMS reminders via ClickSend (toll-free number registration submitted — pending carrier approval)
 - [x] AI screenshot import — Google Gemini 2.0 Flash
 - [x] Admin panel with RBAC (PlatformRole), audit log — impersonation feature dropped during the Aug 17-19 integration (dead reference, module never existed)
 - [x] Invite-only signup with 14-day single-use codes
@@ -188,8 +203,8 @@ Earlier root cause found and fixed: `subscription.py` content had been accidenta
 - [x] How It Works page — 4 steps, Illinois blue heading, correct wording, Start Free linked to app
 - [x] About page — Illinois blue heading, Try It Free links to landing
 - [x] Contact page — full form (First/Last Name, email validation, 10-digit phone, reason dropdown, message), Next.js server-side proxy to backend, two confirmation emails, reference numbers (IJT-XXX-000000)
-- [x] Privacy Policy — updated for three tiers, AI ephemerality, GDPR/CCPA, Case Worker data handling
-- [x] Terms of Service — updated for three tiers, trial terms, one-trial-per-person rule
+- [x] Privacy Policy — updated for three tiers, AI ephemerality, GDPR/CCPA, Case Worker data handling; gained a new SMS communications section Aug 19-20 (see ClickSend migration above)
+- [x] Terms of Service — updated for three tiers, trial terms, one-trial-per-person rule; gained a new SMS text-messaging terms section Aug 19-20 (see ClickSend migration above)
 - [x] Refund Policy — all sales final, cancel-manually language, seat change proration
 - [x] IDES Disclaimer — Not A Government Service in Illinois blue
 - [x] Unsubscribe page — branded custom page at /unsubscribe
@@ -251,8 +266,9 @@ Earlier root cause found and fixed: `subscription.py` content had been accidenta
 
 ### Infrastructure
 - [ ] Doppler — MongoDB re-setup
-- [ ] Doppler — Twilio re-setup
-- [ ] Twilio toll-free verification — follow up if not approved within 7 business days
+- [ ] Doppler — set `CLICKSEND_USERNAME` / `CLICKSEND_API_KEY` / `CLICKSEND_FROM_NUMBER`, replacing the old `TWILIO_*` secrets
+- [ ] ClickSend toll-free number registration — submitted, awaiting carrier approval; follow up if not approved within the usual review window
+- [ ] Once approved, decide whether to update the live SMS message templates in `core.py` (OTP + reminder text) to literally include "Reply STOP to opt out" — the sample messages submitted to ClickSend include it, but the running code currently doesn't (see Open Decisions)
 
 ---
 
@@ -291,13 +307,14 @@ Earlier root cause found and fixed: `subscription.py` content had been accidenta
 ### Marketing Site — Remaining
 - [ ] Verify all pages live and links working end-to-end
 - [ ] Test contact form emails arriving consistently after Mailgun tracking changes
+- [ ] Verify the new SMS T&C/Privacy sections render correctly on the live marketing site (added Aug 19-20, not yet deployed/verified in production)
 
 ### Infrastructure / Ops
 - [ ] ADJ034F.pdf — place real state form at APP/backend/assets/ADJ034F.pdf (download from ides.illinois.gov)
 - [ ] Google Cloud billing — attach billing to unblock Gemini free tier quota
 - [ ] Inline Stripe Elements card form (replace Checkout redirect)
 - [ ] Fix db.claimants → db.profiles at server.py line 431 (orphaned collection bug) — note: current backend is split into routers, confirm this line reference still applies to whichever file now owns that logic
-- [ ] Rate limiting on SMS sends to prevent abuse
+- [x] Rate limiting on SMS sends to prevent abuse — already implemented via `SMS_MIN_INTERVAL_MINUTES` in `send_sms_rate_limited()` (core.py); confirmed while working on the ClickSend migration (Aug 19-20)
 - [x] Split server.py into FastAPI routers — done. `APP/backend` is now `core.py` + `server.py` (composition root) + `routers/*.py`; the old monolith is backed up at `APP/server_monolith.py.bak`
 
 ---
@@ -311,6 +328,7 @@ Earlier root cause found and fixed: `subscription.py` content had been accidenta
 | Partial seat removal behavior | When a CW is removed and remaining CWs take their claimants — auto-even-split or manual choice confirmed. Edge case: what happens to claimants if org drops from e.g. 5 seats to 3 to cut costs? Blocked — downgrade action. |
 | Annual billing UI | Design confirmed, build after first paying customers |
 | Layer 2 IP anomaly detection | Deferred — revisit when user base grows |
+| SMS message template STOP/HELP language | Open — the 3 sample messages submitted to ClickSend for toll-free approval include "Reply STOP to opt out," but the live OTP/reminder templates in `core.py` don't yet. Decide whether to update the running templates to match what was submitted. |
 
 ---
 
@@ -327,9 +345,9 @@ Earlier root cause found and fixed: `subscription.py` content had been accidenta
 | MAILGUN_API_KEY | ✅ Set |
 | MAILGUN_DOMAIN | ✅ Set (mail.illinoisjobtracker.app) |
 | MAILGUN_FROM | ✅ Set |
-| TWILIO_ACCOUNT_SID | ⚠ Re-setup needed (Doppler) |
-| TWILIO_AUTH_TOKEN | ⚠ Re-setup needed (Doppler) |
-| TWILIO_FROM_NUMBER | ⚠ Re-setup needed (Doppler) |
+| CLICKSEND_USERNAME | ⚠ Not yet set — replaces TWILIO_ACCOUNT_SID (Doppler) |
+| CLICKSEND_API_KEY | ⚠ Not yet set — replaces TWILIO_AUTH_TOKEN (Doppler) |
+| CLICKSEND_FROM_NUMBER | ⚠ Not yet set — pending ClickSend toll-free approval; replaces TWILIO_FROM_NUMBER (Doppler) |
 | GEMINI_API_KEY | ⚠ Needs billing attached in Google Cloud |
 | FRONTEND_URL | ✅ Set (https://illinoisjobtracker.app) |
 | CORS_ORIGINS | ✅ Updated (includes .com and .app domains) |
@@ -374,8 +392,11 @@ Earlier root cause found and fixed: `subscription.py` content had been accidenta
 | routers/admin_platform_*.py | New (Aug 17-19) — users, subscriptions, comps, refunds, system, compliance |
 | admin_rbac_migration.py | New (Aug 17-19) — backfills platform_role, creates indexes. Not yet run against production |
 | bootstrap_admin.py | New (Aug 17-19) — promotes one user to platform_admin via BOOTSTRAP_ADMIN_EMAIL. Not yet run against production |
+| core.py | Shared app state, models, helpers. `send_sms()` migrated to ClickSend's REST API (Aug 19-20); `RegisterIn`/`Profile` models gained `sms_opt_in` / `sms_opt_in_at` |
+| routers/sms.py | OTP send/verify endpoints — Twilio-trial error message rewritten for ClickSend (Aug 19-20) |
+| routers/auth.py | Registration handler — now seeds SMS opt-in consent (`sms_enabled`, `sms_opt_in_at`, `SMS_OPT_IN` audit log entry) from the Register-page checkbox (Aug 19-20) |
 | assets/ADJ034F.pdf | ⚠ MISSING — must be placed manually |
-| requirements.txt | Python dependencies |
+| requirements.txt | Python dependencies — `twilio` removed Aug 19-20 (ClickSend goes over the existing `requests` dependency) |
 | Dockerfile | Container definition |
 
 ### Frontend — Main App (APP/frontend/src/)
@@ -392,6 +413,11 @@ Earlier root cause found and fixed: `subscription.py` content had been accidenta
 | components/DeleteAccountSection.jsx | Delete account UI |
 | context/AuthContext.jsx | Auth state, sessionStorage |
 | lib/api.js | Axios client + JWT interceptor |
+| pages/Register.jsx | Updated (Aug 19-20) — added unchecked-by-default SMS opt-in checkbox below the phone field, for ClickSend toll-free compliance |
+| pages/Profile.jsx | Updated (Aug 19-20) — SMS card now carries full opt-in disclosure (brand name, frequency, rates, STOP/HELP, Terms/Privacy links) around the existing SMS toggle |
+| pages/PrivacyPolicy.jsx, pages/Terms.jsx | Updated (Aug 19-20) — SMS sections rewritten for ClickSend (Data Collection/Usage/Sharing/Opt-Out); "⚠ ATTORNEY REVIEW REQUIRED" header comment removed |
+| pages/Admin.jsx | Updated (Aug 19-20) — Integrations tab SMS provider card changed from hardcoded "Twilio" to "ClickSend" |
+| pages/Landing.jsx | Updated (Aug 19-20) — feature-grid copy "Mailgun + Twilio" → "Mailgun + ClickSend" |
 
 ### Marketing Site (ijt-marketing/)
 | File | Purpose |
@@ -407,6 +433,7 @@ Earlier root cause found and fixed: `subscription.py` content had been accidenta
 | app/contact/page.tsx | Contact form — posts to Next.js proxy |
 | app/api/contact/route.ts | Next.js server-side proxy → FastAPI backend (eliminates CORS) |
 | app/unsubscribe/page.tsx | Branded unsubscribe confirmation page |
+| app/terms/page.tsx, app/privacy/page.tsx | Updated (Aug 19-20) — gained new SMS text-messaging sections (previously had none), for ClickSend toll-free compliance |
 
 ---
 
@@ -417,7 +444,7 @@ Earlier root cause found and fixed: `subscription.py` content had been accidenta
 | db.claimants → db.profiles at server.py line 431 | P1 | Open — fix before production claimants. ⚠ confirm this line reference still applies given the router split |
 | ADJ034F.pdf missing from assets/ | P0 | Must be placed manually (download from ides.illinois.gov) |
 | Gemini AI hitting quota immediately | P1 | Blocked on Google Cloud billing |
-| Twilio toll-free not verified | P2 | Submitted — follow up if >7 days |
+| ClickSend toll-free number not yet approved | P2 | Registration submitted (migrated from Twilio Aug 19-20) — follow up if not approved within the usual review window |
 | Git divergence between PC and Mac | Resolved | Root cause was nested duplicate repo, now deleted. Still: always pull before pushing |
 | Backend deploy failing / auto-rollback | P0 | Code verified correct locally. Suspected DigitalOcean stale build cache. Try requirements.txt cache-bust. Confirm still relevant now that the backend has been split into `core.py`/`routers/*.py` |
 | CORS blocking error responses | Fixed (pending deploy) | CORSMiddleware was registered AFTER security_headers middleware, so error responses lost CORS headers. Reordered so CORS wraps outermost |
@@ -425,6 +452,7 @@ Earlier root cause found and fixed: `subscription.py` content had been accidenta
 | admin_portal's original adminApi.js used cookie auth (`credentials:"include"`) | Fixed (Aug 17-19) | This app uses Bearer JWT via axios interceptor, not cookies — every admin-platform request would have silently 401'd. Rewritten to use the shared api client before it ever shipped |
 | Disputes.py had unshipped syntax errors | Fixed (Aug 17-19) | `tags+[...]` instead of `=`, `duct` typo for `dict`, dangling `from server import db` — rewritten as a pure engine module |
 | Stale Render blueprint/docs implied the backend was hosted on Render | Fixed (Aug 19) | `APP/render.yaml` was never an active deploy — Render was never actually live. Deleted it along with `docs/DEPLOYMENT.md`/`docs/DEPLOYMENT.html` (both written entirely around Render); fixed the one line in `README.md` that referenced it. DigitalOcean is the confirmed live backend host |
+| Stale Twilio references throughout backend, admin UI, and legal pages | Fixed (Aug 19-20) | Full sweep after switching SMS providers: `core.py` send_sms, requirements.txt, .env.example, docker-compose.yml, admin_platform_system.py, admin.py, Admin.jsx, Landing.jsx, tests — all migrated to ClickSend. App and marketing-site legal pages gained ClickSend-specific SMS compliance language for the Sept 1, 2026 toll-free carrier rules |
 
 ---
 
