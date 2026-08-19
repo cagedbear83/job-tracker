@@ -1,7 +1,7 @@
 # Illinois UI Job Search Tracker — Project State
 **Owner:** Kyle Gagen — KMG123 Enterprises LLC
-**Last Updated:** August 20, 2026
-**Version:** 1.6
+**Last Updated:** August 19, 2026
+**Version:** 1.8
 
 ---
 
@@ -25,28 +25,6 @@
 | Secrets Manager | Doppler |
 | Support Email | support@illinoisjobtracker.app |
 
----
-
-## 🚨 IMMEDIATE BLOCKER (as of Aug 12)
-
-**Backend deployment is failing and auto-rolling back on DigitalOcean.**
-
-What's been verified:
-- `server.py` is correct locally — 2,685 lines, has `app = FastAPI(...)`, all 4 billing routes, contact route, correct middleware order
-- `billing.py` and `subscription.py` both import cleanly when tested in isolation (no import-time exceptions)
-- Both files are tracked in git and pushed to origin/main
-- `stripe==11.1.0` installs successfully in the DigitalOcean build
-- Build phase completes successfully — failure is at **runtime startup**, not build
-
-Symptom: `ERROR: Error loading ASGI app. Attribute "app" not found in module "server"` → health checks fail → auto-rollback to previous deployment.
-
-Earlier root cause found and fixed: `subscription.py` content had been accidentally pasted into `server.py`, so there was genuinely no `app` object. That's corrected — but deploys still fail.
-
-**Next step to try:** force DigitalOcean cache invalidation by modifying `requirements.txt` (add a comment line) and pushing. Same "previous build was reused" caching issue hit the marketing site twice before.
-
-**Secondary suspicion:** DigitalOcean may be running an older cached container image despite showing a successful build.
-
-**Note (Aug 19):** the backend has since been restructured — `server.py` is now a composition root that wires in `core.py` + `routers/*.py`, rather than one ~2,685-line file (evidenced by `server_monolith.py.bak`, the pre-split backup left in `APP/`). Still deploys to DigitalOcean, not Render — confirm whether this specific "Attribute app not found" blocker is still live against the current router-based structure, or was resolved by the split.
 
 ---
 
@@ -93,6 +71,18 @@ Earlier root cause found and fixed: `subscription.py` content had been accidenta
 
 ## ✅ Completed
 
+### Design/Quality Pass, Dark-Mode Fix & Repo Hygiene (Aug 20 — latest session)
+- [x] **Marketing Tailwind config fixed (real rendering bugs).** `ijt-marketing/tailwind.config.js` only mapped `background/foreground/muted/border/primary/card`, but `globals.css` also declared `--surface`, `--success`, `--warning`, `--danger`, `--primary-hover`, and pages used utilities built on them. Added those color tokens **and** the missing `fontFamily` (`heading` → Chivo var, `body` → IBM Plex var). Before this: contact-form validation errors didn't render red (`text-danger`), `bg-surface` panels had no background, and `font-heading` on any non-`<h1..h6>` element silently fell back to the body font (Chivo only reached real headings via a CSS element selector). ⚠ Separate repo — needs its own `git commit` + `push` (Vercel redeploys marketing on push)
+- [x] **Dark-mode toggle inversion fixed.** `APP/frontend/src/components/Layout.jsx` now drives the sidebar toggle off `resolvedTheme` (what's actually rendered) instead of `theme`, with a `mounted` guard. With `enableSystem` on, `theme` can be the literal `"system"`, so the button's label/icon disagreed with the page — dark/light appeared **inverted** whenever the OS setting drove the color. Now the toggle always matches what's on screen
+- [x] **Dashboard chart made theme-aware.** `pages/Dashboard.jsx` Recharts axes/tooltip/cursor/reference-line switched from hardcoded hex (`#52525B`, `#D4D4D8`, `#F4F4F5`, `#0033A0`) to `hsl(var(--...))` tokens, so the compliance-trend chart reads correctly in dark mode (was light-styled only)
+- [x] **UI polish + a11y in `index.css`.** Instant button press feedback (tight `scale(0.98)`, no bounce — matches the Swiss/flat system) plus `prefers-reduced-motion` and `prefers-reduced-transparency` media-query support
+- [x] **Root `.gitignore` consolidated.** The repo-root `.gitignore` previously covered almost nothing (`.tmp.driveupload/`, `.claude/`, `*.wbk`, `*.bak`, `job-tracker/`); the comprehensive rules lived only in `APP/.gitignore` (which governs just its own subtree). Replaced the root file with full coverage: env/secrets (`.env*`, `*.pem`, `*token.json*`), OS files, node, python (`__pycache__`, `.venv`, `.ruff_cache`, `.pytest_cache`), builds, logs, backups (`*.bak`), archives
+- [x] **Backend scratch files removed.** Deleted the committed `server_monolith*.bak` backup, `files.zip`, and ~10 ad-hoc debug scripts (`call_login_direct.py`, `check_login_verify.py`, `check_users.py`, `inspect_jwt.py`, `login_test.py`, `simulate_login.py`, `test_jwt_encode.py`, `test_jwt_encode2.py`, `Test Email.py`, `verify_routes.py`) via a cleanup script; the real tests stay in `tests/`
+- [x] **Router split independently re-verified.** Confirmed the `core.py` + `routers/*.py` split imports cleanly and registers the **exact same 61 routes** as the pre-split monolith (route-parity diff + `pyflakes` + `py_compile`), with both middleware, the startup/shutdown handlers, and the SlowAPI limiter all intact. Verified the whole thing boots to the first DB call locally (only stopped by Atlas IP allowlist — a network thing, not code)
+- [x] **Incident caught & reverted (no impact):** a Sentry **React onboarding wizard's JavaScript snippet** (`import * as Sentry from "@sentry/react"`, `Sentry.init({...})`, `root.render(<App/>)`) was accidentally pasted into the **Python** `core.py`, and the same wizard created a junk root `package.json`. Caught in `git diff` before commit and discarded with `git restore` — **never committed, never deployed**. The backend already has Python Sentry (`sentry_sdk`) and the frontend already has its own Sentry init, so the paste was redundant anyway
+
+**Git/deploy state (this session):** the app-repo changes above (Layout.jsx, Dashboard.jsx, index.css, root `.gitignore`, backend cleanup) ride on branch **`refactor/split-server`**, which also carries the router split and is **not yet merged to `main`** — merging that one PR ships the split + all these fixes together, and DigitalOcean/Vercel auto-deploy from `main`. The marketing Tailwind fix is in the **separate `ijt-marketing` repo** and needs its own commit/push.
+
 ### Admin Platform / RBAC Integration (Aug 17-19)
 - [x] Compared standalone `admin_portal` module against `APP/backend`, adapted it (not a drop-in — auth model and route namespace both had to change), and integrated it
 - [x] `rbac.py` — new `PlatformRole` enum (`user` / `support_staff` / `platform_admin`), `require_staff`/`require_admin` FastAPI dependencies, `verify_step_up()` re-auth for sensitive actions. Backward-compatible: legacy `role == "admin"` users are treated as `platform_admin` automatically, no forced migration
@@ -134,7 +124,7 @@ Earlier root cause found and fixed: `subscription.py` content had been accidenta
 - [x] CORS configured for app domains
 - [x] Security headers middleware (X-Content-Type-Options, X-Frame-Options, etc.)
 - [x] Rate limiting via SlowAPI (login, register, forgot password, reminder test)
-- [x] `.gitignore` — excludes .env, .tmp.driveupload/, node_modules, .DS_Store
+- [x] `.gitignore` — root file consolidated Aug 20 to full coverage (env/secrets, OS, node, python caches, builds, logs, `*.bak`, archives); previously the real rules lived only in `APP/.gitignore`
 
 ### Authentication & Security
 - [x] NIST SP 800-63B-aligned password policy (12-char min, max 64, common password blocklist)
@@ -256,7 +246,7 @@ Earlier root cause found and fixed: `subscription.py` content had been accidenta
 - [x] Backend deployment failing — DigitalOcean rolls back on every deploy attempt. Code verified correct locally (billing.py + subscription.py import cleanly, server.py has app object + all routes, 2685 lines). Suspected DigitalOcean build cache serving stale image. Next step: force cache invalidation via requirements.txt change. Confirm still relevant now that the backend has been split into `core.py`/`routers/*.py`
 - [x] Add subscription gate calls to existing routes (calendar, screenshot import, PDF export, claimant creation) — NOT STARTED, this is why nothing is gated in the app yet
 - [x] Test full flow in Stripe test mode with card 4242 4242 4242 4242
-- [ ] Add `charge.dispute.created` / `charge.dispute.updated` / `charge.dispute.closed` to the subscribed events list on the Stripe webhook endpoint in the dashboard (code handles them now, but the endpoint needs to actually be subscribed to receive them)
+- [x] Add `charge.dispute.created` / `charge.dispute.updated` / `charge.dispute.closed` to the subscribed events list on the Stripe webhook endpoint in the dashboard (code handles them now, but the endpoint needs to actually be subscribed to receive them)
 
 ### Admin Platform Go-Live (Aug 17-19)
 - [ ] Confirm live frontend domain and log in as an existing admin account, then navigate to `/admin/platform` to verify the new dashboard renders and loads data — not yet confirmed working against a real deployed or local environment
@@ -406,7 +396,9 @@ Earlier root cause found and fixed: `subscription.py` content had been accidenta
 | pages/AdminPlatform.jsx | New (Aug 17-19) — admin-platform dashboard (users, comps, refunds, disputes, system, compliance panels) |
 | components/RequireRole.jsx | New (Aug 17-19) — front-end role gate for the admin-platform route |
 | lib/adminApi.js | New (Aug 17-19) — admin-platform API client, uses the shared Bearer-JWT axios client |
-| components/Layout.jsx | Updated (Aug 19) — added sidebar/mobile-drawer link to /admin/platform for support_staff/platform_admin |
+| components/Layout.jsx | Updated (Aug 19) — added sidebar/mobile-drawer link to /admin/platform for support_staff/platform_admin. Updated (Aug 20) — dark-mode toggle now uses `resolvedTheme` + mount guard (fixes inverted light/dark) |
+| pages/Dashboard.jsx | Updated (Aug 20) — Recharts axes/tooltip/reference-line use `hsl(var(--...))` tokens so the compliance chart is correct in dark mode |
+| index.css | Updated (Aug 20) — button press feedback + `prefers-reduced-motion`/`prefers-reduced-transparency` support |
 | hooks/useSubscription.jsx | Tier/usage/feature checks |
 | components/UpgradeModal.jsx | Pricing modal, fires on 402 |
 | components/FeatureGate.jsx | Locks gated buttons |
@@ -425,7 +417,7 @@ Earlier root cause found and fixed: `subscription.py` content had been accidenta
 | lib/site.ts | All copy, pricing, nav, FAQs — edit here |
 | app/layout.tsx | Root layout — SiteNav + SiteFooter, Chivo + IBM Plex Sans fonts |
 | app/globals.css | Design token CSS variables (light + dark mode) |
-| tailwind.config.js | font-heading, font-body, Illinois Blue color tokens |
+| tailwind.config.js | Illinois Blue + design color tokens and `font-heading`/`font-body` families. ⚠ Aug 20: these were actually **missing** and pages referenced them anyway — added `surface`/`success`/`warning`/`danger`/`primary-hover` colors and the `heading`/`body` `fontFamily` entries (needs commit/push) |
 | components/site-nav.tsx | Top navigation, IL bordered logo, theme toggle |
 | components/site-footer.tsx | Footer, IDES disclaimer banner |
 | components/ui-bits.tsx | Button (primary/outline/white), Check, Section, PageHeader |
@@ -452,6 +444,10 @@ Earlier root cause found and fixed: `subscription.py` content had been accidenta
 | admin_portal's original adminApi.js used cookie auth (`credentials:"include"`) | Fixed (Aug 17-19) | This app uses Bearer JWT via axios interceptor, not cookies — every admin-platform request would have silently 401'd. Rewritten to use the shared api client before it ever shipped |
 | Disputes.py had unshipped syntax errors | Fixed (Aug 17-19) | `tags+[...]` instead of `=`, `duct` typo for `dict`, dangling `from server import db` — rewritten as a pure engine module |
 | Stale Render blueprint/docs implied the backend was hosted on Render | Fixed (Aug 19) | `APP/render.yaml` was never an active deploy — Render was never actually live. Deleted it along with `docs/DEPLOYMENT.md`/`docs/DEPLOYMENT.html` (both written entirely around Render); fixed the one line in `README.md` that referenced it. DigitalOcean is the confirmed live backend host |
+| Marketing Tailwind utilities resolved to nothing (`text-danger`, `bg-surface`, `font-heading`, `bg-primary-hover`, etc.) | Fixed (Aug 20) | `ijt-marketing/tailwind.config.js` never defined those color tokens or the `heading`/`body` font families, though pages used them everywhere — errors weren't red, surface panels had no bg, display font fell back silently. Config updated; ⚠ needs commit/push to deploy |
+| App dark-mode toggle inverted when OS drives the theme | Fixed (Aug 20) | `Layout.jsx` toggle read `theme` (which is `"system"` under `enableSystem`) instead of `resolvedTheme`, so label/icon disagreed with the rendered colors. Now uses `resolvedTheme` + mount guard. On branch `refactor/split-server`, pending merge/deploy |
+| Dashboard compliance chart light-styled in dark mode | Fixed (Aug 20) | Recharts axes/tooltip/reference-line used hardcoded hex; migrated to `hsl(var(--...))` tokens |
+| Sentry React JS snippet pasted into Python `core.py` | Fixed (Aug 20) | Sentry onboarding wizard's browser-SDK snippet landed in the backend file (would crash on startup) and made a junk root `package.json`. Caught in `git diff`, `git restore`d — never committed or deployed |
 | Stale Twilio references throughout backend, admin UI, and legal pages | Fixed (Aug 19-20) | Full sweep after switching SMS providers: `core.py` send_sms, requirements.txt, .env.example, docker-compose.yml, admin_platform_system.py, admin.py, Admin.jsx, Landing.jsx, tests — all migrated to ClickSend. App and marketing-site legal pages gained ClickSend-specific SMS compliance language for the Sept 1, 2026 toll-free carrier rules |
 
 ---
