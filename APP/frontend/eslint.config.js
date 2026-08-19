@@ -36,6 +36,11 @@ export default [
       ...jsxA11yPlugin.configs.recommended.rules,
       // Relax a few rules that are overly strict for a single-user admin tool
       "jsx-a11y/no-autofocus": "warn",
+      // Default depth (2) doesn't reach text nested inside wrapper <span>s,
+      // e.g. Profile.jsx's SMS-consent label (icon+text span, then a
+      // separate disclosure-text span) — both are legitimately part of the
+      // label's accessible name via nesting.
+      "jsx-a11y/label-has-associated-control": ["error", { depth: 4 }],
     },
   },
   {

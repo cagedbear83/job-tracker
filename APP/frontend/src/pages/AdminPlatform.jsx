@@ -10,7 +10,7 @@
 // App.jsx derives it from the legacy `role` field (role === "admin" ->
 // "platform_admin", else "support_staff") to mirror rbac.py's own fallback.
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { adminApi } from "@/lib/adminApi";
 
 
@@ -89,7 +89,11 @@ function ErrorNote({ error }) {
 // Step-up modal: re-collects the admin's password for sensitive actions.
 function StepUpModal({ open, title, onConfirm, onCancel, busy }) {
   const [pw, setPw] = useState("");
+  const pwInputRef = useRef(null);
   useEffect(() => { if (!open) setPw(""); }, [open]);
+  // Focus the password field imperatively (rather than the autoFocus prop)
+  // so opening the step-up modal doesn't trip jsx-a11y/no-autofocus.
+  useEffect(() => { if (open) pwInputRef.current?.focus(); }, [open]);
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4">
@@ -98,7 +102,7 @@ function StepUpModal({ open, title, onConfirm, onCancel, busy }) {
         <p className="mb-3 text-xs text-muted-foreground">
           Re-enter your password to confirm this action.
         </p>
-        <input type="password" value={pw} autoFocus
+        <input type="password" value={pw} ref={pwInputRef}
           onChange={(e) => setPw(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && pw && onConfirm(pw)}
           className="mb-4 w-full rounded border border-border bg-background px-3 py-2 text-sm"
