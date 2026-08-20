@@ -26,7 +26,16 @@ def H(token):
 
 # ---- auth ----
 def test_register_duplicate_or_new():
-    r = requests.post(f"{API}/auth/register", json={"email": "TEST_user1@example.com", "password": "Lake Sunrise Coffee 42!", "name": "T"}, timeout=30)
+    # first_name/last_name/phone/dob/address/city/zip are required as of the
+    # Aug 20 Register-page work (core.py's RegisterIn) — a request missing
+    # any of them now gets a 422 instead of reaching the duplicate-email
+    # check, so this payload needs all of them filled in to still exercise
+    # the duplicate-vs-new-email path this test is actually about.
+    r = requests.post(f"{API}/auth/register", json={
+        "email": "TEST_user1@example.com", "password": "Lake Sunrise Coffee 42!", "name": "T",
+        "first_name": "Test", "last_name": "User", "phone": "3125550100", "dob": "1990-01-01",
+        "address": "123 Main St", "city": "Chicago", "zip": "60601",
+    }, timeout=30)
     assert r.status_code in (200, 400)
     if r.status_code == 200:
         d = r.json()
