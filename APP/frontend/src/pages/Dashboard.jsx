@@ -219,6 +219,13 @@ export default function Dashboard() {
                     fontSize: 12,
                   }}
                   labelStyle={{ color: "hsl(var(--popover-foreground))" }}
+                  // Recharts styles the tooltip box (contentStyle) and the
+                  // "Week of ..." label (labelStyle) independently from the
+                  // "Compliant: X contacts" item line below it — that line
+                  // has its own itemStyle, defaulting to hardcoded black
+                  // (#000) if left unset. That's why it stayed black in dark
+                  // mode even though the box and label correctly went dark.
+                  itemStyle={{ color: "hsl(var(--popover-foreground))" }}
                   formatter={(v, n, p) => [
                     `${v} contacts`,
                     p?.payload?.compliant ? "Compliant" : "Non-compliant",
