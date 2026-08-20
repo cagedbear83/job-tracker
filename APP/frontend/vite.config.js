@@ -33,9 +33,45 @@ export default defineConfig({
         ],
       },
       workbox: {
-        // Cache the SPA shell and static assets; let API calls go network-first
-        globPatterns: ["**/*.{js,css,html,woff2}"],
+        // Precache JS/CSS/fonts for a fast offline-capable shell, but NOT
+        // html. html used to be in this globPattern, which let Workbox's
+        // precache-and-route register "/index.html" (and "/") as a
+        // cache-first route — once a service worker was installed, it kept
+        // serving whatever HTML+JS bundle was current AT INSTALL TIME,
+        // forever, regardless of what was actually deployed, until that
+        // exact service worker instance happened to get replaced through
+        // its own update cycle.
+        //
+        // This is exactly what broke the Aug 20 session-security fix for a
+        // returning visitor: a browser that had installed a service worker
+        // any time before that fix shipped kept precache-serving the OLD
+        // frontend bundle (the one that stored a 7-day JWT in localStorage)
+        // even after the NEW backend + frontend session logic (10-min
+        // access token, httpOnly rotating refresh cookie, 30-min idle /
+        // 12h absolute expiry) was live — so a fully-closed-and-reopened
+        // Chrome could still load the stale bundle, find the old,
+        // still-unexpired localStorage token, and render "logged in" days
+        // after the fix shipped, without the new code ever running.
+        //
+        // Fix: html is no longer precached at all; navigations instead use
+        // the NetworkFirst runtime-caching entry below, so every visit
+        // fetches the current index.html (and therefore whichever JS
+        // bundle is actually deployed) from the network first, falling
+        // back to the last-cached shell only if the network is
+        // unreachable. JS/CSS/fonts stay precached — those are
+        // content-hashed by Vite, so a stale cached asset is never served
+        // under a URL a new deploy would also use.
+        globPatterns: ["**/*.{js,css,woff2}"],
+        navigateFallback: null,
         runtimeCaching: [
+          {
+            urlPattern: ({ request }) => request.mode === "navigate",
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "html-shell",
+              networkTimeoutSeconds: 3,
+            },
+          },
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
             handler: "CacheFirst",
