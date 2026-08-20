@@ -67,6 +67,22 @@ const STRENGTH_BARS = [
   { min: 5, active: "bg-[#16A34A]" },
 ];
 
+// Formats a phone number as the user types: (XXX) XXX-XXXX. Strips
+// everything but digits first so pasted/partial input (dashes, spaces,
+// a leading "1") doesn't break the mask, and caps at 10 digits.
+function formatPhone(value) {
+  const digits = value.replace(/\D/g, "").slice(0, 10);
+  if (digits.length === 0) return "";
+  if (digits.length < 4) return `(${digits}`;
+  if (digits.length < 7) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+}
+
+// Small red asterisk for required-field labels.
+function Req() {
+  return <span className="text-destructive ml-0.5">*</span>;
+}
+
 export default function Register() {
   const { register } = useAuth();
   const navigate = useNavigate();
@@ -79,6 +95,10 @@ export default function Register() {
   const [city, setCity] = useState("");
   const [zip, setZip] = useState("");
   const [claimantId, setClaimantId] = useState("");
+  // "Do you know your next certification date?" — silently seeds 26
+  // bi-weekly certification events on the Calendar when answered "yes".
+  const [knowsNextCertDate, setKnowsNextCertDate] = useState("na");
+  const [nextCertDate, setNextCertDate] = useState("");
   const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -98,16 +118,40 @@ export default function Register() {
   const passwordTooLong = form.password.length > 64;
   const passwordReady = form.password.length >= 12 && strength.score >= 2 && !passwordTooLong;
   const passwordsMatch = form.password === confirmPassword;
-  const canSubmit = passwordReady && passwordsMatch && !busy;
+
+  const REQUIRED_FIELDS = [
+    [firstName, "First Name"],
+    [lastName, "Last Name"],
+    [phone, "Phone"],
+    [dob, "Date of Birth"],
+    [address, "Address"],
+    [city, "City"],
+    [zip, "ZIP"],
+  ];
+  const requiredFieldsFilled = REQUIRED_FIELDS.every(([val]) => val && val.trim().length > 0);
+  const certDateOk = knowsNextCertDate !== "yes" || nextCertDate.trim().length > 0;
+
+  const canSubmit =
+    passwordReady && passwordsMatch && requiredFieldsFilled && certDateOk && !busy;
 
   const onSubmit = async (e) => {
     e.preventDefault();
+    for (const [val, label] of REQUIRED_FIELDS) {
+      if (!val || !val.trim()) {
+        toast.error(`${label} is required.`);
+        return;
+      }
+    }
     if (!passwordReady) {
       toast.error(strength.label || "Password does not meet requirements.");
       return;
     }
     if (!passwordsMatch) {
       toast.error("Passwords do not match.");
+      return;
+    }
+    if (!certDateOk) {
+      toast.error("Enter your next certification date, or choose No / N/A.");
       return;
     }
     setBusy(true);
@@ -125,6 +169,8 @@ export default function Register() {
         city: city,
         zip: zip,
         claimant_id: claimantId,
+        knows_next_cert_date: knowsNextCertDate,
+        next_certification_date: knowsNextCertDate === "yes" ? nextCertDate : null,
       });
       toast.success("Account created. Please verify your email.");
       navigate("/login");
@@ -136,14 +182,36 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-8">
+    <div className="min-h-screen grid grid-cols-1 md:grid-cols-2 bg-background">
+      <div className="hidden md:block relative bg-primary">
+        <div className="absolute inset-0 p-12 flex flex-col justify-between text-white">
+          <div className="brand-bar w-32" />
+          <div>
+            <div className="kbd-label text-white/70">State of Illinois</div>
+            <h1 className="font-display font-black text-5xl lg:text-6xl tracking-tighter mt-2">
+              Job Search<br />Tracker
+            </h1>
+            <p className="text-white/80 mt-4 max-w-md leading-relaxed">
+              Stay compliant with Illinois Unemployment Insurance work-search requirements.
+              Log contacts, certify weeks, and export IDES-style reports.
+            </p>
+          </div>
+          <div className="text-xs text-white/60">
+            Unofficial tool — not affiliated with IDES. Mirrors ADJ034F form structure.
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-center p-8">
       <form
         onSubmit={onSubmit}
         className="w-full max-w-md space-y-6"
         data-testid="register-form"
       >
-        <div>
+        <div className="md:hidden">
           <div className="brand-bar w-20 mb-4" />
+        </div>
+        <div>
           <div className="kbd-label">New Account</div>
           <h2 className="font-display font-black text-3xl tracking-tighter mt-1">
             Register
@@ -164,8 +232,9 @@ export default function Register() {
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label className="kbd-label">First Name</Label>
+              <Label className="kbd-label">First Name<Req /></Label>
               <Input
+                required
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
                 className="rounded-none border-border mt-2"
@@ -173,8 +242,9 @@ export default function Register() {
               />
             </div>
             <div>
-              <Label className="kbd-label">Last Name</Label>
+              <Label className="kbd-label">Last Name<Req /></Label>
               <Input
+                required
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
                 className="rounded-none border-border mt-2"
@@ -183,11 +253,12 @@ export default function Register() {
             </div>
           </div>
           <div>
-            <Label className="kbd-label">Phone</Label>
+            <Label className="kbd-label">Phone<Req /></Label>
             <Input
               type="tel"
+              required
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => setPhone(formatPhone(e.target.value))}
               placeholder="(312) 555-5555"
               className="rounded-none border-border mt-2"
               data-testid="register-phone-input"
@@ -218,9 +289,10 @@ export default function Register() {
             </label>
           </div>
           <div>
-            <Label className="kbd-label">Date of Birth</Label>
+            <Label className="kbd-label">Date of Birth<Req /></Label>
             <Input
               type="date"
+              required
               value={dob}
               onChange={(e) => setDob(e.target.value)}
               className="rounded-none border-border mt-2"
@@ -228,8 +300,9 @@ export default function Register() {
             />
           </div>
           <div>
-            <Label className="kbd-label">Address</Label>
+            <Label className="kbd-label">Address<Req /></Label>
             <Input
+              required
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               className="rounded-none border-border mt-2"
@@ -238,8 +311,9 @@ export default function Register() {
           </div>
           <div className="grid grid-cols-3 gap-3">
             <div className="col-span-2">
-              <Label className="kbd-label">City</Label>
+              <Label className="kbd-label">City<Req /></Label>
               <Input
+                required
                 value={city}
                 onChange={(e) => setCity(e.target.value)}
                 className="rounded-none border-border mt-2"
@@ -247,8 +321,9 @@ export default function Register() {
               />
             </div>
             <div>
-              <Label className="kbd-label">ZIP</Label>
+              <Label className="kbd-label">ZIP<Req /></Label>
               <Input
+                required
                 value={zip}
                 onChange={(e) => setZip(e.target.value)}
                 className="rounded-none border-border mt-2"
@@ -256,6 +331,53 @@ export default function Register() {
               />
             </div>
           </div>
+
+          {/* Certification-date question — answering "yes" silently seeds 26
+              bi-weekly certification events on the Calendar (see backend
+              _seed_certification_events), so a claimant's certification
+              deadlines show up automatically without adding each one by hand. */}
+          <div>
+            <Label className="kbd-label">Do you know your next certification date?</Label>
+            <div className="flex gap-2 mt-2" role="radiogroup" aria-label="Do you know your next certification date?">
+              {[
+                { value: "yes", label: "Yes" },
+                { value: "no", label: "No" },
+                { value: "na", label: "N/A" },
+              ].map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setKnowsNextCertDate(opt.value)}
+                  aria-pressed={knowsNextCertDate === opt.value}
+                  className={`flex-1 rounded-none border py-2 text-sm font-medium transition-colors ${
+                    knowsNextCertDate === opt.value
+                      ? "bg-primary text-white border-primary"
+                      : "border-border text-muted-foreground hover:border-primary/50"
+                  }`}
+                  data-testid={`register-knowsCert-${opt.value}`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            {knowsNextCertDate === "yes" && (
+              <div className="mt-3">
+                <Label className="kbd-label">Next Certification Date<Req /></Label>
+                <Input
+                  type="date"
+                  required
+                  value={nextCertDate}
+                  onChange={(e) => setNextCertDate(e.target.value)}
+                  className="rounded-none border-border mt-2"
+                  data-testid="register-nextCertDate-input"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  We'll add this and the next 25 bi-weekly certification dates to your Calendar automatically.
+                </p>
+              </div>
+            )}
+          </div>
+
           <div>
             <Label className="kbd-label">Illinois Claimant ID (Optional)</Label>
             <Input
@@ -282,7 +404,7 @@ export default function Register() {
             />
           </div>
           <div>
-            <Label className="kbd-label">Email</Label>
+            <Label className="kbd-label">Email<Req /></Label>
             <Input
               type="email"
               required
@@ -296,7 +418,7 @@ export default function Register() {
 
           {/* Password with show/hide */}
           <div>
-            <Label className="kbd-label">Password</Label>
+            <Label className="kbd-label">Password<Req /></Label>
             <div className="relative mt-2">
               <Input
                 type={showPassword ? "text" : "password"}
@@ -354,7 +476,7 @@ export default function Register() {
 
           {/* Confirm password with show/hide */}
           <div>
-            <Label className="kbd-label">Confirm Password</Label>
+            <Label className="kbd-label">Confirm Password<Req /></Label>
             <div className="relative mt-2">
               <Input
                 type={showConfirm ? "text" : "password"}
@@ -397,6 +519,7 @@ export default function Register() {
           {busy ? "Creating account..." : "Create account"}
         </Button>
       </form>
+      </div>
     </div>
   );
 }

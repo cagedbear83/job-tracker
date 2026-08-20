@@ -4,6 +4,7 @@
 from core import *  # noqa: F401,F403 — re-exports app, api, os, CORSMiddleware, helpers
 from core import app, api
 from core import _broadcast_reminders, _purge_due_accounts
+from core import _broadcast_event_reminders, _send_certification_final_reminders
 from routers import account, admin, audit, auth, billing_routes, calendar, contact, contacts, dashboard, documents, imports, invites, misc, profile, reminders, reports, sms, webhooks, weeks
 
 # ---- Admin portal integration (ported from the standalone admin_portal
@@ -212,6 +213,15 @@ async def on_startup():
             scheduler.add_job(_broadcast_reminders, CronTrigger(day_of_week="wed", hour=9, minute=0), args=["wednesday"], id="rem_wed")
             scheduler.add_job(_broadcast_reminders, CronTrigger(day_of_week="fri", hour=9, minute=0), args=["friday"], id="rem_fri")
             scheduler.add_job(_broadcast_reminders, CronTrigger(day_of_week="sat", hour=9, minute=0), args=["saturday"], id="rem_sat")
+            # Calendar event reminders (certification, IDES interview, appeal,
+            # questionnaire, and the auto-added work-search follow-up). Daily
+            # 8AM CT scan covers both the 3-days-ahead and morning-of cases;
+            # certification gets its own 5PM CT email+SMS reminder instead of
+            # the generic morning-of one, timed ahead of the 7PM CT IDES
+            # filing cutoff. See core.py's "Calendar Event Reminders" section.
+            scheduler.add_job(_broadcast_event_reminders, CronTrigger(hour=8, minute=0), args=["3day"], id="cal_3day")
+            scheduler.add_job(_broadcast_event_reminders, CronTrigger(hour=8, minute=0), args=["morning"], id="cal_morning")
+            scheduler.add_job(_send_certification_final_reminders, CronTrigger(hour=17, minute=0), id="cal_cert_5pm")
         scheduler.start()
         logging.info("Scheduler started (America/Chicago) — purge job active")
     except Exception as e:

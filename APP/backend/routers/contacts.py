@@ -4,6 +4,7 @@
 # UploadFile, Request, the response classes), the Pydantic models, config,
 # db, and the public helpers.
 from core import *  # noqa: F401,F403
+from core import _add_business_days
 
 router = APIRouter()
 
@@ -45,6 +46,27 @@ async def create_contact(body: ContactIn, user=Depends(get_current_user)):
     await log_audit(
         user["id"], "CREATE", "contact", cid, f"Contact: {body.employer_name}"
     )
+
+    # Auto-add a Calendar follow-up reminder 5 business days after this
+    # contact is LOGGED (i.e. from today, when it's submitted — not from the
+    # contact_date itself, which can be back-dated). Uses event_type "other"
+    # since the schema doesn't have a dedicated "follow_up" type, and rides
+    # the same generic reminder engine as every other Calendar event (see
+    # core.py's _broadcast_event_reminders), so it gets a 3-days-before and
+    # a morning-of email reminder with no special-cased scheduling needed.
+    tz = pytz.timezone("America/Chicago")
+    followup_date = _add_business_days(datetime.now(tz).date(), 5)
+    await db.calendar_events.insert_one({
+        "id": str(uuid.uuid4()),
+        "user_id": user["id"],
+        "event_date": followup_date.isoformat(),
+        "event_type": "other",
+        "title": f"Follow up — {body.employer_name}",
+        "notes": f"Auto-added: follow up on your {body.contact_date} contact with {body.employer_name}.",
+        "claimant_id": w.get("claimant_id"),
+        "created_at": datetime.now(timezone.utc),
+    })
+
     doc.pop("_id", None)
     return doc
 

@@ -316,55 +316,13 @@ def test_dashboard_trend_weeks_52(H):
 
 
 # ---------- PDF Logo + UNOFFICIAL ----------
-def test_pdf_report_has_logo_and_unofficial(H):
-    headers, _ = H
-    wks = requests.get(f"{API}/benefit-weeks", headers=headers, timeout=30).json()
-    items = wks.get("items") if isinstance(wks, dict) else wks
-    assert items, "demo user has no benefit weeks to render PDF for"
-    wid = items[0]["id"]
-    r = requests.get(f"{API}/reports/benefit-week/{wid}", headers=headers, timeout=60)
-    assert r.status_code == 200
-    data = r.content
-    # magic bytes
-    assert data[:5] == b"%PDF-", "not a PDF"
-    # size > 100KB indicates embedded logo image
-    assert len(data) > 100_000, f"PDF too small ({len(data)} bytes) — logo likely missing"
-    # 'UNOFFICIAL' string present — reportlab compresses text streams with FlateDecode
-    # (and often ASCII85Decode wrapper). We decompress each stream and search inside.
-    import re, zlib, base64
-    found = b"UNOFFICIAL" in data or b"Unofficial" in data
-    if not found:
-        i = 0
-        while True:
-            s = data.find(b"stream\n", i)
-            if s < 0:
-                break
-            if s > 0 and data[s - 1:s] == b"d":  # 'endstream'
-                i = s + 7
-                continue
-            e = data.find(b"endstream", s)
-            if e < 0:
-                break
-            blob = data[s + 7:e].rstrip(b"\r\n ")
-            hdr_start = data.rfind(b"<<", 0, s)
-            hdr = data[hdr_start:s]
-            dec = blob
-            try:
-                if b"ASCII85Decode" in hdr:
-                    ab = dec.strip()
-                    if ab.endswith(b"~>"):
-                        ab = ab[:-2]
-                    dec = base64.a85decode(ab, adobe=False)
-                if b"FlateDecode" in hdr:
-                    dec = zlib.decompress(dec)
-            except Exception:
-                i = e + 9
-                continue
-            if b"UNOFFICIAL" in dec or b"Unofficial" in dec:
-                found = True
-                break
-            i = e + 9
-    assert found, "UNOFFICIAL disclaimer not found in PDF text streams"
+# NOTE (Aug 20): test_pdf_report_has_logo_and_unofficial was removed here.
+# It expected a reportlab-generated logo + "UNOFFICIAL" disclaimer stamped
+# onto the report PDF, but that overlay was never actually implemented in
+# routers/reports.py — reportlab isn't even a dependency anymore (see
+# requirements.txt). Rather than build that feature, Kyle asked to drop the
+# test and add a lightweight generation-timestamp stamp instead (see the
+# FreeText annotation added at the bottom of report_pdf() in reports.py).
 
 
 def test_ides_logo_file_exists():

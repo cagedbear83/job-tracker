@@ -42,7 +42,7 @@ from fastapi.responses import (
     StreamingResponse,
 )
 from motor.motor_asyncio import AsyncIOMotorClient
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 from starlette.middleware.cors import CORSMiddleware
 
 # Optional production dependencies — degrade gracefully if a deploy has not
@@ -406,15 +406,48 @@ class RegisterIn(BaseModel):
     email: EmailStr
     password: str = Field(min_length=12, max_length=64)
     name: str
-    first_name: str = ""
-    last_name: str = ""
-    phone: str = ""
+    # These were previously all-optional (defaulted to ""/None), which let
+    # incomplete registrations through even though the Register page's own
+    # punch-list item calls for marking them required. Enforced here too —
+    # not just on the frontend — since the frontend check alone doesn't stop
+    # someone hitting the API directly. min_length=1 rejects blank/whitespace
+    # the same way FastAPI already rejects a missing field.
+    first_name: str = Field(min_length=1)
+    last_name: str = Field(min_length=1)
+    phone: str = Field(min_length=1)
     sms_opt_in: bool = False
-    dob: Optional[str] = None
-    address: str = ""
-    city: str = ""
-    zip: str = ""
+    dob: str = Field(min_length=1)
+    address: str = Field(min_length=1)
+    city: str = Field(min_length=1)
+    zip: str = Field(min_length=1)
     claimant_id: Optional[str] = None
+    # "Do you know your next certification date?" — Yes/No/N/A. When "yes",
+    # next_certification_date silently seeds 26 bi-weekly certification
+    # calendar_events (see _seed_certification_events) so the claimant's
+    # Calendar and certification reminders are populated ~1 year out without
+    # them adding each one by hand.
+    knows_next_cert_date: Literal["yes", "no", "na"] = "na"
+    next_certification_date: Optional[str] = None  # ISO YYYY-MM-DD
+
+    @field_validator("first_name", "last_name", "phone", "dob", "address", "city", "zip")
+    @classmethod
+    def _not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("must not be blank")
+        return v
+
+    @model_validator(mode="after")
+    def _cert_date_required_if_known(self):
+        if self.knows_next_cert_date == "yes":
+            if not self.next_certification_date or not self.next_certification_date.strip():
+                raise ValueError(
+                    "next_certification_date is required when knows_next_cert_date is 'yes'"
+                )
+            try:
+                datetime.strptime(self.next_certification_date, "%Y-%m-%d")
+            except ValueError:
+                raise ValueError("next_certification_date must be an ISO date (YYYY-MM-DD)")
+        return self
 
 
 class LoginIn(BaseModel):
@@ -906,6 +939,42 @@ class CalendarEventIn(BaseModel):
     claimant_id: Optional[str] = None
 
 
+async def _seed_certification_events(user_id: str, claimant_id: str, first_date: str, occurrences: int = 26) -> int:
+    """
+    Auto-seeds `occurrences` bi-weekly certification calendar_events (14-day
+    cadence, starting at `first_date`) — used at registration when a claimant
+    tells us their next certification date (Register page: "Do you know your
+    next certification date?"). IDES certifications run every 2 weeks, so
+    this keeps ~1 year of certification dates on the Calendar without the
+    claimant adding each one by hand. Written directly to the collection
+    (bypasses the calendar_events tier gate that applies to the manual
+    create/update endpoints) — a certification deadline is a compliance date,
+    not the same thing as the paid "manage your own calendar" feature, so
+    every new account gets these regardless of tier.
+    """
+    try:
+        start = datetime.strptime(first_date, "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        return 0
+    now = datetime.now(timezone.utc)
+    docs = [
+        {
+            "id": str(uuid.uuid4()),
+            "user_id": user_id,
+            "event_date": (start + timedelta(weeks=2 * i)).isoformat(),
+            "event_type": "certification",
+            "title": "Certification Due",
+            "notes": "Auto-added at registration from your certification schedule.",
+            "claimant_id": claimant_id,
+            "created_at": now,
+        }
+        for i in range(occurrences)
+    ]
+    if docs:
+        await db.calendar_events.insert_many(docs)
+    return len(docs)
+
+
 # ============== Document Upload (IDES Paperwork) ==============
 DOC_TYPES = Literal[
     "determination_letter",
@@ -1077,6 +1146,144 @@ async def _broadcast_reminders(kind: str):
             await _send_user_reminder(u, kind)
         except Exception as e:
             logging.warning(f"Reminder {kind} failed for {u.get('email')}: {e}")
+
+
+# ============== Calendar Event Reminders ==============
+# Generic reminder engine for calendar_events (certification, IDES interview,
+# appeal, questionnaire, and the auto-added work-search follow-up, which
+# rides on event_type "other" — see contacts.py's create_contact). Built to
+# scan calendar_events itself rather than any one event's origin, so it
+# automatically covers both hand-added events and system-seeded ones (Register
+# page's 26-week certification auto-seed, contacts.py's 5-business-day
+# follow-up) with no special-casing needed for either.
+#
+# Reminders fire regardless of subscription tier, matching the Aug 20 call on
+# Register's certification-date seeding: a compliance deadline (or a
+# system-generated follow-up) isn't the same thing as the paid "manage your
+# own calendar" feature that gate_feature enforces on manual create/update.
+
+EVENT_TYPE_LABELS = {
+    "certification": "Certification",
+    "ides_interview": "IDES Interview",
+    "appeal": "Appeal Deadline",
+    "questionnaire": "Questionnaire Due",
+    "other": "Reminder",
+}
+
+
+def _add_business_days(start: date, n: int) -> date:
+    """Adds `n` business days (Mon-Fri) to `start`, skipping weekends."""
+    d = start
+    added = 0
+    while added < n:
+        d += timedelta(days=1)
+        if d.weekday() < 5:
+            added += 1
+    return d
+
+
+async def _due_calendar_events(days_ahead: int, event_type: str = None, exclude_type: str = None):
+    """
+    Returns every calendar_events doc whose event_date lands `days_ahead`
+    calendar days from today, in America/Chicago (the app's one timezone —
+    IDES deadlines run on Illinois time regardless of where a claimant is
+    physically logging in from).
+    """
+    tz = pytz.timezone("America/Chicago")
+    target_date = (datetime.now(tz) + timedelta(days=days_ahead)).date().isoformat()
+    query = {"event_date": target_date}
+    if event_type:
+        query["event_type"] = event_type
+    if exclude_type:
+        query["event_type"] = {"$ne": exclude_type}
+    return await db.calendar_events.find(query, {"_id": 0}).to_list(1000)
+
+
+async def _broadcast_event_reminders(kind: str):
+    """
+    Daily scan, fired at 8AM CT for both `kind`s (see server.py). "3day"
+    reminds 3 calendar days ahead of event_date; "morning" reminds the day
+    of. Certification events are excluded from "morning" — they get their
+    own dedicated 5PM CT email+SMS reminder instead (see
+    _send_certification_final_reminders), since the punch list specifically
+    wants the LAST certification reminder to land close to the 7PM CT filing
+    cutoff, not first thing in the morning.
+    """
+    days_ahead = 3 if kind == "3day" else 0
+    exclude = "certification" if kind == "morning" else None
+    events = await _due_calendar_events(days_ahead, exclude_type=exclude)
+    sent = 0
+    for ev in events:
+        try:
+            user = await db.users.find_one({"id": ev["user_id"]}, {"_id": 0})
+            if not user or not user.get("email_verified", False):
+                continue
+            claimant = None
+            if ev.get("claimant_id"):
+                claimant = await db.profiles.find_one({"id": ev["claimant_id"]}, {"_id": 0})
+            to_email = (claimant.get("reminder_email") if claimant else "") or user.get("email")
+            label = EVENT_TYPE_LABELS.get(ev["event_type"], ev["event_type"].replace("_", " ").title())
+            when = "in 3 days" if kind == "3day" else "today"
+            title = f"{label} {when} — {ev['event_date']}"
+            body = f"<p>Reminder: <b>{html.escape(ev.get('title') or label)}</b> is scheduled for {ev['event_date']} ({when}).</p>"
+            if ev.get("notes"):
+                body += f"<p>{html.escape(ev['notes'])}</p>"
+            ok = await send_email(to_email, title, _reminder_html(title, body))
+            if ok:
+                sent += 1
+                await log_audit(
+                    user["id"], f"CALENDAR_REMINDER_{kind.upper()}", "calendar_event",
+                    ev["id"], f"Email sent to {to_email}",
+                )
+        except Exception as e:
+            logging.warning(f"Calendar reminder ({kind}) failed for event {ev.get('id')}: {e}")
+    return sent
+
+
+async def _send_certification_final_reminders():
+    """
+    Fires at 5PM CT (see server.py) — the LAST reminder before the 7PM CT
+    IDES filing cutoff, for any certification calendar_event landing today.
+    Sent over email AND SMS, since a missed certification is a bigger deal
+    than a missed work-search contact (matches the Aug 20 decision to send
+    this one over both channels where the weekly work-search reminders are
+    email-first with SMS as a bonus).
+    """
+    events = await _due_calendar_events(0, event_type="certification")
+    sent = 0
+    for ev in events:
+        try:
+            user = await db.users.find_one({"id": ev["user_id"]}, {"_id": 0})
+            if not user or not user.get("email_verified", False):
+                continue
+            claimant = None
+            if ev.get("claimant_id"):
+                claimant = await db.profiles.find_one({"id": ev["claimant_id"]}, {"_id": 0})
+            to_email = (claimant.get("reminder_email") if claimant else "") or user.get("email")
+            title = "Certification due today — file by 7PM CT"
+            body = (
+                f"<p style='color:#DC2626; font-weight:600;'>Your certification is due "
+                f"today ({ev['event_date']}). IDES's filing window closes at "
+                f"<b>7PM CT</b> — file with time to spare.</p>"
+            )
+            ok = await send_email(to_email, title, _reminder_html(title, body))
+            if ok:
+                sent += 1
+                await log_audit(
+                    user["id"], "CALENDAR_REMINDER_CERT_FINAL", "calendar_event",
+                    ev["id"], f"Email sent to {to_email}",
+                )
+            if claimant and claimant.get("sms_enabled") and claimant.get("sms_phone") and claimant.get("sms_verified"):
+                sms_text = "[IL UI Tracker] Certification due today — file by 7PM CT."
+                ok_sms, reason = await send_sms_rate_limited(claimant["sms_phone"], sms_text, claimant["id"])
+                if ok_sms:
+                    await log_audit(
+                        user["id"], "SMS_CALENDAR_CERT_FINAL", "claimant",
+                        claimant["id"], f"SMS sent to {claimant['sms_phone']}",
+                    )
+        except Exception as e:
+            logging.warning(f"Certification final reminder failed for event {ev.get('id')}: {e}")
+    return sent
 
 
 # ============== SMS Phone OTP Verification ==============

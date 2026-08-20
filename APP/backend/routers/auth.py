@@ -8,6 +8,7 @@ from core import _check_account_lockout, _clear_failed_logins, _record_failed_lo
 from core import (
     REFRESH_COOKIE_NAME,
     _clear_refresh_cookie,
+    _seed_certification_events,
     _set_refresh_cookie,
     create_refresh_token,
     revoke_refresh_token_by_raw,
@@ -85,6 +86,13 @@ async def register(request: Request, body: RegisterIn):
     await db.users.update_one(
         {"id": uid}, {"$set": {"active_claimant_id": pid}}
     )
+    if body.knows_next_cert_date == "yes" and body.next_certification_date:
+        seeded = await _seed_certification_events(uid, pid, body.next_certification_date)
+        if seeded:
+            await log_audit(
+                uid, "CALENDAR_SEED", "claimant", pid,
+                f"Seeded {seeded} bi-weekly certification events starting {body.next_certification_date}",
+            )
     if body.sms_opt_in:
         await log_audit(
             uid, "SMS_OPT_IN", "claimant", pid,
