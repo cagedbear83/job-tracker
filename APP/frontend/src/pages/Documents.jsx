@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { api, formatApiError, API } from "@/lib/api";
-import { getToken } from "@/lib/tokenStorage";
+import { api, formatApiError, API, getValidToken } from "@/lib/api";
 import {
   FileTextIcon,
   UploadSimpleIcon,
@@ -138,7 +137,7 @@ export default function DocumentsPage() {
     fd.append("notes", form.notes.trim());
 
     try {
-      const token = getToken();
+      const token = await getValidToken();
       const res = await fetch(`${API}/documents/upload`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
@@ -162,7 +161,7 @@ export default function DocumentsPage() {
   // ── View file ────────────────────────────────────────────────────────────
   const viewFile = async (doc) => {
     try {
-      const token = getToken();
+      const token = await getValidToken();
       const res = await fetch(`${API}/documents/${doc.id}/file`, {
         headers: { Authorization: `Bearer ${token}` },
       });

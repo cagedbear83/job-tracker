@@ -187,6 +187,181 @@ if not JWT_SECRET:
         "JWT_SECRET environment variable is required for secure token signing"
     )
 
+# ---- Session security (access + rotating refresh tokens) ----
+# Threat model: a stolen access token should be useless almost immediately,
+# and a stolen refresh token should be detectable/revocable rather than
+# valid for days. Access tokens are short-lived JWTs kept in memory on the
+# frontend (never persisted to any Storage API). Refresh tokens are opaque
+# random strings held only in an httpOnly cookie — JS (and therefore XSS)
+# never sees them — and are rotated on every use. Each refresh token is
+# stored server-side as a salted hash so a DB read alone can't be replayed.
+ACCESS_TOKEN_MINUTES = int(os.environ.get("ACCESS_TOKEN_MINUTES", "10"))
+# Sliding idle expiry: each successful refresh pushes the refresh token's
+# expiry forward by this many minutes from "now".
+REFRESH_TOKEN_IDLE_MINUTES = int(os.environ.get("REFRESH_TOKEN_IDLE_MINUTES", "30"))
+# Hard ceiling on a session, measured from the *original* login, regardless
+# of activity — caps how long a stolen-but-still-being-refreshed token chain
+# can be ridden.
+REFRESH_TOKEN_ABSOLUTE_HOURS = int(os.environ.get("REFRESH_TOKEN_ABSOLUTE_HOURS", "12"))
+
+REFRESH_COOKIE_NAME = "refresh_token"
+# Cross-site by default: the frontend (Vercel) and backend (DO/etc.) live on
+# different domains in production, so the cookie needs SameSite=None; Secure
+# to be sent at all. Override for local HTTP dev via env (localhost front +
+# back share a "site" so Lax/Strict work there, and Secure needs to be off
+# since there's no TLS).
+REFRESH_COOKIE_SECURE = os.environ.get("REFRESH_COOKIE_SECURE", "true").lower() in (
+    "1", "true", "yes",
+)
+REFRESH_COOKIE_SAMESITE = os.environ.get("REFRESH_COOKIE_SAMESITE", "none").lower()
+REFRESH_COOKIE_DOMAIN = os.environ.get("REFRESH_COOKIE_DOMAIN", "").strip() or None
+
+
+def _set_refresh_cookie(response: Response, raw_token: str, expires_at: datetime) -> None:
+    max_age = max(0, int((expires_at - datetime.now(timezone.utc)).total_seconds()))
+    response.set_cookie(
+        key=REFRESH_COOKIE_NAME,
+        value=raw_token,
+        httponly=True,
+        secure=REFRESH_COOKIE_SECURE,
+        samesite=REFRESH_COOKIE_SAMESITE,
+        domain=REFRESH_COOKIE_DOMAIN,
+        max_age=max_age,
+        path="/api/auth",
+    )
+
+
+def _clear_refresh_cookie(response: Response) -> None:
+    response.delete_cookie(
+        key=REFRESH_COOKIE_NAME,
+        domain=REFRESH_COOKIE_DOMAIN,
+        path="/api/auth",
+    )
+
+
+def _hash_refresh_token(raw_token: str) -> str:
+    return hashlib.sha256(raw_token.encode()).hexdigest()
+
+
+async def create_refresh_token(
+    user_id: str,
+    family_id: Optional[str] = None,
+    family_started_at: Optional[datetime] = None,
+) -> tuple[str, datetime]:
+    """
+    Issues a new refresh token for `user_id`, storing only its hash.
+    Pass `family_id`/`family_started_at` when rotating an existing session so
+    the absolute-lifetime ceiling is measured from the original login, not
+    reset on every refresh.
+    Returns (raw_token, expires_at) — raw_token is only ever returned here;
+    it is never recoverable from the DB.
+    """
+    now = datetime.now(timezone.utc)
+    family_id = family_id or str(uuid.uuid4())
+    family_started_at = family_started_at or now
+    if isinstance(family_started_at, str):
+        family_started_at = datetime.fromisoformat(family_started_at)
+    if family_started_at.tzinfo is None:
+        # Mongo round-trips datetimes as naive UTC — reattach tzinfo so this
+        # doesn't blow up comparing against the tz-aware `idle_expires` below.
+        family_started_at = family_started_at.replace(tzinfo=timezone.utc)
+    idle_expires = now + timedelta(minutes=REFRESH_TOKEN_IDLE_MINUTES)
+    absolute_expires = family_started_at + timedelta(hours=REFRESH_TOKEN_ABSOLUTE_HOURS)
+    expires_at = min(idle_expires, absolute_expires)
+
+    raw_token = secrets.token_urlsafe(48)
+    doc = {
+        "id": str(uuid.uuid4()),
+        "user_id": user_id,
+        "token_hash": _hash_refresh_token(raw_token),
+        "family_id": family_id,
+        "family_started_at": family_started_at,
+        "created_at": now,
+        "expires_at": expires_at,
+        "revoked_at": None,
+        "replaced_by": None,
+    }
+    await db.refresh_tokens.insert_one(doc)
+    return raw_token, expires_at
+
+
+async def revoke_refresh_token_by_raw(raw_token: str) -> None:
+    """Looks up a raw refresh token and revokes its whole session family.
+    Used by /auth/logout — silently no-ops if the token is unknown/already
+    gone, since logout should always succeed locally regardless."""
+    row = await db.refresh_tokens.find_one({"token_hash": _hash_refresh_token(raw_token)})
+    if row:
+        await revoke_refresh_family(row["family_id"])
+
+
+async def revoke_refresh_family(family_id: str) -> None:
+    """Revokes every token in a session family — used on logout and on
+    detected refresh-token reuse (a signal the token chain may be stolen)."""
+    await db.refresh_tokens.update_many(
+        {"family_id": family_id, "revoked_at": None},
+        {"$set": {"revoked_at": datetime.now(timezone.utc)}},
+    )
+
+
+async def rotate_refresh_token(raw_token: str) -> Optional[dict]:
+    """
+    Validates and rotates a refresh token in one atomic-ish step.
+    Returns a dict with the new raw token, its expiry, and the user_id on
+    success, or None if the token is missing/expired/revoked. If a token
+    that was already rotated away (replaced_by set) is presented again,
+    that's a reuse signal — the whole family is revoked and this returns
+    None, forcing a fresh login.
+    """
+    token_hash = _hash_refresh_token(raw_token)
+    row = await db.refresh_tokens.find_one({"token_hash": token_hash})
+    if not row:
+        return None
+
+    now = datetime.now(timezone.utc)
+    expires_at = row.get("expires_at")
+    if isinstance(expires_at, str):
+        expires_at = datetime.fromisoformat(expires_at)
+    if expires_at and expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+
+    if row.get("revoked_at") or row.get("replaced_by") or not expires_at or now > expires_at:
+        # Already used, already revoked, or expired. If it was already
+        # rotated away and is being presented again, treat that as theft.
+        if row.get("replaced_by"):
+            logging.warning(
+                f"Refresh token reuse detected for user {row.get('user_id')} — "
+                f"revoking session family {row.get('family_id')}"
+            )
+            await revoke_refresh_family(row["family_id"])
+        return None
+
+    user = await db.users.find_one({"id": row["user_id"]}, {"_id": 0, "id": 1, "email": 1, "deleted": 1})
+    if not user or user.get("deleted"):
+        await revoke_refresh_family(row["family_id"])
+        return None
+
+    new_raw, new_expires_at = await create_refresh_token(
+        row["user_id"],
+        family_id=row["family_id"],
+        family_started_at=row.get("family_started_at"),
+    )
+    if new_expires_at <= now:
+        # The absolute per-session ceiling has already passed — don't hand
+        # back a token that's dead on arrival, fail the refresh cleanly so
+        # the frontend sends the user to a real re-login instead.
+        await revoke_refresh_family(row["family_id"])
+        return None
+    await db.refresh_tokens.update_one(
+        {"id": row["id"]},
+        {"$set": {"replaced_by": new_raw and _hash_refresh_token(new_raw), "revoked_at": now}},
+    )
+    return {
+        "raw_token": new_raw,
+        "expires_at": new_expires_at,
+        "user_id": row["user_id"],
+        "email": user["email"],
+    }
+
 
 # ============== Password Validation ==============
 def validate_password_policy(password: str, email: str = "", name: str = "") -> str:
@@ -370,7 +545,9 @@ def create_token(user_id: str, email: str) -> str:
     payload = {
         "sub": user_id,
         "email": email,
-        "exp": int((datetime.now(timezone.utc) + timedelta(days=7)).timestamp()),
+        "exp": int(
+            (datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_MINUTES)).timestamp()
+        ),
         "iat": int(datetime.now(timezone.utc).timestamp()),
     }
     try:
@@ -660,7 +837,7 @@ ACCOUNT_PURGE_GRACE_DAYS = int(os.environ.get("ACCOUNT_PURGE_GRACE_DAYS", "30"))
 _USER_SCOPED_COLLECTIONS = [
     "profiles", "benefit_weeks", "contacts", "calendar_events",
     "document_files", "audit_log", "password_resets", "subscriptions",
-    "usage_counters", "otp_codes",
+    "usage_counters", "otp_codes", "refresh_tokens",
 ]
 # Collections keyed by the profile/claimant id.
 _PROFILE_SCOPED_COLLECTIONS = ["sms_log"]

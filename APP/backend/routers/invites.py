@@ -4,6 +4,7 @@
 # UploadFile, Request, the response classes), the Pydantic models, config,
 # db, and the public helpers.
 from core import *  # noqa: F401,F403
+from core import _set_refresh_cookie, create_refresh_token
 
 router = APIRouter()
 
@@ -93,7 +94,7 @@ async def get_invite(code: str):
 
 
 @router.post("/invite/redeem")
-async def redeem_invite(body: InviteRedeem):
+async def redeem_invite(response: Response, body: InviteRedeem):
     # Password policy check on invite redemption too
     policy_error = validate_password_policy(body.password)
     if policy_error:
@@ -151,4 +152,6 @@ async def redeem_invite(body: InviteRedeem):
     )
     await log_audit(uid, "REGISTER_INVITE", "user", uid, f"Invited account created from {inv.get('created_by')}")
     token = create_token(uid, inv["email"])
+    refresh_raw, refresh_expires = await create_refresh_token(uid)
+    _set_refresh_cookie(response, refresh_raw, refresh_expires)
     return {"token": token, "user": {"id": uid, "email": inv["email"], "name": body.name, "role": "user"}}

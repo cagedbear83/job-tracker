@@ -1,55 +1,46 @@
-import { createContext, useContext, useEffect, useState } from "react";
-import { api, formatApiError } from "../lib/api";
-import { getToken, setToken, clearToken } from "../lib/tokenStorage";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { api, formatApiError, refreshSession } from "../lib/api";
+import { setToken, clearToken } from "../lib/tokenStorage";
 
 const AuthCtx = createContext(null);
 
-// Token validation utilities
-function isTokenExpired(token) {
-  if (!token) return true;
-  try {
-    const parts = token.split(".");
-    if (parts.length !== 3) return true;
-
-    // Decode payload
-    const payload = JSON.parse(
-      atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")),
-    );
-    const exp = payload.exp;
-
-    if (!exp) return false;
-    return Date.now() >= exp * 1000;
-  } catch {
-    return true;
-  }
-}
+// How long a signed-in tab can sit with no mouse/keyboard/touch activity
+// before we log the user out client-side. This is a UX-level backstop on
+// top of (not a replacement for) the backend's own sliding refresh-token
+// expiry (REFRESH_TOKEN_IDLE_MINUTES, currently 30 min) — this fires first
+// so an unattended, still-open tab doesn't sit around for the full window.
+const IDLE_LOGOUT_MINUTES = 15;
+const ACTIVITY_EVENTS = ["mousedown", "keydown", "scroll", "touchstart", "click"];
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const logoutRef = useRef(() => {});
 
   useEffect(() => {
-    const t = getToken();
-
-    // Check if token exists and is not expired before making API call
-    if (!t || isTokenExpired(t)) {
-      if (t) {
-        clearToken();
+    let cancelled = false;
+    (async () => {
+      // There's no persisted access token to check on a fresh page load
+      // (it only ever lives in memory) — instead, try to silently mint one
+      // from the httpOnly refresh cookie, if a valid one exists.
+      const token = await refreshSession();
+      if (!token) {
+        if (!cancelled) setLoading(false);
+        return;
       }
-      setLoading(false);
-      return;
-    }
-
-    api
-      .get("/auth/me")
-      .then((r) => {
-        setUser(r.data);
-      })
-      .catch(() => {
+      try {
+        const { data } = await api.get("/auth/me");
+        if (!cancelled) setUser(data);
+      } catch {
         clearToken();
-        setUser(null);
-      })
-      .finally(() => setLoading(false));
+        if (!cancelled) setUser(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const login = async (email, password) => {
@@ -76,6 +67,31 @@ export function AuthProvider({ children }) {
     clearToken();
     setUser(null);
   };
+
+  // Keep a stable ref to the latest `logout` so the idle-timer effect below
+  // doesn't need to re-bind its listeners every render.
+  logoutRef.current = logout;
+
+  useEffect(() => {
+    if (!user) return undefined;
+    let timeoutId;
+    const scheduleLogout = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        logoutRef.current();
+      }, IDLE_LOGOUT_MINUTES * 60 * 1000);
+    };
+    ACTIVITY_EVENTS.forEach((evt) =>
+      window.addEventListener(evt, scheduleLogout, { passive: true }),
+    );
+    scheduleLogout();
+    return () => {
+      clearTimeout(timeoutId);
+      ACTIVITY_EVENTS.forEach((evt) =>
+        window.removeEventListener(evt, scheduleLogout),
+      );
+    };
+  }, [user]);
 
   return (
     <AuthCtx.Provider

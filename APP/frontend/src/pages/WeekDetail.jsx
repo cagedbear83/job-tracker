@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { api, formatApiError, API } from "@/lib/api";
-import { getToken } from "@/lib/tokenStorage";
+import { api, formatApiError, API, getValidToken } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { FeatureGate } from "@/components/FeatureGate";
 import { Input } from "@/components/ui/input";
@@ -169,7 +168,7 @@ export default function WeekDetail() {
     setDownloadingPdf(true);
     const toastId = toast.loading("Generating report...");
     try {
-      const token = getToken();
+      const token = await getValidToken();
       const res = await fetch(`${API}/reports/benefit-week/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -194,7 +193,7 @@ export default function WeekDetail() {
     setDownloadingCsv(true);
     const toastId = toast.loading("Preparing CSV export...");
     try {
-      const token = getToken();
+      const token = await getValidToken();
       const res = await fetch(`${API}/contacts/export.csv?week_id=${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });

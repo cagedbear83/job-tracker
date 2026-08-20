@@ -52,6 +52,15 @@ async def on_startup():
     except Exception as e:
         logging.info(f"password_resets TTL index: {e}")
     try:
+        await db.refresh_tokens.create_index("token_hash", unique=True)
+        await db.refresh_tokens.create_index("family_id")
+        await db.refresh_tokens.create_index("user_id")
+        # TTL auto-cleanup once a (possibly-revoked) refresh token's own
+        # expires_at passes — no separate purge job needed.
+        await db.refresh_tokens.create_index("expires_at", expireAfterSeconds=0)
+    except Exception as e:
+        logging.info(f"refresh_tokens indexes: {e}")
+    try:
         await db.invites.create_index("expires_at", expireAfterSeconds=0)
         await db.invites.create_index("code", unique=True)
     except Exception as e:

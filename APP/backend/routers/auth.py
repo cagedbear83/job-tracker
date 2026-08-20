@@ -5,6 +5,14 @@
 # db, and the public helpers.
 from core import *  # noqa: F401,F403
 from core import _check_account_lockout, _clear_failed_logins, _record_failed_login
+from core import (
+    REFRESH_COOKIE_NAME,
+    _clear_refresh_cookie,
+    _set_refresh_cookie,
+    create_refresh_token,
+    revoke_refresh_token_by_raw,
+    rotate_refresh_token,
+)
 
 router = APIRouter()
 
@@ -126,7 +134,7 @@ async def register(request: Request, body: RegisterIn):
 
 @router.post("/auth/login", response_model=AuthOut)
 @rate_limit(RATE_LIMIT_LOGIN)
-async def login(request: Request, body: LoginIn):
+async def login(request: Request, response: Response, body: LoginIn):
     email = body.email.lower()
 
     # Check lockout BEFORE touching the password — avoids timing oracle
@@ -175,6 +183,8 @@ async def login(request: Request, body: LoginIn):
     await _clear_failed_logins(email)
 
     token = create_token(user["id"], user["email"])
+    refresh_raw, refresh_expires = await create_refresh_token(user["id"])
+    _set_refresh_cookie(response, refresh_raw, refresh_expires)
     await log_audit(user["id"], "LOGIN", "user", user["id"], "Login successful")
     return AuthOut(
         token=token,
@@ -223,8 +233,40 @@ async def verify_email(token: str):
 
 
 
+@router.post("/auth/refresh", response_model=AuthOut)
+async def refresh(request: Request, response: Response):
+    """
+    Exchanges the httpOnly refresh cookie for a new short-lived access token,
+    rotating the refresh token in the process. Called silently by the
+    frontend on app load and whenever an access token has expired — this is
+    what lets a session stay alive across page reloads / short absences
+    without ever putting a long-lived token in reach of JS.
+    """
+    raw = request.cookies.get(REFRESH_COOKIE_NAME)
+    if not raw:
+        raise HTTPException(status_code=401, detail="No refresh token")
+    result = await rotate_refresh_token(raw)
+    if not result:
+        # Expired, revoked, unknown, or a reuse attempt — either way the
+        # cookie is no longer valid, so clear it and force a fresh login.
+        _clear_refresh_cookie(response)
+        raise HTTPException(status_code=401, detail="Session expired — please log in again")
+
+    _set_refresh_cookie(response, result["raw_token"], result["expires_at"])
+    access_token = create_token(result["user_id"], result["email"])
+    user = await db.users.find_one({"id": result["user_id"]}, {"_id": 0, "password_hash": 0})
+    if not user:
+        _clear_refresh_cookie(response)
+        raise HTTPException(status_code=401, detail="User not found")
+    return AuthOut(token=access_token, user=to_public_user(user))
+
+
 @router.post("/auth/logout")
-async def logout(user=Depends(get_current_user)):
+async def logout(request: Request, response: Response, user=Depends(get_current_user)):
+    raw = request.cookies.get(REFRESH_COOKIE_NAME)
+    if raw:
+        await revoke_refresh_token_by_raw(raw)
+    _clear_refresh_cookie(response)
     await log_audit(user["id"], "LOGOUT", "user", user["id"], "Logout")
     return {"ok": True}
 
