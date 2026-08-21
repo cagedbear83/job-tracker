@@ -1,0 +1,120 @@
+/* ============================================================================
+ * Illinois UI Job Search Tracker — canonical design tokens
+ *
+ * CANONICAL SOURCE: job-tracker/APP/brand/tokens.css
+ * Edit here, then copy byte-identical to:
+ *   - job-tracker/APP/frontend/src/brand-tokens.css   (illinoisjobtracker.app)
+ *   - ijt-marketing/app/brand-tokens.css              (illinoisjobtracker.com)
+ *
+ * Both sites must resolve every shared class (bg-primary, bg-muted, border,
+ * text-muted-foreground, ...) to the same color, so this file carries the
+ * SUPERSET: everything shadcn/ui needs on the app plus everything the
+ * marketing site needs. Hex values in comments are the authority and come
+ * from APP/design_guidelines.json.
+ * ========================================================================== */
+
+:root {
+  /* --- Surfaces ------------------------------------------------------- */
+  --background: 0 0% 100%;              /* #FFFFFF */
+  --surface: 240 5% 96%;                /* #F4F4F5 */
+  --card: 0 0% 100%;                    /* #FFFFFF */
+  --popover: 0 0% 100%;                 /* #FFFFFF */
+
+  /* --- Text ----------------------------------------------------------- */
+  --foreground: 240 10% 4%;             /* #09090B */
+  --card-foreground: 240 10% 4%;        /* #09090B */
+  --popover-foreground: 240 10% 4%;     /* #09090B */
+  --muted-foreground: 240 5% 34%;       /* #52525B */
+
+  /* --- Brand ---------------------------------------------------------- */
+  --primary: 221 100% 31%;              /* #0033A0 Illinois Blue */
+  --primary-hover: 221 100% 20%;        /* #002266 */
+  --primary-foreground: 0 0% 100%;      /* #FFFFFF */
+
+  /* --- Subtle fills ---------------------------------------------------
+   * secondary / muted / accent are deliberately the SAME value. They are
+   * three names shadcn and the marketing site each reached for to mean
+   * "one step off the background", and keeping them equal is what stops
+   * `bg-muted` rendering differently on the two domains. */
+  --secondary: 240 5% 96%;              /* #F4F4F5 */
+  --secondary-foreground: 240 6% 10%;
+  --muted: 240 5% 96%;                  /* #F4F4F5 */
+  --accent: 240 5% 96%;                 /* #F4F4F5 */
+  --accent-foreground: 240 6% 10%;
+
+  /* --- Lines ---------------------------------------------------------- */
+  --border: 240 5% 84%;                 /* #D4D4D8 */
+  --input: 240 5% 84%;                  /* #D4D4D8 */
+  --ring: 221 100% 31%;                 /* #0033A0 */
+
+  /* --- Status ---------------------------------------------------------
+   * --danger and --destructive are the same color under two names: the
+   * marketing site says "danger", shadcn says "destructive". Both are
+   * defined so neither codebase has to be renamed. */
+  --success: 142 72% 29%;               /* #16A34A */
+  --warning: 45 93% 47%;                /* #EAB308 */
+  --danger: 0 72% 51%;                  /* #DC2626 */
+  --destructive: 0 72% 51%;             /* #DC2626 */
+  --destructive-foreground: 0 0% 100%;  /* #FFFFFF */
+
+  /* --- Charts --------------------------------------------------------- */
+  --chart-1: 221 100% 31%;
+  --chart-2: 142 72% 29%;
+  --chart-3: 45 93% 47%;
+  --chart-4: 0 72% 51%;
+  --chart-5: 240 5% 34%;
+
+  /* --- Geometry ------------------------------------------------------- */
+  --radius: 0.125rem;
+
+  /* --- Type ------------------------------------------------------------
+   * Each repo overrides these in its own global stylesheet to point at
+   * however it loads the fonts. base.css only ever reads the vars. */
+  --font-heading: "Chivo", system-ui, -apple-system, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+}
+
+.dark {
+  /* --- Surfaces ------------------------------------------------------- */
+  --background: 240 10% 4%;
+  --surface: 240 6% 10%;
+  --card: 240 8% 7%;
+  --popover: 240 8% 7%;
+
+  /* --- Text ----------------------------------------------------------- */
+  --foreground: 0 0% 98%;
+  --card-foreground: 0 0% 98%;
+  --popover-foreground: 0 0% 98%;
+  --muted-foreground: 240 5% 65%;
+
+  /* --- Brand ---------------------------------------------------------- */
+  --primary: 221 100% 60%;              /* lightened so it reads on dark */
+  --primary-hover: 221 100% 70%;
+  --primary-foreground: 0 0% 100%;
+
+  /* --- Subtle fills --------------------------------------------------- */
+  --secondary: 240 4% 16%;
+  --secondary-foreground: 0 0% 90%;
+  --muted: 240 4% 16%;
+  --accent: 240 4% 16%;
+  --accent-foreground: 0 0% 90%;
+
+  /* --- Lines ---------------------------------------------------------- */
+  --border: 240 4% 22%;
+  --input: 240 4% 22%;
+  --ring: 221 100% 60%;
+
+  /* --- Status --------------------------------------------------------- */
+  --success: 142 72% 40%;
+  --warning: 45 93% 55%;
+  --danger: 0 72% 60%;
+  --destructive: 0 72% 60%;
+  --destructive-foreground: 0 0% 100%;
+
+  /* --- Charts --------------------------------------------------------- */
+  --chart-1: 221 100% 60%;
+  --chart-2: 142 72% 40%;
+  --chart-3: 45 93% 55%;
+  --chart-4: 0 72% 60%;
+  --chart-5: 240 5% 65%;
+}

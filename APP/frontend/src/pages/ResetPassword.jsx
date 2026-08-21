@@ -29,7 +29,7 @@ export default function ResetPassword() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-8">
+    <div className="flex-1 flex items-center justify-center bg-background p-8">
       <form onSubmit={submit} className="w-full max-w-md space-y-6" data-testid="reset-form">
         <div>
           <div className="brand-bar w-20 mb-4" />

@@ -4,13 +4,69 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#0033A0" />
-    <meta name="description" content="Illinois UI Job Search Tracker — track IDES work-search contacts and benefit week compliance." />
-    <link rel="icon" href="/favicon.ico" />
-    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Chivo:wght@400;700;900&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <title>Illinois UI Job Search Tracker</title>
+    <title>Illinois Job Tracker</title>
+    <meta
+      name="description"
+      content="Track your weekly work-search contacts and generate your ADJ034F — without the spreadsheet."
+    />
+
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" href="/icons/logo-mark.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Illinois Job Tracker" />
+    <meta property="og:title" content="Illinois Job Tracker" />
+    <meta
+      property="og:description"
+      content="Track your weekly work-search contacts and generate your ADJ034F — without the spreadsheet."
+    />
+    <meta property="og:url" content="https://illinoisjobtracker.app/" />
+    <meta
+      property="og:image"
+      content="https://illinoisjobtracker.app/og-image.png"
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta
+      name="twitter:image"
+      content="https://illinoisjobtracker.app/og-image.png"
+    />
+
+    <script>
+      // Applies the theme before first paint, so the app never flashes the
+      // wrong colors — the same thing next-themes does server-side on
+      // illinoisjobtracker.com. Without this a client-rendered SPA can only
+      // set the class after hydration, which is exactly the seam we're closing.
+      //
+      // Also consumes the ?theme= handoff from .com: the two domains are
+      // separate origins and cannot share localStorage, so an explicit choice
+      // made on the marketing site travels in the URL.
+      //
+      // Storage key must match THEME_STORAGE_KEY in src/lib/site.js.
+      (function () {
+        try {
+          var KEY = "ijt-theme";
+          var url = new URL(window.location.href);
+          var handoff = url.searchParams.get("theme");
+          if (handoff === "light" || handoff === "dark") {
+            localStorage.setItem(KEY, handoff);
+            url.searchParams.delete("theme");
+            history.replaceState({}, "", url.pathname + url.search + url.hash);
+          }
+          var stored = localStorage.getItem(KEY);
+          var theme =
+            stored === "light" || stored === "dark"
+              ? stored
+              : window.matchMedia("(prefers-color-scheme: dark)").matches
+                ? "dark"
+                : "light";
+          document.documentElement.classList.toggle("dark", theme === "dark");
+          document.documentElement.style.colorScheme = theme;
+        } catch (e) {
+          /* private-mode storage or a malformed URL: fall through to system */
+        }
+      })();
+    </script>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>

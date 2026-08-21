@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Illinois Job Tracker">
+  <title>Illinois Job Tracker</title>
+  <!-- Illinois Blue tile. Full-bleed: the letterforms sit inside the central
+       53%, which keeps the mark inside the Android maskable safe zone. -->
+  <rect width="64" height="64" fill="#0033A0"/>
+  <!-- "IL" drawn as paths so the mark never depends on Chivo being loaded. -->
+  <path d="M15 17h9v30h-9z" fill="#fff"/>
+  <path d="M28 17h9v21h12v9H28z" fill="#fff"/>
+</svg>

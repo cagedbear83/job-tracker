@@ -1,9 +1,12 @@
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
-import { useTheme } from "next-themes";
+import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
+import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import Logo from "@/components/Logo";
+import SiteFooter from "@/components/SiteFooter";
+import ThemeToggle from "@/components/ThemeToggle";
+import { site } from "@/lib/site";
 import {
   HouseIcon,
   IdentificationCardIcon,
@@ -15,8 +18,6 @@ import {
   CalendarCheckIcon,
   ListIcon,
   FolderOpenIcon,
-  SunIcon,
-  MoonIcon,
   GearSixIcon,
 } from "@phosphor-icons/react";
 
@@ -97,14 +98,6 @@ export default function Layout() {
   const navigate = useNavigate();
   const isAdmin = user?.role === "admin";
   const [drawerOpen, setDrawerOpen] = useState(false);
-  // Drive the toggle off resolvedTheme (what's actually on screen), not `theme`
-  // — with enableSystem on, `theme` can be the literal "system", which made the
-  // button's label/icon disagree with the rendered colors. `mounted` guards the
-  // first client paint so the icon isn't wrong before the theme is known.
-  const { resolvedTheme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-  const isDark = mounted && resolvedTheme === "dark";
 
   const onLogout = async () => {
     await logout();
@@ -121,9 +114,10 @@ export default function Layout() {
   ];
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       <div className="brand-bar" />
-      <header className="border-b border-border bg-background">
+      {/* Sticky + blurred to match the marketing site nav. */}
+      <header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur">
         <div className="max-w-[1440px] mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3">
             <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
@@ -144,10 +138,8 @@ export default function Layout() {
               >
                 <div className="brand-bar" />
                 <div className="px-4 py-4 border-b border-border">
-                  <div className="font-display font-black text-base">
-                    Illinois UI Tracker
-                  </div>
-                  <div className="kbd-label mt-1">Work Search Compliance</div>
+                  <Logo size={32} className="text-base" />
+                  <div className="kbd-label mt-2">Work Search Compliance</div>
                 </div>
                 <nav className="border-b border-border">
                   {navItems.map(({ to, label, Icon, testid }) => (
@@ -169,22 +161,28 @@ export default function Layout() {
                     </NavLink>
                   ))}
                 </nav>
+                <ThemeToggle variant="full" className="border-b border-border" />
               </SheetContent>
             </Sheet>
-            <div className="w-9 h-9 bg-primary flex items-center justify-center text-white font-display font-black tracking-tight">
-              IL
-            </div>
-            <div>
-              <div className="font-display font-black text-base leading-none tracking-tight text-foreground">
-                Illinois UI Tracker
+            <Link
+              to="/dashboard"
+              className="flex items-center gap-3"
+              aria-label={site.name}
+            >
+              <Logo size={32} showWordmark={false} />
+              <div>
+                <div className="font-display font-black text-base leading-none tracking-tight text-foreground">
+                  {site.name}
+                </div>
+                <div className="kbd-label mt-1">
+                  Work Search Compliance{isAdmin ? " · ADMIN" : ""}
+                </div>
               </div>
-              <div className="kbd-label mt-1">
-                Work Search Compliance{isAdmin ? " · ADMIN" : ""}
-              </div>
-            </div>
+            </Link>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
             <div className="text-right hidden sm:block">
               <div
                 className="text-sm font-semibold text-foreground"
@@ -206,7 +204,7 @@ export default function Layout() {
         </div>
       </header>
 
-      <div className="max-w-[1440px] mx-auto px-4 sm:px-6 py-6 grid grid-cols-12 gap-6">
+      <div className="flex-1 w-full max-w-[1440px] mx-auto px-4 sm:px-6 py-6 grid grid-cols-12 gap-6">
         <aside className="hidden md:block col-span-12 md:col-span-3 lg:col-span-2">
           <nav className="border border-border bg-background">
             {navItems.map(({ to, label, Icon, testid }) => (
@@ -228,19 +226,6 @@ export default function Layout() {
               </NavLink>
             ))}
           </nav>
-          {/* Dark mode toggle */}
-          <button
-            type="button"
-            onClick={() => setTheme(isDark ? "light" : "dark")}
-            className="mt-3 w-full flex items-center gap-2 px-4 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-secondary border-t border-border transition-colors"
-            aria-label="Toggle dark mode"
-          >
-            {isDark
-              ? <SunIcon size={14} weight="bold" />
-              : <MoonIcon size={14} weight="bold" />}
-            {isDark ? "Light mode" : "Dark mode"}
-          </button>
-
           {!isAdmin && (
             <div className="mt-4 p-4 border border-border bg-secondary">
               <div className="kbd-label mb-1">Reminder</div>
@@ -256,6 +241,8 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
+
+      <SiteFooter />
     </div>
   );
 }

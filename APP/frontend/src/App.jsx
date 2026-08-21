@@ -7,6 +7,9 @@ import { Toaster } from "@/components/ui/sonner";
 import { UpgradeModalProvider } from "@/components/UpgradeModal";
 import { SubscriptionProvider } from "@/hooks/useSubscription";
 import RequireRole from "@/components/RequireRole";
+import ExternalRedirect from "@/components/ExternalRedirect";
+import PublicChrome from "@/components/PublicChrome";
+import { marketingUrl } from "@/lib/site";
 
 // Eagerly load Layout and auth-wall pages — needed before any route renders
 import Layout from "@/components/Layout";
@@ -18,7 +21,6 @@ const Register      = lazy(() => import("@/pages/Register"));
 const ForgotPassword = lazy(() => import("@/pages/ForgotPassword"));
 const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
 const VerifyEmail   = lazy(() => import("@/pages/VerifyEmail"));
-const Landing       = lazy(() => import("@/pages/Landing"));
 const InviteSignup  = lazy(() => import("@/pages/InviteSignup"));
 const Dashboard     = lazy(() => import("@/pages/Dashboard"));
 const Profile       = lazy(() => import("@/pages/Profile"));
@@ -31,8 +33,6 @@ const ImportPage    = lazy(() => import("@/pages/ImportPage"));
 const AuditLog      = lazy(() => import("@/pages/AuditLog"));
 const DocumentsPage = lazy(() => import("@/pages/Documents"));
 const SmsOptIn      = lazy(() => import("@/pages/SmsOptIn"));
-const PrivacyPolicy = lazy(() => import("@/pages/PrivacyPolicy"));
-const Terms         = lazy(() => import("@/pages/Terms"));
 
 function PageLoader() {
   return (
@@ -59,14 +59,17 @@ function PublicOnly({ children }) {
   const { user, loading } = useAuth();
   if (loading) return null;
   if (user) return <Navigate to="/dashboard" replace />;
-  return children;
+  return <PublicChrome>{children}</PublicChrome>;
 }
 
+// illinoisjobtracker.com owns the landing page, so the app no longer ships a
+// second one competing with it for the same content and search results. Signed-
+// in visitors still land straight on their dashboard.
 function LandingOrApp() {
   const { user, loading } = useAuth();
   if (loading) return null;
   if (user) return <Navigate to="/dashboard" replace />;
-  return <Landing />;
+  return <ExternalRedirect to={marketingUrl("/")} />;
 }
 
 // Derives the new admin-platform role from the existing session until the
@@ -177,9 +180,20 @@ export function App() {
                 <Route path="/admin" element={<AdminPage />} />
                 <Route path="/admin/platform" element={<AdminPlatformRoute />} />
                 <Route path="/sms-opt-in" element={<SmsOptIn />} />
-                <Route path="/privacy" element={<PrivacyPolicy />} />
-                <Route path="/terms" element={<Terms />} />
               </Route>
+              {/* Legal lives on the marketing site, and these must stay
+                  reachable while logged out — they are linked from the
+                  registration and SMS consent flows. They used to sit behind
+                  the auth wall, which bounced exactly those visitors to
+                  /login. */}
+              <Route
+                path="/privacy"
+                element={<ExternalRedirect to={marketingUrl("/privacy")} />}
+              />
+              <Route
+                path="/terms"
+                element={<ExternalRedirect to={marketingUrl("/terms")} />}
+              />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
             </Suspense>

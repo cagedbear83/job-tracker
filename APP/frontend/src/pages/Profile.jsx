@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { api, formatApiError } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { Input } from "@/components/ui/input";
@@ -22,6 +22,7 @@ import {
   WarningIcon,
   TrashIcon,
 } from "@phosphor-icons/react";
+import { marketingUrl } from "@/lib/site";
 
 const FIELDS = [
   ["first_name", "First Name", "sm:col-span-6"],
@@ -280,13 +281,23 @@ export default function Profile() {
                 number below. Message frequency varies. Message and data
                 rates may apply. Reply <strong>HELP</strong> for help and{" "}
                 <strong>STOP</strong> to opt out at any time. View our{" "}
-                <Link to="/terms" className="text-primary underline" target="_blank">
+                <a
+                  href={marketingUrl("/terms")}
+                  className="text-primary underline"
+                  target="_blank"
+                  rel="noreferrer"
+                >
                   Terms &amp; Conditions
-                </Link>{" "}
+                </a>{" "}
                 and{" "}
-                <Link to="/privacy" className="text-primary underline" target="_blank">
+                <a
+                  href={marketingUrl("/privacy")}
+                  className="text-primary underline"
+                  target="_blank"
+                  rel="noreferrer"
+                >
                   Privacy Policy
-                </Link>
+                </a>
                 .
               </span>
             </span>

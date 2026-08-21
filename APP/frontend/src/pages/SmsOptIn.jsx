@@ -1,4 +1,6 @@
 import { useState } from "react";
+import Logo from "@/components/Logo";
+import { site, marketingUrl } from "@/lib/site";
 import { Link } from "react-router-dom";
 import {
   DeviceMobile,
@@ -33,20 +35,18 @@ export default function SmsOptIn() {
   return (
     <div className="min-h-screen bg-background">
       {/* Brand bar */}
-      <div className="h-1 bg-primary" />
+      <div className="brand-bar" />
 
       {/* Header */}
       <header className="border-b border-border bg-background">
         <div className="max-w-4xl mx-auto px-6 py-3 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-primary flex items-center justify-center text-white font-display font-black tracking-tight text-sm">
-              IL
-            </div>
+            <Logo size={32} showWordmark={false} />
             <div>
               <div className="font-display font-black text-base leading-none tracking-tight">
-                Illinois UI Tracker
+                {site.name}
               </div>
-              <div className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase mt-1">
+              <div className="kbd-label mt-1">
                 Work Search Compliance
               </div>
             </div>
@@ -181,13 +181,13 @@ export default function SmsOptIn() {
                   message frequency varies (typically 1–3 per week), and I can
                   opt out at any time by replying <strong>STOP</strong>. Reply{" "}
                   <strong>HELP</strong> for help. View our{" "}
-                  <Link to="/privacy" className="text-primary underline">
+                  <a href={marketingUrl("/privacy")} className="text-primary underline">
                     Privacy Policy
-                  </Link>{" "}
+                  </a>{" "}
                   and{" "}
-                  <Link to="/terms" className="text-primary underline">
+                  <a href={marketingUrl("/terms")} className="text-primary underline">
                     Terms & Conditions
-                  </Link>
+                  </a>
                   .
                 </span>
               </label>
@@ -246,15 +246,15 @@ export default function SmsOptIn() {
       <footer className="border-t border-border mt-16">
         <div className="max-w-4xl mx-auto px-6 py-6 flex items-center justify-between text-xs text-muted-foreground">
           <span>
-            © {new Date().getFullYear()} Illinois UI Job Search Tracker
+            © {new Date().getFullYear()} {site.company}
           </span>
           <div className="flex gap-4">
-            <Link to="/privacy" className="hover:text-foreground">
+            <a href={marketingUrl("/privacy")} className="hover:text-foreground">
               Privacy Policy
-            </Link>
-            <Link to="/terms" className="hover:text-foreground">
+            </a>
+            <a href={marketingUrl("/terms")} className="hover:text-foreground">
               Terms & Conditions
-            </Link>
+            </a>
           </div>
         </div>
       </footer>

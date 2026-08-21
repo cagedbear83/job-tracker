@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { CrownIcon, CheckIcon, XIcon } from "@phosphor-icons/react";
 import { api } from "@/lib/api";
+import { marketingUrl } from "@/lib/site";
 
 const UpgradeModalContext = createContext(null);
 
@@ -186,6 +187,20 @@ export function UpgradeModalProvider({ children }) {
               </div>
             ))}
           </div>
+
+          {/* The full, canonical plan comparison lives on the marketing site.
+              These cards are a summary; that page is the source of truth. */}
+          <p className="mt-4 text-center text-xs text-muted-foreground">
+            <a
+              href={marketingUrl("/pricing")}
+              target="_blank"
+              rel="noreferrer"
+              className="text-primary underline"
+            >
+              Compare all plans
+            </a>{" "}
+            on illinoisjobtracker.com
+          </p>
 
           <button
             onClick={() => setOpen(false)}

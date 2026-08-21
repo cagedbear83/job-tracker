@@ -1,0 +1,121 @@
+/* ============================================================================
+ * Illinois UI Job Search Tracker — canonical base styles
+ *
+ * CANONICAL SOURCE: job-tracker/APP/brand/base.css
+ * Edit here, then copy byte-identical to:
+ *   - job-tracker/APP/frontend/src/brand-base.css    (illinoisjobtracker.app)
+ *   - ijt-marketing/app/brand-base.css               (illinoisjobtracker.com)
+ *
+ * Element defaults and the brand's signature utility classes. Depends on
+ * tokens.css being loaded first. Nothing framework-specific, so it behaves
+ * identically under Vite and Next.
+ *
+ * ORDERING: both repos @import this ABOVE their @tailwind directives, so
+ * Tailwind utilities beat everything here. That is intentional — a rule in
+ * this file is the default, and a utility in the markup is the exception.
+ * The one thing that must survive Preflight is the default border color, and
+ * that is handled properly via `borderColor.DEFAULT` in each tailwind.config,
+ * not by a `*` selector here.
+ * ========================================================================== */
+
+body {
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "cv11", "ss01";
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.font-display {
+  font-family: var(--font-heading);
+  letter-spacing: -0.015em;
+}
+
+/* Brand accent bar — the Illinois flag stripe that opens every page on both
+ * domains. Fixed flag hexes on purpose: these are brand colors, not theme
+ * colors, and must not invert in dark mode. */
+.brand-bar {
+  background: linear-gradient(
+    90deg,
+    #0033a0 0%,
+    #0033a0 60%,
+    #dc2626 60%,
+    #dc2626 70%,
+    #ffffff 70%,
+    #ffffff 100%
+  );
+  height: 4px;
+  width: 100%;
+}
+
+/* Eyebrow / label type. */
+.kbd-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+}
+
+/* Tabular figures for data columns. */
+.font-mono-data {
+  font-family: var(--font-body);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Sharp focus ring. Components that ship their own ring opt out with
+ * `focus-visible:outline-none` and win, since utilities come later. */
+*:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground));
+}
+
+/* Instant press feedback — tight, no bounce (matches the Swiss/flat system).
+ * Responds on pointer-down via :active so the press reads as direct. */
+button,
+[role="button"] {
+  transition:
+    transform 100ms ease-out,
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease;
+}
+button:active:not(:disabled),
+[role="button"]:active:not([aria-disabled="true"]) {
+  transform: scale(0.98);
+}
+
+/* Accessibility: honor reduced-motion and reduced-transparency preferences. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  [class*="backdrop-blur"] {
+    backdrop-filter: none !important;
+  }
+}

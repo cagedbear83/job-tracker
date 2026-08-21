@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { API } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { site } from "@/lib/site";
 
 // Backward-compatibility shim.
 //
@@ -30,7 +31,7 @@ export default function VerifyEmail() {
   }, [token]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="flex-1 flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md border border-border bg-card">
         {/* Branded header — same "IL" badge + product name treatment used in
             the reminder emails (see core.py's _reminder_html), so this page
@@ -41,7 +42,7 @@ export default function VerifyEmail() {
           </div>
           <div>
             <div className="text-white font-display font-black text-sm tracking-tight leading-none">
-              Illinois UI Job Search Tracker
+              {site.name}
             </div>
             <div className="text-white/70 text-[10px] uppercase tracking-widest mt-1">
               Work Search Compliance

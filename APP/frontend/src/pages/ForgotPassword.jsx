@@ -27,7 +27,7 @@ export default function ForgotPassword() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-8">
+    <div className="flex-1 flex items-center justify-center bg-background p-8">
       <form
         onSubmit={submit}
         className="w-full max-w-md space-y-6"

@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { marketingUrl } from "@/lib/site";
 import { useAuth } from "@/context/AuthContext";
 import { formatApiError } from "@/lib/api";
 import { Input } from "@/components/ui/input";
@@ -83,6 +84,15 @@ function Req() {
   return <span className="text-destructive ml-0.5">*</span>;
 }
 
+// The pricing page on illinoisjobtracker.com deep-links here as
+// /register?plan=pro and ?plan=caseworker. Without this the visitor picked a
+// plan, crossed domains, and landed on a form that had never heard of it.
+const PLAN_LABELS = {
+  free: "Free",
+  pro: "Pro",
+  caseworker: "Case Worker",
+};
+
 export default function Register() {
   const { register } = useAuth();
   const navigate = useNavigate();
@@ -104,6 +114,8 @@ export default function Register() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [searchParams] = useSearchParams();
+  const selectedPlan = PLAN_LABELS[searchParams.get("plan")] ? searchParams.get("plan") : null;
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -182,7 +194,7 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen grid grid-cols-1 md:grid-cols-2 bg-background">
+    <div className="flex-1 grid grid-cols-1 md:grid-cols-2 bg-background">
       <div className="hidden md:block relative bg-primary">
         <div className="absolute inset-0 p-12 flex flex-col justify-between text-white">
           <div className="brand-bar w-32" />
@@ -216,6 +228,24 @@ export default function Register() {
           <h2 className="font-display font-black text-3xl tracking-tighter mt-1">
             Register
           </h2>
+          {selectedPlan && (
+            <p
+              className="mt-2 border border-border bg-secondary px-3 py-2 text-sm"
+              data-testid="selected-plan"
+            >
+              Signing up for{" "}
+              <strong className="font-semibold">
+                {PLAN_LABELS[selectedPlan]}
+              </strong>
+              .{" "}
+              <a
+                href={marketingUrl("/pricing")}
+                className="text-primary underline"
+              >
+                Compare plans
+              </a>
+            </p>
+          )}
           <p className="text-sm text-muted-foreground mt-1">
             Already have an account?{" "}
             <Link
@@ -277,13 +307,23 @@ export default function Register() {
                 above. Message frequency varies. Message and data rates may
                 apply. Reply <strong>STOP</strong> to cancel, <strong>HELP</strong>{" "}
                 for help. See our{" "}
-                <Link to="/privacy" className="text-primary underline" target="_blank">
+                <a
+                  href={marketingUrl("/privacy")}
+                  className="text-primary underline"
+                  target="_blank"
+                  rel="noreferrer"
+                >
                   Privacy Policy
-                </Link>{" "}
+                </a>{" "}
                 and{" "}
-                <Link to="/terms" className="text-primary underline" target="_blank">
+                <a
+                  href={marketingUrl("/terms")}
+                  className="text-primary underline"
+                  target="_blank"
+                  rel="noreferrer"
+                >
                   Terms &amp; Conditions
-                </Link>
+                </a>
                 . This is optional and not required to create an account.
               </span>
             </label>

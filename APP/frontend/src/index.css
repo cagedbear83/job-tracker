@@ -1,115 +1,27 @@
+/* Shared brand layer — byte-identical to ijt-marketing/app/brand-*.css.
+ * Canonical source: APP/brand/. Imported above the Tailwind directives so
+ * utilities always win over defaults. */
+@import "./brand-tokens.css";
+@import "./brand-base.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  /* Swiss High-Contrast palette */
-  --background: 0 0% 100%;
-  --foreground: 240 6% 6%;
-  --card: 0 0% 100%;
-  --card-foreground: 240 6% 6%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 240 6% 6%;
-  --primary: 222 100% 31%;        /* Illinois Blue #0033A0 */
-  --primary-foreground: 0 0% 100%;
-  --secondary: 240 5% 96%;
-  --secondary-foreground: 240 6% 10%;
-  --muted: 240 5% 96%;
-  --muted-foreground: 240 4% 36%;
-  --accent: 240 5% 96%;
-  --accent-foreground: 240 6% 10%;
-  --destructive: 0 73% 51%;
-  --destructive-foreground: 0 0% 100%;
-  --border: 240 5% 84%;
-  --input: 240 5% 84%;
-  --ring: 222 100% 31%;
-  --radius: 0.125rem;
-}
+/* --- App-only, below this line ------------------------------------------ */
 
-.dark {
-  --background: 224 14% 9%;          /* near-black */
-  --foreground: 210 17% 95%;
-  --card: 224 14% 12%;
-  --card-foreground: 210 17% 95%;
-  --popover: 224 14% 12%;
-  --popover-foreground: 210 17% 95%;
-  --primary: 222 100% 60%;           /* lighter blue for dark bg */
-  --primary-foreground: 0 0% 100%;
-  --secondary: 224 14% 18%;
-  --secondary-foreground: 210 17% 90%;
-  --muted: 224 14% 18%;
-  --muted-foreground: 210 10% 55%;
-  --accent: 224 14% 18%;
-  --accent-foreground: 210 17% 90%;
-  --destructive: 0 63% 55%;
-  --destructive-foreground: 0 0% 100%;
-  --border: 224 14% 20%;
-  --input: 224 14% 20%;
-  --ring: 222 100% 60%;
-}
-
-* { border-color: hsl(var(--border)); }
-
-html, body, #root {
+/* Full-height chain for the SPA root. */
+html,
+body,
+#root {
   height: 100%;
-  background: hsl(var(--background));
-  color: hsl(var(--foreground));
-  font-family: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  font-feature-settings: 'cv11', 'ss01';
 }
 
-h1, h2, h3, h4, .font-display {
-  font-family: 'Chivo', 'IBM Plex Sans', system-ui, sans-serif;
-  letter-spacing: -0.015em;
+/* Dense compliance table. */
+table.compliance-table th,
+table.compliance-table td {
+  padding: 0.5rem 0.75rem;
 }
-
-.font-mono-data {
-  font-family: 'IBM Plex Sans', monospace;
-  font-variant-numeric: tabular-nums;
-}
-
-/* Brand accent bar */
-.brand-bar {
-  background: linear-gradient(90deg, #0033A0 0%, #0033A0 60%, #DC2626 60%, #DC2626 70%, #ffffff 70%, #ffffff 100%);
-  height: 4px;
-  width: 100%;
-}
-
-.kbd-label {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.2em;
-  font-weight: 600;
-  color: hsl(var(--muted-foreground));
-}
-
-/* Dense table */
-table.compliance-table th, table.compliance-table td { padding: 0.5rem 0.75rem; }
-table.compliance-table tbody tr:hover { background: hsl(var(--secondary)); }
-
-/* Sharp focus ring */
-*:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
-
-/* Scrollbar */
-::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-thumb { background: hsl(var(--border)); }
-::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground)); }
-
-/* Instant press feedback — tight, no bounce (matches the Swiss/flat system).
-   Responds on pointer-down via :active so the press reads as direct. */
-button, [role="button"] { transition: transform 100ms ease-out, background-color 150ms ease, border-color 150ms ease, color 150ms ease; }
-button:active:not(:disabled), [role="button"]:active:not([aria-disabled="true"]) { transform: scale(0.98); }
-
-/* Accessibility: honor reduced-motion and reduced-transparency preferences. */
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.001ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.001ms !important;
-    scroll-behavior: auto !important;
-  }
-}
-@media (prefers-reduced-transparency: reduce) {
-  [class*="backdrop-blur"] { backdrop-filter: none !important; }
+table.compliance-table tbody tr:hover {
+  background: hsl(var(--secondary));
 }

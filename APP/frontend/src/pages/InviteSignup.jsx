@@ -11,6 +11,7 @@ import {
   UserCircleIcon,
   ShieldCheckIcon,
 } from "@phosphor-icons/react";
+import { site } from "@/lib/site";
 
 export default function InviteSignup() {
   const { code } = useParams();
@@ -38,7 +39,7 @@ export default function InviteSignup() {
         name: form.name,
       });
       setToken(data.token);
-      toast.success("Welcome to Illinois UI Tracker");
+      toast.success(`Welcome to ${site.name}`);
       window.location.href = "/dashboard";
     } catch (e) {
       toast.error(formatApiError(e));
@@ -49,7 +50,7 @@ export default function InviteSignup() {
 
   if (err) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-8">
+      <div className="flex-1 flex items-center justify-center bg-background p-8">
         <div
           className="max-w-md w-full border border-[#DC2626] bg-destructive/10 p-6"
           data-testid="invite-error"
@@ -70,13 +71,13 @@ export default function InviteSignup() {
   }
   if (!invite)
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex-1 flex items-center justify-center">
         <div className="kbd-label">Loading invite…</div>
       </div>
     );
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-8">
+    <div className="flex-1 flex items-center justify-center bg-background p-8">
       <form
         onSubmit={submit}
         className="w-full max-w-md space-y-6"

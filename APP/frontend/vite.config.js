@@ -10,8 +10,8 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["favicon.ico", "icons/*.png"],
       manifest: {
-        name: "Illinois UI Job Search Tracker",
-        short_name: "IL UI Tracker",
+        name: "Illinois Job Tracker",
+        short_name: "Illinois Job Tracker",
         description: "Track IDES work-search contacts and benefit week compliance.",
         theme_color: "#0033A0",
         background_color: "#ffffff",
@@ -70,24 +70,6 @@ export default defineConfig({
             options: {
               cacheName: "html-shell",
               networkTimeoutSeconds: 3,
-            },
-          },
-          {
-            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-            handler: "CacheFirst",
-            options: {
-              cacheName: "google-fonts-cache",
-              expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-          {
-            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
-            handler: "CacheFirst",
-            options: {
-              cacheName: "gstatic-fonts-cache",
-              expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
-              cacheableResponse: { statuses: [0, 200] },
             },
           },
         ],
