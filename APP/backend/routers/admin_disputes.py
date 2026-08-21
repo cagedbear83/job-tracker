@@ -35,7 +35,6 @@ router = APIRouter(prefix="/admin/platform/disputes", tags=["admin-platform:disp
 
 
 class SubmitEvidence(BaseModel):
-    step_up_password: str
     overrides: dict = Field(default_factory=dict, description="optional evidence field overrides")
 
 
@@ -91,7 +90,7 @@ async def get_dispute(dispute_id: str, request: Request, viewer: dict = Depends(
 async def submit_dispute(dispute_id: str, body: SubmitEvidence, request: Request,
                          admin: dict = Depends(require_admin)):
     """Submit assembled evidence to Stripe directly (platform_admin, step-up)."""
-    await verify_step_up(admin, body.step_up_password)
+    await verify_step_up(admin)
 
     dispute = await db.disputes.find_one({"id": dispute_id}, {"_id": 0})
     if not dispute:

@@ -1,22 +1,16 @@
-from pymongo import MongoClient
-import os
-import bcrypt
+#!/usr/bin/env python3
+"""Obsolete — admin passwords are no longer stored by this application.
 
-uri = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
-db_name = os.environ.get('DB_NAME', 'ides_tracker_db')
-email = 'admin@illinoistracker.app'
-new_password = 'Demo1234!'
+Clerk owns credentials. This script used to write a bcrypt hash into
+db.users.password_hash, which nothing reads any more, so running it would
+silently do nothing useful.
 
-client = MongoClient(uri)
-db = client[db_name]
-user = db.users.find_one({'email': email})
-if not user:
-    print('User not found:', email)
-    raise SystemExit(1)
+To change an admin's password:
+    Clerk dashboard -> Users -> select the user -> Reset password
 
-new_hash = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt()).decode()
-res = db.users.update_one({'email': email}, {'$set': {'password_hash': new_hash}})
-print('Matched:', res.matched_count, 'Modified:', res.modified_count)
-# verify
-ok = bcrypt.checkpw(new_password.encode(), db.users.find_one({'email': email})['password_hash'].encode())
-print('Verify new password:', ok)
+To grant someone admin:
+    add their email to the ADMIN_EMAILS environment variable; the role is
+    applied on their next sign-in (see clerk_auth.get_or_create_user).
+"""
+
+raise SystemExit(__doc__)

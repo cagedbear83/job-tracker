@@ -18,8 +18,9 @@ pydantic==2.13.4
 email-validator==2.3.0            # required by pydantic EmailStr
 
 # --- Auth / security ---
-bcrypt==5.0.0
+# Clerk owns credentials; this service only VERIFIES Clerk's session tokens.
 PyJWT==2.13.0                     # NOTE: PyJWT, not the unrelated `jwt` package
+cryptography==49.0.0              # required by PyJWT for RS256 + PyJWKClient
 
 # --- Scheduling / time ---
 APScheduler==3.11.2

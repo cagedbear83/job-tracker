@@ -4,6 +4,9 @@
 # UploadFile, Request, the response classes), the Pydantic models, config,
 # db, and the public helpers.
 from core import *  # noqa: F401,F403
+
+import clerk_auth
+from routers.invites import _signup_url
 from core import _reminder_html
 
 router = APIRouter()
@@ -54,6 +57,12 @@ async def admin_email_events(admin=Depends(require_admin)):
 
 @router.post("/admin/invites/bulk")
 async def bulk_invite(body: BulkInviteIn, admin=Depends(require_admin)):
+    """Invite many claimants from a CSV, via Clerk.
+
+    Same CSV contract as before (email, optional claimant_label / label, note),
+    but each row now creates a Clerk invitation instead of a local
+    `db.invites` row with a random code — see routers/invites.py.
+    """
     reader = csv.DictReader(io.StringIO(body.csv_text))
     created, skipped = [], []
     for row in reader:
@@ -65,33 +74,27 @@ async def bulk_invite(body: BulkInviteIn, admin=Depends(require_admin)):
         if await db.users.find_one({"email": email.lower()}):
             skipped.append({"email": email, "reason": "already a user"})
             continue
-        if await db.invites.find_one({"email": email.lower(), "used": False}):
-            skipped.append({"email": email, "reason": "pending invite exists"})
+        try:
+            invitation = clerk_auth.create_invitation(
+                email=email.lower(),
+                redirect_url=_signup_url(),
+                claimant_label=lc.get("claimant_label") or lc.get("label") or "Primary",
+                invited_by=admin["id"],
+                note=lc.get("note") or body.note,
+            )
+        except HTTPException as e:
+            # One bad row shouldn't abort the whole batch.
+            skipped.append({"email": email, "reason": str(e.detail)[:200]})
             continue
-        code = secrets.token_urlsafe(12)
-        doc = {
-            "code": code,
-            "email": email.lower(),
-            "claimant_label": lc.get("claimant_label") or lc.get("label") or "Primary",
-            "note": lc.get("note") or body.note,
-            "created_by": admin["id"],
-            "created_at": datetime.now(timezone.utc),
-            "expires_at": datetime.now(timezone.utc) + timedelta(days=14),
-            "used": False,
-            "used_at": None,
-        }
-        await db.invites.insert_one(doc)
-        link = f"{os.environ.get('FRONTEND_URL', 'http://localhost:3000')}/invite/{code}"
-        await send_email(
-            email,
-            "You're invited to Illinois UI Tracker",
-            _reminder_html(
-                "You're invited",
-                f"<p>A case worker invited you. <a href='{link}'>Accept invite</a></p><p style='font-size:11px; color:#52525B; word-break:break-all;'>{link}</p>",
-            ),
-        )
-        created.append({"email": email, "code": code, "invite_link": link})
-    await log_audit(admin["id"], "INVITE_BULK", "invite", None, f"Created {len(created)}, skipped {len(skipped)}")
+        created.append({"email": email, "id": invitation.get("id")})
+
+    await log_audit(
+        admin["id"],
+        "INVITE_BULK",
+        "invite",
+        None,
+        f"Created {len(created)}, skipped {len(skipped)}",
+    )
     return {"created": created, "skipped": skipped}
 
 

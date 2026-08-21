@@ -2,6 +2,8 @@
 # Foundation (app, api, db, models, helpers) lives in core.py;
 # route handlers live in routers/*.py.
 from core import *  # noqa: F401,F403 — re-exports app, api, os, CORSMiddleware, helpers
+
+import clerk_auth
 from core import app, api
 from core import _broadcast_reminders, _purge_due_accounts
 from core import _broadcast_event_reminders, _send_certification_final_reminders
@@ -36,6 +38,25 @@ scheduler: Optional[AsyncIOScheduler] = None
 @app.on_event("startup")
 async def on_startup():
     global scheduler
+
+    # Prove Clerk is configured before serving a single request. A wrong
+    # CLERK_ISSUER otherwise fails silently: the app boots fine and then 401s
+    # every authenticated request, which looks like a broken login rather than
+    # a bad environment variable. Fail here instead, naming the URL tried.
+    clerk_config = clerk_auth.validate_config()
+    logging.info(
+        "Clerk OK — %s signing key(s) from %s; %s admin email(s) configured",
+        clerk_config["key_count"],
+        clerk_config["jwks_url"],
+        clerk_config["admin_emails"],
+    )
+    if clerk_config["mismatch"]:
+        logging.error("Clerk environment mismatch: %s", clerk_config["mismatch"])
+    if not clerk_config["admin_emails"]:
+        logging.warning(
+            "ADMIN_EMAILS is empty — no account will be granted admin on sign-in."
+        )
+
     await db.users.create_index("email", unique=True)
     await db.benefit_weeks.create_index("user_id")
     await db.contacts.create_index([("user_id", 1), ("benefit_week_id", 1)])
@@ -47,25 +68,10 @@ async def on_startup():
     await db.usage_counters.create_index(
         [("user_id", 1), ("feature", 1), ("period", 1)], unique=True
     )
-    # TTL index on password_resets.expires_at (BSON datetime auto-cleanup)
-    try:
-        await db.password_resets.create_index("expires_at", expireAfterSeconds=0)
-    except Exception as e:
-        logging.info(f"password_resets TTL index: {e}")
-    try:
-        await db.refresh_tokens.create_index("token_hash", unique=True)
-        await db.refresh_tokens.create_index("family_id")
-        await db.refresh_tokens.create_index("user_id")
-        # TTL auto-cleanup once a (possibly-revoked) refresh token's own
-        # expires_at passes — no separate purge job needed.
-        await db.refresh_tokens.create_index("expires_at", expireAfterSeconds=0)
-    except Exception as e:
-        logging.info(f"refresh_tokens indexes: {e}")
-    try:
-        await db.invites.create_index("expires_at", expireAfterSeconds=0)
-        await db.invites.create_index("code", unique=True)
-    except Exception as e:
-        logging.info(f"invites indexes: {e}")
+    # password_resets, refresh_tokens and invites are all retired collections —
+    # Clerk owns password reset, session refresh, and invitations now, so none
+    # of them is written any more and none needs indexing. Drop the collections
+    # in Mongo whenever you feel like tidying; nothing reads them.
 
     # One-time migration: earlier registration code wrote profile docs with
     # ad-hoc keys (full_name / zip / is_primary) that the rest of the app never
@@ -113,73 +119,27 @@ async def on_startup():
     except Exception as e:
         logging.warning(f"Legacy profile migration skipped: {e}")
 
-    demo_user_enabled = os.environ.get("ENABLE_DEMO_USER", "true").lower() in ("1", "true", "yes")
-    demo_email = os.environ.get("DEMO_USER_EMAIL", "demo@illinoistracker.test").lower()
-    demo_password = os.environ.get("DEMO_USER_PASSWORD", "Demo1234!")
-    if demo_user_enabled:
-        existing = await db.users.find_one({"email": demo_email})
-        if not existing:
-            uid = str(uuid.uuid4())
-            await db.users.insert_one({
-                "id": uid,
-                "email": demo_email,
-                "name": "Demo Claimant",
-                "password_hash": hash_password(demo_password),
-                "role": "user",
-                "email_verified": True,
-                "created_at": datetime.now(timezone.utc).isoformat(),
-            })
-            pid = str(uuid.uuid4())
-            await db.profiles.insert_one({
-                "id": pid,
-                "user_id": uid,
-                "label": "Primary",
-                "first_name": "Demo",
-                "last_name": "Claimant",
-                "middle_initial": "A",
-                "claimant_id": "1234567",
-                "address": "100 W Randolph St",
-                "city": "Chicago",
-                "state": "IL",
-                "zip_code": "60601",
-                "phone": "312-555-1212",
-                "occupation": "Software Developer",
-                "reminders_enabled": True,
-                "reminder_email": "democlaimant@example.com",
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-            })
-            await db.users.update_one({"id": uid}, {"$set": {"active_claimant_id": pid}})
-        else:
-            update = {"email_verified": True}
-            if not verify_password(demo_password, existing["password_hash"]):
-                update["password_hash"] = hash_password(demo_password)
-            await db.users.update_one({"email": demo_email}, {"$set": update})
-    else:
-        logging.info("Demo user seeding disabled. Set ENABLE_DEMO_USER=true to enable it.")
-
-    admin_email = os.environ.get("ADMIN_EMAIL", "").strip().lower()
-    admin_pw = os.environ.get("ADMIN_PASSWORD", "")
-    if admin_email and admin_pw:
-        existing_admin = await db.users.find_one({"email": admin_email})
-        if not existing_admin:
-            await db.users.insert_one({
-                "id": str(uuid.uuid4()),
-                "email": admin_email,
-                "name": "Admin / Case Worker",
-                "password_hash": hash_password(admin_pw),
-                "role": "admin",
-                "email_verified": True,
-                "created_at": datetime.now(timezone.utc).isoformat(),
-            })
-        elif existing_admin.get("role") == "admin" and not verify_password(admin_pw, existing_admin["password_hash"]):
-            await db.users.update_one(
-                {"email": admin_email},
-                {"$set": {"password_hash": hash_password(admin_pw)}},
-            )
-        elif existing_admin.get("role") != "admin":
-            logging.warning(f"Configured ADMIN_EMAIL {admin_email} already exists as non-admin. Skipping admin seed.")
-    else:
-        logging.warning("ADMIN_EMAIL and ADMIN_PASSWORD are not configured; no admin account will be created automatically.")
+    # Account seeding moved to Clerk.
+    #
+    # This used to insert a demo user and an admin user into Mongo with bcrypt
+    # password hashes from DEMO_USER_PASSWORD / ADMIN_PASSWORD. Under Clerk
+    # those rows are unreachable — there is no local password check any more,
+    # so an account that exists only in Mongo can never be signed in to.
+    #
+    # Admin access now works the other way round: create the account in Clerk
+    # (or just sign up normally), and clerk_auth.get_or_create_user elevates it
+    # on first sign-in if its email is listed in ADMIN_EMAILS. Authorization
+    # still lives in this database — Clerk never decides who is an admin.
+    if os.environ.get("ADMIN_PASSWORD") or os.environ.get("DEMO_USER_PASSWORD"):
+        logging.warning(
+            "ADMIN_PASSWORD / DEMO_USER_PASSWORD are set but no longer used — "
+            "Clerk owns credentials. Set ADMIN_EMAILS instead and remove these."
+        )
+    if not os.environ.get("ADMIN_EMAILS"):
+        logging.warning(
+            "ADMIN_EMAILS is not configured; no account will be granted admin "
+            "automatically. Set it to a comma-separated list of emails."
+        )
 
     async for u in db.users.find({}, {"_id": 0, "id": 1, "active_claimant_id": 1, "role": 1}):
         if u.get("role") == "admin":

@@ -1,157 +1,100 @@
-# Auto-split from the former monolithic server.py — routes only.
-# Shared app state, models, and helpers live in core.py; `from core import *`
-# re-exports FastAPI symbols (APIRouter, Depends, HTTPException, File, Form,
-# UploadFile, Request, the response classes), the Pydantic models, config,
-# db, and the public helpers.
+# Case-worker invitations, backed by Clerk.
+#
+# This used to be a local invite-code system: a `db.invites` row with a random
+# code, a hand-built HTML email, a GET /invite/{code} lookup, and a
+# POST /invite/redeem that created the account and signed the user in.
+#
+# Clerk now owns that lifecycle — it sends the email, tracks
+# pending / accepted / revoked, and enforces expiry. The two endpoints the
+# frontend used to drive redemption are gone:
+#
+#   GET  /invite/{code}   -> Clerk ticket flow (__clerk_ticket in the URL)
+#   POST /invite/redeem   -> Clerk <SignUp/> completes it
+#
+# The claimant metadata this app needs rides along in the invitation's
+# public_metadata, which Clerk copies onto the user it creates. clerk_auth's
+# get_or_create_user reads it back to attach the claimant label and the
+# inviting case worker, and routers/auth.py's onboarding step consumes the
+# label when it builds the profile.
 from core import *  # noqa: F401,F403
-from core import _set_refresh_cookie, create_refresh_token
+
+import clerk_auth
 
 router = APIRouter()
 
 
+def _signup_url() -> str:
+    """Where an invitee lands after clicking the emailed link.
 
-# ============== Invite Codes (Admin) ==============
+    Clerk appends `__clerk_ticket` to this URL; the <SignUp/> component picks
+    it up and completes the invitation.
+    """
+    base = os.environ.get("FRONTEND_URL", "http://localhost:3000").rstrip("/")
+    return f"{base}/sign-up"
+
+
 @router.post("/admin/invites")
 async def create_invite(body: InviteCreate, admin=Depends(require_admin)):
-    code = secrets.token_urlsafe(12)
-    existing = await db.users.find_one({"email": body.email.lower()})
-    if existing:
-        raise HTTPException(status_code=400, detail="A user with that email already exists")
-    doc = {
-        "code": code,
-        "email": body.email.lower(),
-        "claimant_label": body.claimant_label or "Primary",
-        "note": body.note,
-        "created_by": admin["id"],
-        "created_at": datetime.now(timezone.utc),
-        "expires_at": datetime.now(timezone.utc) + timedelta(days=14),
-        "used": False,
-        "used_at": None,
-    }
-    await db.invites.insert_one(doc)
-    await log_audit(admin["id"], "INVITE_CREATE", "invite", code, f"Invite for {body.email}")
-    invite_link = f"{os.environ.get('FRONTEND_URL', 'http://localhost:3000')}/invite/{code}"
-    html = f"""
-    <div style="font-family:'IBM Plex Sans',Arial,sans-serif; max-width:560px; margin:auto; color:#09090B;">
-      <div style="background:#0033A0; color:#fff; padding:18px 24px;">
-        <h2 style="margin:0; font-family:'Chivo',Arial,sans-serif; font-weight:900;">You're invited</h2>
-      </div>
-      <div style="border:1px solid #D4D4D8; border-top:none; padding:24px;">
-        <p>A case worker has invited you to the Illinois UI Job Search Tracker.</p>
-        {f'<p style="background:#F4F4F5; padding:12px; border-left:3px solid #0033A0;">{body.note}</p>' if body.note else ""}
-        <p><a href="{invite_link}" style="display:inline-block; background:#0033A0; color:#fff; padding:12px 20px; text-decoration:none; font-weight:600;">Accept Invite</a></p>
-        <p style="font-size:12px; color:#52525B;">Link expires in 14 days.</p>
-        <p style="font-size:12px; color:#52525B; word-break:break-all;">{invite_link}</p>
-      </div>
-    </div>
-    """
-    await send_email(body.email, "You're invited to Illinois UI Tracker", html)
-    doc.pop("_id", None)
-    doc["invite_link"] = invite_link
-    return doc
+    email = body.email.lower()
+    if await db.users.find_one({"email": email}):
+        raise HTTPException(
+            status_code=400, detail="A user with that email already exists"
+        )
 
+    invitation = clerk_auth.create_invitation(
+        email=email,
+        redirect_url=_signup_url(),
+        claimant_label=body.claimant_label or "Primary",
+        invited_by=admin["id"],
+        note=body.note,
+    )
+
+    await log_audit(
+        admin["id"],
+        "INVITE_CREATE",
+        "invite",
+        invitation.get("id", ""),
+        f"Invite for {email}",
+    )
+    return invitation
 
 
 @router.get("/admin/invites")
 async def list_invites(admin=Depends(require_admin)):
-    items = await db.invites.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
-    for it in items:
-        it["invite_link"] = f"{os.environ.get('FRONTEND_URL', 'http://localhost:3000')}/invite/{it['code']}"
-    return items
+    """Pending and historical invitations, straight from Clerk.
+
+    Shaped to match what the admin table rendered off the old local rows so
+    the frontend keeps working: `email`, `claimant_label`, `note`, `used`.
+    """
+    items = clerk_auth.list_invitations()
+    out = []
+    for inv in items:
+        meta = inv.get("public_metadata") or {}
+        out.append(
+            {
+                "id": inv.get("id"),
+                "email": inv.get("email_address"),
+                "claimant_label": meta.get("claimant_label", "Primary"),
+                "note": meta.get("note", ""),
+                "status": inv.get("status"),
+                "used": inv.get("status") == "accepted",
+                "created_at": inv.get("created_at"),
+                "expires_at": inv.get("expires_at"),
+                "invited_by": meta.get("invited_by", ""),
+            }
+        )
+    return out
 
 
+@router.delete("/admin/invites/{invitation_id}")
+async def revoke_invite(invitation_id: str, admin=Depends(require_admin)):
+    """Revoke a pending invitation.
 
-@router.delete("/admin/invites/{code}")
-async def revoke_invite(code: str, admin=Depends(require_admin)):
-    res = await db.invites.delete_one({"code": code})
-    if res.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Not found")
-    await log_audit(admin["id"], "INVITE_REVOKE", "invite", code, "Invite revoked")
-    return {"ok": True}
-
-
-
-@router.get("/invite/{code}")
-async def get_invite(code: str):
-    inv = await db.invites.find_one({"code": code}, {"_id": 0})
-    if not inv:
-        raise HTTPException(status_code=404, detail="Invite not found")
-    if inv.get("used"):
-        raise HTTPException(status_code=400, detail="Invite already used")
-    exp = inv.get("expires_at")
-    if isinstance(exp, str):
-        exp = datetime.fromisoformat(exp)
-    if exp and exp.tzinfo is None:
-        exp = exp.replace(tzinfo=timezone.utc)
-    if exp and datetime.now(timezone.utc) > exp:
-        raise HTTPException(status_code=400, detail="Invite expired")
-    return {
-        "email": inv["email"],
-        "claimant_label": inv.get("claimant_label", "Primary"),
-        "note": inv.get("note", ""),
-    }
-
-
-
-@router.post("/invite/redeem")
-async def redeem_invite(response: Response, body: InviteRedeem):
-    # Password policy check on invite redemption too
-    policy_error = validate_password_policy(body.password)
-    if policy_error:
-        raise HTTPException(status_code=422, detail=policy_error)
-
-    inv = await db.invites.find_one({"code": body.code})
-    if not inv:
-        raise HTTPException(status_code=404, detail="Invite not found")
-    if inv.get("used"):
-        raise HTTPException(status_code=400, detail="Invite already used")
-    exp = inv.get("expires_at")
-    if isinstance(exp, str):
-        exp = datetime.fromisoformat(exp)
-    if exp and exp.tzinfo is None:
-        exp = exp.replace(tzinfo=timezone.utc)
-    if exp and datetime.now(timezone.utc) > exp:
-        raise HTTPException(status_code=400, detail="Invite expired")
-    if await db.users.find_one({"email": inv["email"]}):
-        raise HTTPException(status_code=400, detail="Account already exists with this email")
-    uid = str(uuid.uuid4())
-    await db.users.insert_one({
-        "id": uid,
-        "email": inv["email"],
-        "name": body.name,
-        "password_hash": hash_password(body.password),
-        "role": "user",
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "invited_by": inv.get("created_by"),
-    })
-    pid = str(uuid.uuid4())
-    await db.profiles.insert_one({
-        "id": pid,
-        "user_id": uid,
-        "label": inv.get("claimant_label", "Primary"),
-        "first_name": "",
-        "last_name": "",
-        "middle_initial": "",
-        "claimant_id": "",
-        "address": "",
-        "city": "",
-        "state": "IL",
-        "zip_code": "",
-        "phone": "",
-        "occupation": "",
-        "reminders_enabled": True,
-        "reminder_email": "",
-        "sms_enabled": False,
-        "sms_phone": "",
-        "updated_at": datetime.now(timezone.utc).isoformat(),
-    })
-    await db.users.update_one({"id": uid}, {"$set": {"active_claimant_id": pid}})
-    await db.invites.update_one(
-        {"code": body.code},
-        {"$set": {"used": True, "used_at": datetime.now(timezone.utc), "redeemed_user_id": uid}},
+    Takes a Clerk invitation id (inv_...) where this used to take the local
+    random code.
+    """
+    clerk_auth.revoke_invitation(invitation_id)
+    await log_audit(
+        admin["id"], "INVITE_REVOKE", "invite", invitation_id, "Invite revoked"
     )
-    await log_audit(uid, "REGISTER_INVITE", "user", uid, f"Invited account created from {inv.get('created_by')}")
-    token = create_token(uid, inv["email"])
-    refresh_raw, refresh_expires = await create_refresh_token(uid)
-    _set_refresh_cookie(response, refresh_raw, refresh_expires)
-    return {"token": token, "user": {"id": uid, "email": inv["email"], "name": body.name, "role": "user"}}
+    return {"ok": True}

@@ -19,8 +19,9 @@ import uuid
 from datetime import date, datetime, timedelta, timezone
 from typing import List, Literal, Optional
 
-import bcrypt
 import jwt
+
+import clerk_auth
 import pytz
 import requests as http_requests
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -180,21 +181,10 @@ else:  # pragma: no cover
 
         return _decorator
 
-JWT_ALGO = "HS256"
-JWT_SECRET = os.environ.get("JWT_SECRET")
-if not JWT_SECRET:
-    raise RuntimeError(
-        "JWT_SECRET environment variable is required for secure token signing"
-    )
+# JWT signing config removed — Clerk mints and signs session tokens now,
+# and clerk_auth.py verifies them against Clerk's public JWKS. JWT_SECRET
+# is no longer read or required at boot.
 
-# ---- Session security (access + rotating refresh tokens) ----
-# Threat model: a stolen access token should be useless almost immediately,
-# and a stolen refresh token should be detectable/revocable rather than
-# valid for days. Access tokens are short-lived JWTs kept in memory on the
-# frontend (never persisted to any Storage API). Refresh tokens are opaque
-# random strings held only in an httpOnly cookie — JS (and therefore XSS)
-# never sees them — and are rotated on every use. Each refresh token is
-# stored server-side as a salted hash so a DB read alone can't be replayed.
 ACCESS_TOKEN_MINUTES = int(os.environ.get("ACCESS_TOKEN_MINUTES", "10"))
 # Sliding idle expiry: each successful refresh pushes the refresh token's
 # expiry forward by this many minutes from "now".
@@ -204,202 +194,55 @@ REFRESH_TOKEN_IDLE_MINUTES = int(os.environ.get("REFRESH_TOKEN_IDLE_MINUTES", "3
 # can be ridden.
 REFRESH_TOKEN_ABSOLUTE_HOURS = int(os.environ.get("REFRESH_TOKEN_ABSOLUTE_HOURS", "12"))
 
-REFRESH_COOKIE_NAME = "refresh_token"
-# Cross-site by default: the frontend (Vercel) and backend (DO/etc.) live on
-# different domains in production, so the cookie needs SameSite=None; Secure
-# to be sent at all. Override for local HTTP dev via env (localhost front +
-# back share a "site" so Lax/Strict work there, and Secure needs to be off
-# since there's no TLS).
-REFRESH_COOKIE_SECURE = os.environ.get("REFRESH_COOKIE_SECURE", "true").lower() in (
-    "1", "true", "yes",
-)
-REFRESH_COOKIE_SAMESITE = os.environ.get("REFRESH_COOKIE_SAMESITE", "none").lower()
-REFRESH_COOKIE_DOMAIN = os.environ.get("REFRESH_COOKIE_DOMAIN", "").strip() or None
+# The refresh-token family/rotation table and its httpOnly cookie are gone.
+# Clerk issues short-lived session tokens that the client refreshes itself,
+# so there is no long-lived server-side session to rotate or revoke here.
 
 
-def _set_refresh_cookie(response: Response, raw_token: str, expires_at: datetime) -> None:
-    max_age = max(0, int((expires_at - datetime.now(timezone.utc)).total_seconds()))
-    response.set_cookie(
-        key=REFRESH_COOKIE_NAME,
-        value=raw_token,
-        httponly=True,
-        secure=REFRESH_COOKIE_SECURE,
-        samesite=REFRESH_COOKIE_SAMESITE,
-        domain=REFRESH_COOKIE_DOMAIN,
-        max_age=max_age,
-        path="/api/auth",
-    )
+# Password policy removed — Clerk enforces password rules (and breach
+# detection) at sign-up and reset. Configure them in the Clerk dashboard
+# under User & Authentication -> Email, Phone, Username.
 
 
-def _clear_refresh_cookie(response: Response) -> None:
-    response.delete_cookie(
-        key=REFRESH_COOKIE_NAME,
-        domain=REFRESH_COOKIE_DOMAIN,
-        path="/api/auth",
-    )
-
-
-def _hash_refresh_token(raw_token: str) -> str:
-    return hashlib.sha256(raw_token.encode()).hexdigest()
-
-
-async def create_refresh_token(
-    user_id: str,
-    family_id: Optional[str] = None,
-    family_started_at: Optional[datetime] = None,
-) -> tuple[str, datetime]:
-    """
-    Issues a new refresh token for `user_id`, storing only its hash.
-    Pass `family_id`/`family_started_at` when rotating an existing session so
-    the absolute-lifetime ceiling is measured from the original login, not
-    reset on every refresh.
-    Returns (raw_token, expires_at) — raw_token is only ever returned here;
-    it is never recoverable from the DB.
-    """
-    now = datetime.now(timezone.utc)
-    family_id = family_id or str(uuid.uuid4())
-    family_started_at = family_started_at or now
-    if isinstance(family_started_at, str):
-        family_started_at = datetime.fromisoformat(family_started_at)
-    if family_started_at.tzinfo is None:
-        # Mongo round-trips datetimes as naive UTC — reattach tzinfo so this
-        # doesn't blow up comparing against the tz-aware `idle_expires` below.
-        family_started_at = family_started_at.replace(tzinfo=timezone.utc)
-    idle_expires = now + timedelta(minutes=REFRESH_TOKEN_IDLE_MINUTES)
-    absolute_expires = family_started_at + timedelta(hours=REFRESH_TOKEN_ABSOLUTE_HOURS)
-    expires_at = min(idle_expires, absolute_expires)
-
-    raw_token = secrets.token_urlsafe(48)
-    doc = {
-        "id": str(uuid.uuid4()),
-        "user_id": user_id,
-        "token_hash": _hash_refresh_token(raw_token),
-        "family_id": family_id,
-        "family_started_at": family_started_at,
-        "created_at": now,
-        "expires_at": expires_at,
-        "revoked_at": None,
-        "replaced_by": None,
-    }
-    await db.refresh_tokens.insert_one(doc)
-    return raw_token, expires_at
-
-
-async def revoke_refresh_token_by_raw(raw_token: str) -> None:
-    """Looks up a raw refresh token and revokes its whole session family.
-    Used by /auth/logout — silently no-ops if the token is unknown/already
-    gone, since logout should always succeed locally regardless."""
-    row = await db.refresh_tokens.find_one({"token_hash": _hash_refresh_token(raw_token)})
-    if row:
-        await revoke_refresh_family(row["family_id"])
-
-
-async def revoke_refresh_family(family_id: str) -> None:
-    """Revokes every token in a session family — used on logout and on
-    detected refresh-token reuse (a signal the token chain may be stolen)."""
-    await db.refresh_tokens.update_many(
-        {"family_id": family_id, "revoked_at": None},
-        {"$set": {"revoked_at": datetime.now(timezone.utc)}},
-    )
-
-
-async def rotate_refresh_token(raw_token: str) -> Optional[dict]:
-    """
-    Validates and rotates a refresh token in one atomic-ish step.
-    Returns a dict with the new raw token, its expiry, and the user_id on
-    success, or None if the token is missing/expired/revoked. If a token
-    that was already rotated away (replaced_by set) is presented again,
-    that's a reuse signal — the whole family is revoked and this returns
-    None, forcing a fresh login.
-    """
-    token_hash = _hash_refresh_token(raw_token)
-    row = await db.refresh_tokens.find_one({"token_hash": token_hash})
-    if not row:
-        return None
-
-    now = datetime.now(timezone.utc)
-    expires_at = row.get("expires_at")
-    if isinstance(expires_at, str):
-        expires_at = datetime.fromisoformat(expires_at)
-    if expires_at and expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
-
-    if row.get("revoked_at") or row.get("replaced_by") or not expires_at or now > expires_at:
-        # Already used, already revoked, or expired. If it was already
-        # rotated away and is being presented again, treat that as theft.
-        if row.get("replaced_by"):
-            logging.warning(
-                f"Refresh token reuse detected for user {row.get('user_id')} — "
-                f"revoking session family {row.get('family_id')}"
-            )
-            await revoke_refresh_family(row["family_id"])
-        return None
-
-    user = await db.users.find_one({"id": row["user_id"]}, {"_id": 0, "id": 1, "email": 1, "deleted": 1})
-    if not user or user.get("deleted"):
-        await revoke_refresh_family(row["family_id"])
-        return None
-
-    new_raw, new_expires_at = await create_refresh_token(
-        row["user_id"],
-        family_id=row["family_id"],
-        family_started_at=row.get("family_started_at"),
-    )
-    if new_expires_at <= now:
-        # The absolute per-session ceiling has already passed — don't hand
-        # back a token that's dead on arrival, fail the refresh cleanly so
-        # the frontend sends the user to a real re-login instead.
-        await revoke_refresh_family(row["family_id"])
-        return None
-    await db.refresh_tokens.update_one(
-        {"id": row["id"]},
-        {"$set": {"replaced_by": new_raw and _hash_refresh_token(new_raw), "revoked_at": now}},
-    )
-    return {
-        "raw_token": new_raw,
-        "expires_at": new_expires_at,
-        "user_id": row["user_id"],
-        "email": user["email"],
-    }
-
-
-# ============== Password Validation ==============
-def validate_password_policy(password: str, email: str = "", name: str = "") -> str:
-    """
-    Returns an error message string if the password violates policy,
-    or an empty string if the password is acceptable.
-    Mirrors the frontend getPasswordStrength logic so both layers agree.
-    """
-    if len(password) < PASSWORD_MIN_LENGTH:
-        return f"Password must be at least {PASSWORD_MIN_LENGTH} characters."
-    if len(password) > PASSWORD_MAX_LENGTH:
-        return f"Password must be no more than {PASSWORD_MAX_LENGTH} characters."
-
-    lower = password.lower()
-
-    if lower in COMMON_PASSWORDS:
-        return "That password is too common and has appeared in known data breaches."
-
-    email_local = email.split("@")[0].lower() if email else ""
-    if email_local and len(email_local) > 2 and email_local in lower:
-        return "Password cannot contain your email address."
-
-    name_part = name.lower().replace(" ", "") if name else ""
-    if name_part and len(name_part) > 2 and name_part in lower:
-        return "Password cannot contain your name."
-
-    if "illinoisjobtracker" in lower or "iltracker" in lower:
-        return "Password cannot contain the site name."
-
-    return ""
-
-
-# ============== Models ==============
 class UserPublic(BaseModel):
     id: str
     email: EmailStr
     name: str
     role: str = "user"
+    # Was missing, so App.jsx's platformRoleFor() never saw it and always fell
+    # through to the legacy `role == "admin"` branch.
+    platform_role: str = "user"
+    # True until the claimant profile exists — the app routes to /onboarding.
+    needs_onboarding: bool = False
+
+
+class OnboardingIn(BaseModel):
+    """Claimant details collected right after Clerk sign-up.
+
+    Registration used to collect these in the same POST that created the
+    account. Clerk sign-up only yields an email and a password, so profile
+    capture moved to its own step — same fields, same validation, minus the
+    credentials Clerk now owns.
+    """
+
+    first_name: str = Field(min_length=1)
+    last_name: str = Field(min_length=1)
+    phone: str = Field(min_length=1)
+    sms_opt_in: bool = False
+    dob: str = Field(min_length=1)
+    address: str = Field(min_length=1)
+    city: str = Field(min_length=1)
+    zip: str = Field(min_length=1)
+    claimant_id: Optional[str] = None
+    knows_next_cert_date: Literal["yes", "no", "na"] = "na"
+    next_certification_date: Optional[str] = None  # ISO YYYY-MM-DD
+
+    @field_validator("first_name", "last_name", "phone", "dob", "address", "city", "zip")
+    @classmethod
+    def _not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("must not be blank")
+        return v
 
 
 class RegisterIn(BaseModel):
@@ -563,111 +406,38 @@ class AuditEntry(BaseModel):
 
 
 # ============== Auth Utils ==============
-def hash_password(p: str) -> str:
-    return bcrypt.hashpw(p.encode(), bcrypt.gensalt()).decode()
-
-
-def verify_password(p: str, h: str) -> bool:
-    try:
-        return bcrypt.checkpw(p.encode(), h.encode())
-    except Exception:
-        return False
-
-
-def create_token(user_id: str, email: str) -> str:
-    payload = {
-        "sub": user_id,
-        "email": email,
-        "exp": int(
-            (datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_MINUTES)).timestamp()
-        ),
-        "iat": int(datetime.now(timezone.utc).timestamp()),
-    }
-    try:
-        if hasattr(jwt, "encode"):
-            return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGO)
-    except Exception:
-        pass
-
-    import base64
-    import hashlib
-    import hmac
-    import json
-
-    def _b64u(data: bytes) -> str:
-        return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
-
-    header = {"alg": JWT_ALGO, "typ": "JWT"}
-    header_b64 = _b64u(json.dumps(header, separators=(",", ":")).encode())
-    payload_b64 = _b64u(json.dumps(payload, separators=(",", ":")).encode())
-    signing_input = f"{header_b64}.{payload_b64}".encode()
-    sig = hmac.new(JWT_SECRET.encode(), signing_input, hashlib.sha256).digest()
-    sig_b64 = _b64u(sig)
-    return f"{header_b64}.{payload_b64}.{sig_b64}"
+# hash_password / verify_password / create_token removed — no credential
+# ever reaches this server now.
 
 
 async def get_current_user(request: Request) -> dict:
-    token = None
-    auth = request.headers.get("Authorization", "")
-    if auth.startswith("Bearer "):
-        token = auth[7:]
-    if not token:
-        token = request.cookies.get("access_token")
+    """Resolve the caller from their Clerk session token.
+
+    THE SEAM. Every router depends on this one function, so swapping its
+    innards migrated the whole API to Clerk at once. It still returns the
+    same Mongo user document every router already expects — `id`, `email`,
+    `name`, `role`, `platform_role` — so nothing downstream changed.
+
+    See clerk_auth.py for the division of responsibility: Clerk owns
+    identity, this database owns authorization.
+    """
+    token = clerk_auth.extract_token(request)
     if not token:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    payload = None
-    try:
-        if hasattr(jwt, "decode"):
-            payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
-    except Exception as e:
-        err = e
 
-    if payload is None:
-        try:
-            import base64
-            import hashlib
-            import hmac
-            import json
+    claims = clerk_auth.verify_session_token(token)
+    user = await clerk_auth.get_or_create_user(db, claims)
 
-            def _b64ud(s: str) -> bytes:
-                s2 = s + "=" * (-len(s) % 4)
-                return base64.urlsafe_b64decode(s2.encode())
-
-            parts = token.split(".")
-            if len(parts) != 3:
-                raise ValueError("Invalid token format")
-            header_b64, payload_b64, sig_b64 = parts
-            signing_input = f"{header_b64}.{payload_b64}".encode()
-            expected_sig = hmac.new(
-                JWT_SECRET.encode(), signing_input, hashlib.sha256
-            ).digest()
-            sig = _b64ud(sig_b64)
-            if not hmac.compare_digest(sig, expected_sig):
-                raise ValueError("Invalid signature")
-            payload_json = _b64ud(payload_b64)
-            payload = json.loads(payload_json)
-        except ValueError as e:
-            raise HTTPException(status_code=401, detail="Invalid token")
-        except Exception:
-            raise HTTPException(status_code=401, detail="Invalid token")
-
-    try:
-        exp = int(payload.get("exp", 0))
-        if datetime.now(timezone.utc).timestamp() > exp:
-            raise HTTPException(status_code=401, detail="Token expired")
-    except HTTPException:
-        raise
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid token")
-    user = await db.users.find_one(
-        {"id": payload["sub"]}, {"_id": 0, "password_hash": 0}
-    )
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
     if user.get("deleted"):
-        # Account is scheduled for deletion — access is revoked immediately even
-        # though the data isn't purged until purge_after.
+        # Account is scheduled for deletion — access is revoked immediately
+        # even though the data isn't purged until purge_after.
         raise HTTPException(status_code=401, detail="Account has been deleted")
+
+    # Stash the verified claims so authorization helpers can read session
+    # facts (notably `fva`, the factor verification age that backs step-up)
+    # without every router signature having to grow a second parameter.
+    # Underscore-prefixed: this is request-scoped, never persisted.
+    user["_session_claims"] = claims
     return user
 
 
@@ -801,81 +571,8 @@ def to_public_user(u: dict) -> UserPublic:
 
 
 # ============== Account Lockout Helpers ==============
-async def _check_account_lockout(email: str):
-    """
-    Raises HTTP 429 if the account is currently locked out.
-    Call this BEFORE verifying the password on login.
-    """
-    rec = await db.login_attempts.find_one({"email": email})
-    if not rec:
-        return
-    locked_until = rec.get("locked_until")
-    if locked_until:
-        if isinstance(locked_until, str):
-            locked_until = datetime.fromisoformat(locked_until)
-        if locked_until.tzinfo is None:
-            locked_until = locked_until.replace(tzinfo=timezone.utc)
-        if datetime.now(timezone.utc) < locked_until:
-            remaining = int((locked_until - datetime.now(timezone.utc)).total_seconds() / 60) + 1
-            raise HTTPException(
-                status_code=429,
-                detail=f"Account temporarily locked due to too many failed login attempts. "
-                       f"Try again in {remaining} minute(s).",
-            )
-        else:
-            # Lockout expired — clear it
-            await db.login_attempts.delete_one({"email": email})
-
-
-async def _record_failed_login(email: str):
-    """
-    Increments the failed attempt counter. Locks the account if the
-    threshold is reached.
-    """
-    now = datetime.now(timezone.utc)
-    rec = await db.login_attempts.find_one({"email": email})
-    attempts = (rec.get("attempts", 0) if rec else 0) + 1
-    update: dict = {"attempts": attempts, "last_attempt": now.isoformat()}
-    if attempts >= LOGIN_MAX_ATTEMPTS:
-        locked_until = now + timedelta(minutes=LOCKOUT_DURATION_MINUTES)
-        update["locked_until"] = locked_until.isoformat()
-        logging.warning(
-            f"Account locked: {email} after {attempts} failed attempts. "
-            f"Locked until {locked_until.isoformat()}"
-        )
-    await db.login_attempts.update_one(
-        {"email": email}, {"$set": update}, upsert=True
-    )
-
-
-async def _clear_failed_logins(email: str):
-    """Clears the failed attempt record on successful login."""
-    await db.login_attempts.delete_one({"email": email})
-
-
-# ============== Claimant management endpoints removed ==============
-# The multi-claimant feature was removed for regular users. Each user now has a
-# single profile, managed via GET/PUT /profile above. The list/create/update/
-# delete/set-active endpoints were intentionally deleted so extra profiles can't
-# be created via the API. `get_active_claimant_id` is retained because every
-# per-user query (weeks, contacts, reports) still scopes by the active profile.
-
-
-# ============== Account Deletion (soft delete + scheduled purge) ==============
-# Number of days a soft-deleted account is retained before its data is hard-
-# purged from every collection. Access is revoked immediately on deletion.
-ACCOUNT_PURGE_GRACE_DAYS = int(os.environ.get("ACCOUNT_PURGE_GRACE_DAYS", "30"))
-
-# Collections that store a row per user, keyed by `user_id`.
-_USER_SCOPED_COLLECTIONS = [
-    "profiles", "benefit_weeks", "contacts", "calendar_events",
-    "document_files", "audit_log", "password_resets", "subscriptions",
-    "usage_counters", "otp_codes", "refresh_tokens",
-]
-# Collections keyed by the profile/claimant id.
-_PROFILE_SCOPED_COLLECTIONS = ["sms_log"]
-# Collections keyed by the account email.
-_EMAIL_SCOPED_COLLECTIONS = ["login_attempts", "email_events", "invites"]
+# Login-attempt lockout removed — Clerk rate-limits and locks sign-in
+# attempts upstream, and no sign-in request reaches this server to count.
 
 
 class DeleteAccountIn(BaseModel):

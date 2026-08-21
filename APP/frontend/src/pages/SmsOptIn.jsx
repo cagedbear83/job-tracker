@@ -52,7 +52,7 @@ export default function SmsOptIn() {
             </div>
           </Link>
           <Link
-            to="/login"
+            to="/sign-in"
             className="text-sm font-semibold text-primary hover:underline"
           >
             Sign In
@@ -233,7 +233,7 @@ export default function SmsOptIn() {
               unsubscribe.
             </p>
             <Link
-              to="/login"
+              to="/sign-in"
               className="inline-flex items-center gap-2 bg-primary text-white font-bold px-6 py-3 hover:bg-primary/90 transition-colors"
             >
               Log In to Your Account <ArrowRight size={16} weight="bold" />

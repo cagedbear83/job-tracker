@@ -1,5 +1,4 @@
 import axios from "axios";
-import { getToken, setToken, clearToken, isTokenExpired } from "./tokenStorage";
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -12,82 +11,54 @@ if (!BACKEND_URL) {
 
 export const API = `${(BACKEND_URL || "").replace(/\/+$/, "")}/api`;
 
-// withCredentials so the httpOnly refresh-token cookie (scoped to
-// /api/auth/*, see backend core.py) is sent on the auth endpoints that need
-// it. It's a no-op for every other endpoint since the browser only attaches
-// a cookie to requests whose path matches the cookie's Path attribute.
-export const api = axios.create({ baseURL: API, withCredentials: true });
+// No withCredentials: there is no refresh cookie any more. Clerk mints
+// short-lived session tokens on the client and we send them as a bearer
+// header, which keeps this API free of any cookie-based CSRF surface.
+export const api = axios.create({ baseURL: API });
 
-function isAuthBootstrapUrl(url) {
-  const u = url || "";
-  return u.includes("/auth/refresh") || u.includes("/auth/login") || u.includes("/auth/register");
+// Bridge from Clerk's React-only session into this plain module.
+//
+// Clerk exposes getToken() through the useAuth() hook, but axios lives
+// outside React. ClerkTokenBridge (see components/ClerkTokenBridge.jsx)
+// registers the live getter once the provider has mounted; until then this
+// returns null and requests go out unauthenticated, which is correct — there
+// is no session yet.
+let tokenGetter = async () => null;
+
+export function setTokenGetter(fn) {
+  tokenGetter = fn || (async () => null);
 }
 
-// Exchanges the refresh-token cookie for a new short-lived access token.
-// Concurrent callers share one in-flight request rather than each firing
-// their own refresh (which would race the token-rotation on the backend).
-let refreshPromise = null;
-export function refreshSession() {
-  if (!refreshPromise) {
-    refreshPromise = api
-      .post("/auth/refresh")
-      .then((r) => {
-        setToken(r.data.token);
-        return r.data.token;
-      })
-      .catch(() => {
-        clearToken();
-        return null;
-      })
-      .finally(() => {
-        refreshPromise = null;
-      });
-  }
-  return refreshPromise;
-}
-
-// Returns a token guaranteed not to be expired (refreshing first if needed),
-// or null if there's no valid session. For call sites that build a raw
-// `fetch()` request themselves instead of going through `api` (PDF/CSV
-// downloads — see WeekDetail.jsx, Documents.jsx, BenefitWeeks.jsx), since
-// those bypass the request interceptor below.
+// Returns a valid session token, or null when signed out. Clerk handles
+// caching and refresh internally, so callers can ask on every request.
+// Exported for the call sites that build a raw fetch() themselves instead of
+// going through `api` — PDF/CSV downloads in WeekDetail.jsx, Documents.jsx
+// and BenefitWeeks.jsx bypass the interceptor below.
 export async function getValidToken() {
-  const t = getToken();
-  if (t && !isTokenExpired(t)) return t;
-  return refreshSession();
+  try {
+    return await tokenGetter();
+  } catch {
+    return null;
+  }
 }
 
-// Proactively refresh before a request goes out with a token that's already
-// (or about to be) expired, rather than waiting to get a 401 back.
+// Attach the current Clerk session token. Clerk refreshes it under the hood,
+// so there is no expiry check or refresh race to manage here any more.
 api.interceptors.request.use(async (cfg) => {
-  let t = getToken();
-  if (!isAuthBootstrapUrl(cfg.url) && (!t || isTokenExpired(t))) {
-    t = await refreshSession();
-  }
+  const t = await getValidToken();
   if (t) cfg.headers.Authorization = `Bearer ${t}`;
   return cfg;
 });
 
-// Reactive fallback: if a request still comes back 401 (clock skew, a token
-// invalidated server-side mid-flight, etc.), try one silent refresh-and-retry
-// before giving up. Registered first so it sees the raw error before the
-// interceptors below.
+// A 401 now means the Clerk session is genuinely gone (signed out in another
+// tab, session revoked in the dashboard). There is nothing to retry — Clerk
+// already refreshes tokens transparently — so surface it and let
+// <SignedOut> redirect.
 api.interceptors.response.use(
   (response) => response,
-  async (error) => {
-    const cfg = error.config;
-    if (
-      error.response?.status === 401 &&
-      cfg &&
-      !cfg._retriedAfterRefresh &&
-      !isAuthBootstrapUrl(cfg.url)
-    ) {
-      cfg._retriedAfterRefresh = true;
-      const t = await refreshSession();
-      if (t) {
-        cfg.headers = { ...cfg.headers, Authorization: `Bearer ${t}` };
-        return api(cfg);
-      }
+  (error) => {
+    if (error.response?.status === 401) {
+      window.dispatchEvent(new CustomEvent("session-expired"));
     }
     return Promise.reject(error);
   }

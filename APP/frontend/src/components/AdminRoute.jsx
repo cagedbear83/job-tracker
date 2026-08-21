@@ -5,7 +5,7 @@ import { Navigate, Outlet } from "react-router-dom";
 const AdminRoute = ({ user }) => {
   if (!user) {
     // Not logged in? Send them to login.
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/sign-in" replace />;
   }
 
   if (user.role !== "admin") {

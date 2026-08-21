@@ -43,15 +43,9 @@ class CompGrantRequest(BaseModel):
         None, description="UTC expiry; null = open-ended (discouraged)"
     )
     reason: str = Field(..., min_length=3)
-    step_up_password: str
-
-
 class CompRevokeRequest(BaseModel):
     user_id: str
     reason: str = Field(..., min_length=3)
-    step_up_password: str
-
-
 def _is_test_mode() -> bool:
     return os.environ.get("STRIPE_SECRET_KEY", "").startswith("sk_test_") or \
         os.environ.get("APP_ENV", "").lower() in {"dev", "test", "development"}
@@ -82,7 +76,7 @@ async def comp_status():
 @router.post("/grant")
 async def grant_comp(body: CompGrantRequest, request: Request,
                      admin: dict = Depends(require_admin)):
-    await verify_step_up(admin, body.step_up_password)
+    await verify_step_up(admin)
 
     if body.tier not in _COMPABLE_TIERS:
         raise HTTPException(status.HTTP_400_BAD_REQUEST,
@@ -149,7 +143,7 @@ async def grant_comp(body: CompGrantRequest, request: Request,
 @router.post("/revoke")
 async def revoke_comp(body: CompRevokeRequest, request: Request,
                       admin: dict = Depends(require_admin)):
-    await verify_step_up(admin, body.step_up_password)
+    await verify_step_up(admin)
 
     sub = await db.subscriptions.find_one({"user_id": body.user_id}, {"_id": 0})
     if not sub or not sub.get("comp"):

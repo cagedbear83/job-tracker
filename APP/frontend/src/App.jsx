@@ -9,19 +9,17 @@ import { SubscriptionProvider } from "@/hooks/useSubscription";
 import RequireRole from "@/components/RequireRole";
 import ExternalRedirect from "@/components/ExternalRedirect";
 import PublicChrome from "@/components/PublicChrome";
+import LegacyRedirect from "@/components/LegacyRedirect";
 import { marketingUrl } from "@/lib/site";
 
-// Eagerly load Layout and auth-wall pages — needed before any route renders
+// Eagerly load Layout — needed before any authenticated route renders
 import Layout from "@/components/Layout";
 
 // Lazily load every page so each route gets its own chunk.
 // The router won't request a chunk until the user navigates to that path.
-const Login         = lazy(() => import("@/pages/Login"));
-const Register      = lazy(() => import("@/pages/Register"));
-const ForgotPassword = lazy(() => import("@/pages/ForgotPassword"));
-const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
-const VerifyEmail   = lazy(() => import("@/pages/VerifyEmail"));
-const InviteSignup  = lazy(() => import("@/pages/InviteSignup"));
+const SignIn        = lazy(() => import("@/pages/SignIn"));
+const SignUp        = lazy(() => import("@/pages/SignUp"));
+const Onboarding    = lazy(() => import("@/pages/Onboarding"));
 const Dashboard     = lazy(() => import("@/pages/Dashboard"));
 const Profile       = lazy(() => import("@/pages/Profile"));
 const CalendarPage  = lazy(() => import("@/pages/Calendar"));
@@ -37,13 +35,13 @@ const SmsOptIn      = lazy(() => import("@/pages/SmsOptIn"));
 function PageLoader() {
   return (
     <div className="min-h-[40vh] flex items-center justify-center">
-      <div className="kbd-label text-zinc-400">Loading…</div>
+      <div className="kbd-label text-muted-foreground">Loading…</div>
     </div>
   );
 }
 
 function Protected({ children }) {
-  const { user, loading } = useAuth();
+  const { user, loading, needsOnboarding } = useAuth();
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -51,14 +49,28 @@ function Protected({ children }) {
       </div>
     );
   }
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/sign-in" replace />;
+  // Clerk created the account but the claimant profile doesn't exist yet —
+  // registration used to collect it in the same step.
+  if (needsOnboarding) return <Navigate to="/onboarding" replace />;
   return children;
 }
 
 function PublicOnly({ children }) {
+  const { user, loading, needsOnboarding } = useAuth();
+  if (loading) return null;
+  if (user) {
+    return <Navigate to={needsOnboarding ? "/onboarding" : "/dashboard"} replace />;
+  }
+  return <PublicChrome>{children}</PublicChrome>;
+}
+
+// Signed in, but deliberately reachable before onboarding is finished —
+// Protected would bounce this route back to itself.
+function RequiresAccount({ children }) {
   const { user, loading } = useAuth();
   if (loading) return null;
-  if (user) return <Navigate to="/dashboard" replace />;
+  if (!user) return <Navigate to="/sign-in" replace />;
   return <PublicChrome>{children}</PublicChrome>;
 }
 
@@ -66,15 +78,17 @@ function PublicOnly({ children }) {
 // second one competing with it for the same content and search results. Signed-
 // in visitors still land straight on their dashboard.
 function LandingOrApp() {
-  const { user, loading } = useAuth();
+  const { user, loading, needsOnboarding } = useAuth();
   if (loading) return null;
-  if (user) return <Navigate to="/dashboard" replace />;
+  if (user) {
+    return <Navigate to={needsOnboarding ? "/onboarding" : "/dashboard"} replace />;
+  }
   return <ExternalRedirect to={marketingUrl("/")} />;
 }
 
-// Derives the new admin-platform role from the existing session until the
-// platform_role migration (backend/admin_rbac_migration.py) has run — mirrors
-// rbac.py's own legacy-role fallback so frontend and backend agree.
+// Derives the admin-platform role from the session. The backend now sends
+// platform_role on /auth/me — it previously didn't, so this always fell
+// through to the legacy `role === "admin"` branch.
 function platformRoleFor(user) {
   if (user?.platform_role) return user.platform_role;
   return user?.role === "admin" ? "platform_admin" : "user";
@@ -104,54 +118,47 @@ export function App() {
             <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route path="/" element={<LandingOrApp />} />
+
+              {/* Clerk owns these flows. The `/*` matters: <SignIn/> and
+                  <SignUp/> route their own sub-steps (email verification,
+                  factor choice, SSO callback, password reset) beneath the
+                  same path. */}
               <Route
-                path="/login"
+                path="/sign-in/*"
                 element={
                   <PublicOnly>
-                    <Login />
+                    <SignIn />
                   </PublicOnly>
                 }
               />
               <Route
-                path="/register"
+                path="/sign-up/*"
                 element={
                   <PublicOnly>
-                    <Register />
+                    <SignUp />
                   </PublicOnly>
                 }
               />
+
+              {/* Old paths kept as redirects: illinoisjobtracker.com links to
+                  /login and /register, invitation emails are already out with
+                  /invite/:code, and people have bookmarks. */}
+              <Route path="/login" element={<LegacyRedirect to="/sign-in" />} />
+              <Route path="/register" element={<LegacyRedirect to="/sign-up" />} />
+              <Route path="/forgot-password" element={<LegacyRedirect to="/sign-in" />} />
+              <Route path="/reset-password" element={<LegacyRedirect to="/sign-in" />} />
+              <Route path="/verify-email" element={<LegacyRedirect to="/sign-in" />} />
+              <Route path="/invite/:code" element={<LegacyRedirect to="/sign-up" />} />
+
               <Route
-                path="/verify-email"
+                path="/onboarding"
                 element={
-                  <PublicOnly>
-                    <VerifyEmail />
-                  </PublicOnly>
+                  <RequiresAccount>
+                    <Onboarding />
+                  </RequiresAccount>
                 }
               />
-              <Route
-                path="/forgot-password"
-                element={
-                  <PublicOnly>
-                    <ForgotPassword />
-                  </PublicOnly>
-                }
-              />
-              <Route
-                path="/reset-password"
-                element={
-                  <PublicOnly>
-                    <ResetPassword />
-                  </PublicOnly>
-                }
-              />
-              <Route
-                path="/invite/:code"
-                element={
-                  <PublicOnly>
-                    <InviteSignup />
-                  </PublicOnly>
-                }
-              />
+
               <Route
                 path="/app"
                 element={
@@ -181,11 +188,10 @@ export function App() {
                 <Route path="/admin/platform" element={<AdminPlatformRoute />} />
                 <Route path="/sms-opt-in" element={<SmsOptIn />} />
               </Route>
+
               {/* Legal lives on the marketing site, and these must stay
                   reachable while logged out — they are linked from the
-                  registration and SMS consent flows. They used to sit behind
-                  the auth wall, which bounced exactly those visitors to
-                  /login. */}
+                  sign-up and SMS consent flows. */}
               <Route
                 path="/privacy"
                 element={<ExternalRedirect to={marketingUrl("/privacy")} />}

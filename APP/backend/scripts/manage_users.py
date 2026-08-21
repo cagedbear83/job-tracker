@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Admin utilities for user management (password reset).
+"""Admin utilities for user management (listing only).
+
+Password reset moved to Clerk — see reset_password() below.
 
 Usage examples:
   python manage_users.py --list
@@ -9,7 +11,7 @@ Usage examples:
 import argparse
 import os
 import secrets
-import bcrypt
+# bcrypt import removed — the hashing path below is unreachable (see reset_password)
 from pymongo import MongoClient
 from datetime import datetime
 
@@ -26,6 +28,13 @@ def list_users(limit: int = 50):
 
 
 def reset_password(email: str, new_password: str | None = None, generate: bool = False, apply: bool = False):
+    raise SystemExit(
+        "Password reset is no longer handled here. Clerk owns credentials, "
+        "so this app stores no password hash and writing one to Mongo would "
+        "change nothing. Reset it from the Clerk dashboard (Users -> select "
+        "user -> Reset password), or have the user click Forgot password in "
+        "the app. Note that --list still works."
+    )
     if not new_password and not generate:
         raise ValueError('Either provide --password or --generate')
     if generate:

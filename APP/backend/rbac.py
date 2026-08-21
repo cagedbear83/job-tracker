@@ -39,9 +39,10 @@ from typing import Callable, Optional
 from fastapi import Depends, HTTPException, status
 
 # ─── SEAM (adapted) ──────────────────────────────────────────────────────
-# db, get_current_user and verify_password all live in core.py in this
-# codebase (server.py just re-exports them via `from core import *`).
-from core import get_current_user, verify_password, db  # <-- SEAM (adapted)
+# db and get_current_user both live in core.py in this codebase (server.py
+# just re-exports them via `from core import *`). verify_password is gone —
+# Clerk owns credentials now; see verify_step_up below.
+from core import get_current_user, db  # <-- SEAM (adapted)
 # ────────────────────────────────────────────────────────────────────────
 
 
@@ -127,19 +128,49 @@ require_admin = require_platform_role(PlatformRole.PLATFORM_ADMIN)
 # acting admin's password even inside an active session. Call this INSIDE
 # the handler, after the role gate, before doing the sensitive thing.
 
+# How recently the acting admin must have proven a factor for a sensitive
+# action to be allowed. Clerk reports this per-request, so it is a real
+# freshness guarantee rather than a "type your password again" prompt.
+STEP_UP_MAX_AGE_MINUTES = 10
+
+
 class StepUpError(HTTPException):
     def __init__(self) -> None:
         super().__init__(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Re-enter your password to confirm this action.",
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Confirm your identity to continue.",
+            # The frontend keys off this to open Clerk's reverification flow
+            # rather than showing a generic permission error.
+            headers={"X-Clerk-Reverification": "required"},
         )
 
 
-async def verify_step_up(user: dict, password: str) -> None:
+async def verify_step_up(user: dict) -> None:
+    """Require the acting admin to have re-verified a factor recently.
+
+    Replaces the old scheme, which re-posted the admin's password to our own
+    endpoint and compared it against the stored bcrypt hash. Under Clerk
+    there is no local hash, and the password never touches this server at
+    all — so freshness is read off the session instead.
+
+    Clerk puts `fva` (factor verification age) on the session token as
+    [firstFactorAgeMinutes, secondFactorAgeMinutes], where -1 means the
+    factor was never used. We require a first factor verified within
+    STEP_UP_MAX_AGE_MINUTES.
+
+    Fails closed: a session token without `fva` (an older Clerk token
+    version) is rejected rather than waved through.
     """
-    Re-verify the acting admin's own password. Raises StepUpError on failure.
-    Fetches a fresh user doc so a stale session can't carry an old hash.
-    """
-    fresh = await db.users.find_one({"id": user["id"]})
-    if not fresh or not verify_password(password, fresh.get("password_hash", "")):
+    claims = user.get("_session_claims") or {}
+    fva = claims.get("fva")
+
+    if not isinstance(fva, (list, tuple)) or not fva:
+        raise StepUpError()
+
+    try:
+        first_factor_age = int(fva[0])
+    except (TypeError, ValueError):
+        raise StepUpError()
+
+    if first_factor_age < 0 or first_factor_age > STEP_UP_MAX_AGE_MINUTES:
         raise StepUpError()

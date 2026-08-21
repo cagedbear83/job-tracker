@@ -43,9 +43,6 @@ class RefundCreate(BaseModel):
 
 class RefundDecision(BaseModel):
     note: str = Field(..., min_length=3)
-    step_up_password: str
-
-
 @router.get("", dependencies=[Depends(require_staff)])
 async def list_refunds(status_filter: Optional[str] = None, limit: int = 50):
     q = {"status": status_filter} if status_filter else {}
@@ -74,7 +71,7 @@ async def create_refund(body: RefundCreate, viewer: dict = Depends(require_staff
 @router.post("/{refund_id}/approve")
 async def approve_refund(refund_id: str, body: RefundDecision, request: Request,
                          admin: dict = Depends(require_admin)):
-    await verify_step_up(admin, body.step_up_password)
+    await verify_step_up(admin)
     rec = await db.refund_requests.find_one({"id": refund_id}, {"_id": 0})
     if not rec:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Refund request not found.")

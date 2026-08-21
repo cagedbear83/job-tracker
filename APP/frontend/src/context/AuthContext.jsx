@@ -1,106 +1,83 @@
-import { createContext, useContext, useEffect, useRef, useState } from "react";
-import { api, formatApiError, refreshSession } from "../lib/api";
-import { setToken, clearToken } from "../lib/tokenStorage";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { useAuth as useClerkAuth, useUser } from "@clerk/clerk-react";
+import { api, formatApiError } from "../lib/api";
 
 const AuthCtx = createContext(null);
 
-// How long a signed-in tab can sit with no mouse/keyboard/touch activity
-// before we log the user out client-side. This is a UX-level backstop on
-// top of (not a replacement for) the backend's own sliding refresh-token
-// expiry (REFRESH_TOKEN_IDLE_MINUTES, currently 30 min) — this fires first
-// so an unattended, still-open tab doesn't sit around for the full window.
-const IDLE_LOGOUT_MINUTES = 15;
-const ACTIVITY_EVENTS = ["mousedown", "keydown", "scroll", "touchstart", "click"];
-
+/**
+ * Bridges Clerk's session to this app's notion of a user.
+ *
+ * Clerk answers "is someone signed in, and who are they" — but everything the
+ * app actually gates on (role, platform_role, active claimant, whether
+ * onboarding is done) lives in our own database. So this provider waits for
+ * Clerk to settle, then fetches /auth/me, which provisions the local user row
+ * on first contact (see backend clerk_auth.get_or_create_user).
+ *
+ * Gone from here, because Clerk owns them now: login(), register(), the
+ * in-memory access token, the silent refresh on mount, and the idle-logout
+ * timer (Clerk enforces session lifetime and inactivity server-side —
+ * configure it under Sessions in the Clerk dashboard).
+ */
 export function AuthProvider({ children }) {
+  const { isLoaded: clerkLoaded, isSignedIn, signOut } = useClerkAuth();
+  const { user: clerkUser } = useUser();
+
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const logoutRef = useRef(() => {});
+
+  const refreshUser = useCallback(async () => {
+    const { data } = await api.get("/auth/me");
+    setUser(data);
+    return data;
+  }, []);
 
   useEffect(() => {
+    if (!clerkLoaded) return undefined;
+
+    if (!isSignedIn) {
+      setUser(null);
+      setLoading(false);
+      return undefined;
+    }
+
     let cancelled = false;
+    setLoading(true);
     (async () => {
-      // There's no persisted access token to check on a fresh page load
-      // (it only ever lives in memory) — instead, try to silently mint one
-      // from the httpOnly refresh cookie, if a valid one exists.
-      const token = await refreshSession();
-      if (!token) {
-        if (!cancelled) setLoading(false);
-        return;
-      }
       try {
         const { data } = await api.get("/auth/me");
         if (!cancelled) setUser(data);
       } catch {
-        clearToken();
+        // Signed in to Clerk but our API refused. Rather than sitting in a
+        // half-authenticated state, drop the local user and let the route
+        // guards send them back to sign-in.
         if (!cancelled) setUser(null);
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
+
     return () => {
       cancelled = true;
     };
-  }, []);
+    // clerkUser?.id so switching accounts in the same tab refetches.
+  }, [clerkLoaded, isSignedIn, clerkUser?.id]);
 
-  const login = async (email, password) => {
-    const { data } = await api.post("/auth/login", { email, password });
-    setToken(data.token);
-    setUser(data.user);
-    return data.user;
-  };
-
-  const register = async (body) => {
-    // Registration no longer returns a session token — the account must be
-    // verified via email before it can log in (see /auth/login).
-    const { data } = await api.post("/auth/register", body);
-    return data.user;
-  };
-
-  const logout = async () => {
-    try {
-      await api.post("/auth/logout");
-    } catch {
-      // Logout should always succeed locally even if the server call fails
-      // (e.g. token already expired) — we still clear local state below.
-    }
-    clearToken();
+  const logout = useCallback(async () => {
     setUser(null);
-  };
-
-  // Keep a stable ref to the latest `logout` so the idle-timer effect below
-  // doesn't need to re-bind its listeners every render.
-  logoutRef.current = logout;
-
-  useEffect(() => {
-    if (!user) return undefined;
-    let timeoutId;
-    const scheduleLogout = () => {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => {
-        logoutRef.current();
-      }, IDLE_LOGOUT_MINUTES * 60 * 1000);
-    };
-    ACTIVITY_EVENTS.forEach((evt) =>
-      window.addEventListener(evt, scheduleLogout, { passive: true }),
-    );
-    scheduleLogout();
-    return () => {
-      clearTimeout(timeoutId);
-      ACTIVITY_EVENTS.forEach((evt) =>
-        window.removeEventListener(evt, scheduleLogout),
-      );
-    };
-  }, [user]);
+    await signOut();
+  }, [signOut]);
 
   return (
     <AuthCtx.Provider
       value={{
         user,
-        loading,
-        login,
-        register,
+        // Stay "loading" until Clerk has settled AND we know who the user is,
+        // so route guards never briefly see a signed-in session as anonymous.
+        loading: !clerkLoaded || loading,
         logout,
+        refreshUser,
+        // Drives the post-signup redirect into /onboarding.
+        needsOnboarding: Boolean(user?.needs_onboarding),
       }}
     >
       {children}

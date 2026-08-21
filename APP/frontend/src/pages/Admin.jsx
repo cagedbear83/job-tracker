@@ -21,7 +21,6 @@ import {
   EnvelopeSimpleIcon,
   DeviceMobileIcon,
   PlusIcon,
-  CopySimpleIcon,
   TrashIcon,
   ArrowSquareOutIcon,
 } from "@phosphor-icons/react";
@@ -112,20 +111,14 @@ export default function AdminPage() {
     }
   };
 
-  const revokeInvite = async (code) => {
+  const revokeInvite = async (invitationId) => {
     try {
-      await api.delete(`/admin/invites/${code}`);
+      await api.delete(`/admin/invites/${invitationId}`);
       toast.success("Invite revoked");
       await loadAll();
     } catch (e) {
       toast.error(formatApiError(e));
     }
-  };
-
-  const copyLink = (link) => {
-    navigator.clipboard
-      .writeText(link)
-      .then(() => toast.success("Link copied"));
   };
 
   if (user?.role !== "admin") {
@@ -491,50 +484,44 @@ export default function AdminPage() {
                 )}
                 {invites.map((inv) => (
                   <tr
-                    key={inv.code}
+                    key={inv.id}
                     className="border-b border-border"
-                    data-testid={`invite-row-${inv.code}`}
+                    data-testid={`invite-row-${inv.id}`}
                   >
                     <td className="font-mono-data text-xs">{inv.email}</td>
                     <td className="text-xs">{inv.claimant_label}</td>
                     <td>
-                      {inv.used ? (
-                        <span className="text-xs font-bold text-[#16A34A]">
-                          REDEEMED
-                        </span>
-                      ) : (
-                        <span className="text-xs font-bold text-primary">
-                          PENDING
-                        </span>
-                      )}
+                      {/* Status comes straight from Clerk now: pending,
+                          accepted, revoked or expired. */}
+                      <span
+                        className={`text-xs font-bold uppercase ${
+                          inv.status === "accepted"
+                            ? "text-success"
+                            : inv.status === "pending"
+                              ? "text-primary"
+                              : "text-muted-foreground"
+                        }`}
+                      >
+                        {inv.status || (inv.used ? "accepted" : "pending")}
+                      </span>
                     </td>
                     <td className="font-mono-data text-xs text-muted-foreground">
-                      {new Date(inv.expires_at).toLocaleDateString()}
+                      {inv.expires_at
+                        ? new Date(inv.expires_at).toLocaleDateString()
+                        : "—"}
                     </td>
                     <td className="text-right">
                       <div className="inline-flex gap-1">
-                        <button
-                          type="button"
-                          onClick={() => copyLink(inv.invite_link)}
-                          className="text-xs font-semibold uppercase border border-border px-2 py-1 hover:border-primary hover:text-primary inline-flex items-center gap-1"
-                          data-testid={`invite-copy-${inv.code}`}
-                        >
-                          <CopySimpleIcon size={12} weight="bold" /> Copy
-                        </button>
-                        <a
-                          href={inv.invite_link}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-xs font-semibold uppercase border border-border px-2 py-1 hover:border-primary hover:text-primary inline-flex items-center gap-1"
-                        >
-                          <ArrowSquareOutIcon size={12} weight="bold" /> Open
-                        </a>
-                        {!inv.used && (
+                        {/* No copyable link any more: Clerk emails a
+                            single-use ticket directly to the invitee and
+                            never exposes that URL to us. Resend by revoking
+                            and inviting again. */}
+                        {inv.status === "pending" && (
                           <button
                             type="button"
-                            onClick={() => revokeInvite(inv.code)}
-                            className="text-xs font-semibold uppercase border border-border px-2 py-1 hover:border-[#DC2626] hover:text-[#DC2626] inline-flex items-center gap-1"
-                            data-testid={`invite-revoke-${inv.code}`}
+                            onClick={() => revokeInvite(inv.id)}
+                            className="text-xs font-semibold uppercase border border-border px-2 py-1 hover:border-destructive hover:text-destructive inline-flex items-center gap-1"
+                            data-testid={`invite-revoke-${inv.id}`}
                           >
                             <TrashIcon size={12} weight="bold" /> Revoke
                           </button>
