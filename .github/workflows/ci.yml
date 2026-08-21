@@ -48,12 +48,14 @@ jobs:
     env:
       MONGO_URL: mongodb://localhost:27017
       DB_NAME: ci_test_db
-      JWT_SECRET: ci-secret-ci-secret-ci-secret-0123456789
       FRONTEND_URL: http://localhost:3000
-      ENABLE_DEMO_USER: "true"
-      DEMO_USER_EMAIL: demo@illinoistracker.app
-      DEMO_USER_PASSWORD: Demo1234!
-      # Disable rate limiting so the suite's repeated logins are not throttled.
+      # Point the backend at the local fake Clerk (tests/clerk_stub.py) rather
+      # than real Clerk: no live credentials in CI, and the RS256 + JWKS
+      # verification path still runs for real against real keys.
+      CLERK_ISSUER: http://127.0.0.1:8799
+      CLERK_API_BASE: http://127.0.0.1:8799/v1
+      CLERK_SECRET_KEY: sk_test_ci_stub
+      CLERK_STUB_URL: http://127.0.0.1:8799
       RATE_LIMIT_ENABLED: "false"
       REACT_APP_BACKEND_URL: http://localhost:8001
     defaults:
@@ -68,6 +70,17 @@ jobs:
           cache-dependency-path: APP/backend/requirements.txt
       - name: Install dependencies
         run: pip install -r requirements.txt -r requirements-dev.txt
+      - name: Start Clerk stub
+        run: |
+          python tests/clerk_stub.py --port 8799 > /tmp/clerk_stub.log 2>&1 &
+          echo "started clerk stub pid $!"
+          for i in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:8799/health >/dev/null; then
+              echo "clerk stub ready"; exit 0
+            fi
+            sleep 1
+          done
+          echo "clerk stub did not start; logs:"; cat /tmp/clerk_stub.log; exit 1
       - name: Start backend
         run: |
           uvicorn server:app --host 127.0.0.1 --port 8001 > /tmp/backend.log 2>&1 &
@@ -89,3 +102,6 @@ jobs:
       - name: Backend logs on failure
         if: failure()
         run: cat /tmp/backend.log || true
+      - name: Clerk stub logs on failure
+        if: failure()
+        run: cat /tmp/clerk_stub.log || true

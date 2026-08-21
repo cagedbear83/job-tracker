@@ -1,22 +1,37 @@
 """Backend tests for Illinois UI Job Search Tracker."""
 import os
 import io
+import time
+import uuid
 import pytest
 import requests
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://work-search-hub-3.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "http://127.0.0.1:8001").rstrip("/")
 API = f"{BASE_URL}/api"
-DEMO_EMAIL = "demo@illinoistracker.app"
-DEMO_PASSWORD = "Demo1234!"
+
+# The fake Clerk (tests/clerk_stub.py) that the backend is pointed at in CI.
+# It serves the JWKS the backend verifies against, so tokens minted here go
+# through the real RS256 signature and issuer checks — nothing is bypassed,
+# and there is no test-only branch in the production auth path.
+CLERK_STUB = os.environ.get("CLERK_STUB_URL", "http://127.0.0.1:8799").rstrip("/")
 
 
 @pytest.fixture(scope="session")
-def token():
-    r = requests.post(f"{API}/auth/login", json={"email": DEMO_EMAIL, "password": DEMO_PASSWORD}, timeout=30)
-    assert r.status_code == 200, f"login failed: {r.status_code} {r.text}"
-    data = r.json()
-    assert "token" in data and "user" in data
-    return data["token"]
+def session():
+    """A signed session for a fresh Clerk user."""
+    email = f"ci-{uuid.uuid4().hex[:10]}@example.com"
+    r = requests.post(
+        f"{CLERK_STUB}/__test__/token",
+        json={"email": email, "name": "CI Tester"},
+        timeout=30,
+    )
+    assert r.status_code == 200, f"clerk stub mint failed: {r.status_code} {r.text}"
+    return r.json()
+
+
+@pytest.fixture(scope="session")
+def token(session):
+    return session["token"]
 
 
 @pytest.fixture(scope="session")
@@ -25,37 +40,98 @@ def H(token):
 
 
 # ---- auth ----
-def test_register_duplicate_or_new():
-    # first_name/last_name/phone/dob/address/city/zip are required as of the
-    # Aug 20 Register-page work (core.py's RegisterIn) — a request missing
-    # any of them now gets a 422 instead of reaching the duplicate-email
-    # check, so this payload needs all of them filled in to still exercise
-    # the duplicate-vs-new-email path this test is actually about.
-    r = requests.post(f"{API}/auth/register", json={
-        "email": "TEST_user1@example.com", "password": "Lake Sunrise Coffee 42!", "name": "T",
-        "first_name": "Test", "last_name": "User", "phone": "3125550100", "dob": "1990-01-01",
-        "address": "123 Main St", "city": "Chicago", "zip": "60601",
-    }, timeout=30)
-    assert r.status_code in (200, 400)
-    if r.status_code == 200:
-        d = r.json()
-        assert d["user"]["email"] == "test_user1@example.com"
+# Registration, login, password reset and email verification are Clerk's now
+# and have no endpoints here to test. What this file still owns is the
+# verification seam: does the backend accept exactly the tokens it should.
+def test_auth_me_provisions_user(H, session):
+    """First authenticated request should create the local user row.
 
-
-def test_login_invalid():
-    r = requests.post(f"{API}/auth/login", json={"email": DEMO_EMAIL, "password": "wrong"}, timeout=30)
-    assert r.status_code == 401
-
-
-def test_auth_me(H):
+    Lazy provisioning — there is no webhook, so the user document is written
+    on first contact (clerk_auth.get_or_create_user). Must run before the
+    profile tests below, which is why it sits first in the file: those create
+    the claimant profile and would flip needs_onboarding.
+    """
     r = requests.get(f"{API}/auth/me", headers=H, timeout=30)
-    assert r.status_code == 200
-    assert r.json()["email"] == DEMO_EMAIL
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["email"] == session["email"]
+    assert data["role"] == "user"
+    assert data["platform_role"] == "user"
+    # Clerk sign-up collects no claimant details, so onboarding is pending.
+    assert data["needs_onboarding"] is True
 
 
 def test_auth_me_no_token():
     r = requests.get(f"{API}/auth/me", timeout=30)
     assert r.status_code == 401
+
+
+def test_auth_me_malformed_token():
+    r = requests.get(
+        f"{API}/auth/me", headers={"Authorization": "Bearer not.a.jwt"}, timeout=30
+    )
+    assert r.status_code == 401
+
+
+def test_auth_me_rejects_foreign_signing_key():
+    """A well-formed RS256 token signed by a key the JWKS doesn't publish.
+
+    This is the test that actually matters: it proves the backend verifies
+    signatures against Clerk's published keys rather than merely decoding the
+    token and trusting its claims.
+    """
+    import jwt
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+
+    rogue = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    pem = rogue.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
+    now = int(time.time())
+    forged = jwt.encode(
+        {
+            "sub": "user_forged",
+            "iss": CLERK_STUB,
+            "iat": now,
+            "exp": now + 3600,
+            "fva": [0, -1],
+        },
+        pem,
+        algorithm="RS256",
+        headers={"kid": "ijt-test-key-1"},
+    )
+    r = requests.get(
+        f"{API}/auth/me", headers={"Authorization": f"Bearer {forged}"}, timeout=30
+    )
+    assert r.status_code == 401, "forged token was accepted"
+
+
+def test_onboarding_creates_claimant_profile(H):
+    body = {
+        "first_name": "CI",
+        "last_name": "Tester",
+        "phone": "(312) 555-0100",
+        "sms_opt_in": False,
+        "dob": "1990-01-01",
+        "address": "100 W Randolph St",
+        "city": "Chicago",
+        "zip": "60601",
+        "knows_next_cert_date": "na",
+    }
+    r = requests.post(f"{API}/auth/onboarding", json=body, headers=H, timeout=30)
+    assert r.status_code == 200, r.text
+    assert r.json()["first_name"] == "CI"
+
+    # Onboarding is idempotent — a double submit must not fork the records.
+    again = requests.post(f"{API}/auth/onboarding", json=body, headers=H, timeout=30)
+    assert again.status_code == 200
+    assert again.json()["id"] == r.json()["id"]
+
+    me = requests.get(f"{API}/auth/me", headers=H, timeout=30)
+    assert me.json()["needs_onboarding"] is False
 
 
 # ---- profile ----

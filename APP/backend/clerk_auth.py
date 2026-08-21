@@ -167,6 +167,43 @@ def validate_config(timeout: float = 10.0) -> dict:
     }
 
 
+def verify_session_token(token: str) -> dict:
+    """Verify a Clerk session JWT and return its claims.
+
+    Raises HTTPException(401) on anything suspect. Signature, expiry and
+    issuer are all checked; `azp` is checked only when the operator has
+    pinned an allowlist.
+    """
+    try:
+        signing_key = _jwks_client.get_signing_key_from_jwt(token)
+        claims = jwt.decode(
+            token,
+            signing_key.key,
+            algorithms=["RS256"],
+            issuer=CLERK_ISSUER,
+            # Clerk session tokens carry no `aud` by default.
+            options={"verify_aud": False, "require": ["exp", "iat", "sub"]},
+            leeway=10,  # small clock-skew tolerance
+        )
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Session expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    except HTTPException:
+        raise
+    except Exception:
+        # JWKS fetch failure, unknown kid, malformed key, etc. Deliberately
+        # opaque to the caller — the detail belongs in logs, not a response.
+        raise HTTPException(status_code=401, detail="Could not verify session")
+
+    if CLERK_AUTHORIZED_PARTIES:
+        azp = claims.get("azp")
+        if azp and azp not in CLERK_AUTHORIZED_PARTIES:
+            raise HTTPException(status_code=401, detail="Invalid token audience")
+
+    return claims
+
+
 def extract_token(request: Request) -> Optional[str]:
     """Pull the session token from the Authorization header.
 
