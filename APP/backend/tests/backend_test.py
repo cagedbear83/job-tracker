@@ -228,7 +228,9 @@ def test_audit_log(H):
     assert r.status_code == 200
     items = r.json()
     actions = {it["action"] for it in items}
-    assert "LOGIN" in actions
+    # No LOGIN entry: sign-in happens client-side against Clerk and never
+    # touches this server, so the audit trail starts at onboarding.
+    assert "ONBOARDING" in actions
     assert "CREATE" in actions
 
 
