@@ -40,15 +40,60 @@ function PageLoader() {
   );
 }
 
-function Protected({ children }) {
-  const { user, loading, needsOnboarding } = useAuth();
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="kbd-label">Loading...</div>
+/**
+ * Shown when Clerk never finishes initialising.
+ *
+ * Previously the route guards returned null in this state, so a bad
+ * publishable key or a blocked clerk.browser.js rendered as a blank page with
+ * nothing on screen and the only clue buried in the browser console.
+ */
+function AuthUnavailable() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background p-8">
+      <div className="w-full max-w-lg">
+        <div className="brand-bar w-20 mb-4" />
+        <div className="kbd-label">Sign-in unavailable</div>
+        <h1 className="font-display font-black text-2xl tracking-tighter mt-1">
+          We couldn&apos;t reach the sign-in service
+        </h1>
+        <p className="text-sm text-muted-foreground mt-3 leading-relaxed">
+          This is usually temporary. Try reloading; if it keeps happening, a
+          browser extension may be blocking it, or the service may be briefly
+          unavailable.
+        </p>
+        <div className="mt-6 flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="bg-primary text-primary-foreground px-4 py-2 text-sm font-semibold hover:bg-primary-hover"
+          >
+            Reload
+          </button>
+          <a
+            href={marketingUrl("/contact")}
+            className="border border-border px-4 py-2 text-sm font-semibold hover:border-primary hover:text-primary"
+          >
+            Contact support
+          </a>
+        </div>
       </div>
-    );
-  }
+    </div>
+  );
+}
+
+/** Full-page loading state used by the route guards. */
+function AuthLoading() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="kbd-label">Loading…</div>
+    </div>
+  );
+}
+
+function Protected({ children }) {
+  const { user, loading, needsOnboarding, clerkFailed } = useAuth();
+  if (clerkFailed) return <AuthUnavailable />;
+  if (loading) return <AuthLoading />;
   if (!user) return <Navigate to="/sign-in" replace />;
   // Clerk created the account but the claimant profile doesn't exist yet —
   // registration used to collect it in the same step.
@@ -57,8 +102,9 @@ function Protected({ children }) {
 }
 
 function PublicOnly({ children }) {
-  const { user, loading, needsOnboarding } = useAuth();
-  if (loading) return null;
+  const { user, loading, needsOnboarding, clerkFailed } = useAuth();
+  if (clerkFailed) return <AuthUnavailable />;
+  if (loading) return <AuthLoading />;
   if (user) {
     return <Navigate to={needsOnboarding ? "/onboarding" : "/dashboard"} replace />;
   }
@@ -68,8 +114,9 @@ function PublicOnly({ children }) {
 // Signed in, but deliberately reachable before onboarding is finished —
 // Protected would bounce this route back to itself.
 function RequiresAccount({ children }) {
-  const { user, loading } = useAuth();
-  if (loading) return null;
+  const { user, loading, clerkFailed } = useAuth();
+  if (clerkFailed) return <AuthUnavailable />;
+  if (loading) return <AuthLoading />;
   if (!user) return <Navigate to="/sign-in" replace />;
   return <PublicChrome>{children}</PublicChrome>;
 }
@@ -78,8 +125,9 @@ function RequiresAccount({ children }) {
 // second one competing with it for the same content and search results. Signed-
 // in visitors still land straight on their dashboard.
 function LandingOrApp() {
-  const { user, loading, needsOnboarding } = useAuth();
-  if (loading) return null;
+  const { user, loading, needsOnboarding, clerkFailed } = useAuth();
+  if (clerkFailed) return <AuthUnavailable />;
+  if (loading) return <AuthLoading />;
   if (user) {
     return <Navigate to={needsOnboarding ? "/onboarding" : "/dashboard"} replace />;
   }

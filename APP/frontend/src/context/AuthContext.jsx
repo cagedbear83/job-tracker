@@ -25,6 +25,19 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Clerk can fail to initialise entirely — a wrong publishable key, a
+  // production instance whose DNS has not propagated, an ad blocker eating
+  // clerk.browser.js. When that happens `isLoaded` simply stays false
+  // forever, and every route guard below sits in its loading branch, which
+  // rendered as a blank page with nothing in the UI to explain it.
+  // Time it out so the failure is visible instead of silent.
+  const [clerkTimedOut, setClerkTimedOut] = useState(false);
+  useEffect(() => {
+    if (clerkLoaded) return undefined;
+    const t = setTimeout(() => setClerkTimedOut(true), 8000);
+    return () => clearTimeout(t);
+  }, [clerkLoaded]);
+
   const refreshUser = useCallback(async () => {
     const { data } = await api.get("/auth/me");
     setUser(data);
@@ -73,7 +86,8 @@ export function AuthProvider({ children }) {
         user,
         // Stay "loading" until Clerk has settled AND we know who the user is,
         // so route guards never briefly see a signed-in session as anonymous.
-        loading: !clerkLoaded || loading,
+        loading: (!clerkLoaded || loading) && !clerkTimedOut,
+        clerkFailed: clerkTimedOut && !clerkLoaded,
         logout,
         refreshUser,
         // Drives the post-signup redirect into /onboarding.
