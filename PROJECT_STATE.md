@@ -20,7 +20,7 @@
 | Frontend Host (marketing) | Vercel — cagedbear83/ijt-marketing |
 | Domain Registrar | IONOS (illinoisjobtracker.app), name.com (illinoisjobtracker.com) |
 | Email | Mailgun — mail.illinoisjobtracker.app |
-| SMS | ClickSend — migrated from Twilio Aug 19-20 (see Completed section below). Toll-free number registration submitted to ClickSend; number pending carrier approval |
+| SMS | ClickSend — migrated from Twilio Aug 19-20 (see Completed section below). Toll-free number +18447397712 approved by ClickSend Aug 27; wired into `CLICKSEND_FROM_NUMBER` |
 | AI | Google Gemini 2.0 Flash |
 | Secrets Manager | Doppler |
 | Support Email | support@illinoisjobtracker.app |
@@ -198,6 +198,7 @@ Kyle reported that after the Session Security / Auth Hardening fix above shipped
   - `ijt-marketing/app/terms/page.tsx` + `app/privacy/page.tsx` — previously had **no** SMS-specific language at all; added matching "SMS text messaging terms" / "SMS communications" sections, reusing the pages' existing `{site.company}`/`{site.name}` tokens
   - Backend consent wiring: `RegisterIn.sms_opt_in` (core.py) flows through `auth.py`'s `/auth/register` handler into `profile_doc.sms_enabled`, plus a `sms_opt_in_at` timestamp and an `SMS_OPT_IN` audit-log entry when checked — consent evidence for carrier/TCPA purposes. No SMS is ever sent from an opted-in-but-unverified profile — the reminder-send path still gates on `sms_verified` (OTP), so this only records consent, it doesn't bypass verification
   - Provided Kyle with the "describe who you message and why" carrier-application text and 3 representative sample messages (1 OTP + 2 reminder) for the ClickSend toll-free application form
+  - **Approved (Aug 27):** ClickSend approved toll-free number +18447397712. Set `CLICKSEND_FROM_NUMBER="+18447397712"` in `APP/backend/.env` for local dev; production Doppler secret still needs to be set manually (no Doppler CLI on this machine — see Infrastructure TODO). `routers/sms.py`'s OTP message and both `core.py` reminder SMS templates (`weekly` + certification-final) updated to append "Reply STOP to opt out, HELP for help." so the live text matches what was submitted to the carrier
 - [x] `render.yaml` deleted by Kyle (Aug 19) — see Quick Reference and Known Bugs
 
 ### Infrastructure
@@ -231,7 +232,7 @@ Kyle reported that after the Session Security / Auth Hardening fix above shipped
 - [x] CSV export (ephemeral, never stored)
 - [x] Loading/error/empty/success states on WeekDetail page
 - [x] Email reminders via Mailgun (Sun/Wed/Fri/Sat schedule)
-- [x] SMS reminders via ClickSend (toll-free number registration submitted — pending carrier approval)
+- [x] SMS reminders via ClickSend (toll-free number +18447397712 approved Aug 27; `CLICKSEND_FROM_NUMBER` set)
 - [x] AI screenshot import — Google Gemini 2.0 Flash
 - [x] Admin panel with RBAC (PlatformRole), audit log — impersonation feature dropped during the Aug 17-19 integration (dead reference, module never existed)
 - [x] Invite-only signup with 14-day single-use codes
@@ -342,9 +343,7 @@ Kyle reported that after the Session Security / Auth Hardening fix above shipped
 
 ### Infrastructure
 - [ ] Doppler — MongoDB re-setup
-- [ ] Doppler — set `CLICKSEND_USERNAME` / `CLICKSEND_API_KEY` / `CLICKSEND_FROM_NUMBER`, replacing the old `TWILIO_*` secrets
-- [ ] ClickSend toll-free number registration — submitted, awaiting carrier approval; follow up if not approved within the usual review window
-- [ ] Once approved, decide whether to update the live SMS message templates in `core.py` (OTP + reminder text) to literally include "Reply STOP to opt out" — the sample messages submitted to ClickSend include it, but the running code currently doesn't (see Open Decisions)
+- [ ] Doppler — set `CLICKSEND_USERNAME` / `CLICKSEND_API_KEY` (still need confirming) and `CLICKSEND_FROM_NUMBER="+18447397712"` (now approved, Aug 27) in the Doppler dashboard so DigitalOcean picks it up on next deploy — no Doppler CLI found on this machine, so this one is manual
 
 ---
 
@@ -403,7 +402,7 @@ Kyle reported that after the Session Security / Auth Hardening fix above shipped
 | Partial seat removal behavior | When a CW is removed and remaining CWs take their claimants — auto-even-split or manual choice confirmed. Edge case: what happens to claimants if org drops from e.g. 5 seats to 3 to cut costs? Blocked — downgrade action. |
 | Annual billing UI | Design confirmed, build after first paying customers |
 | Layer 2 IP anomaly detection | Deferred — revisit when user base grows |
-| SMS message template STOP/HELP language | Open — the 3 sample messages submitted to ClickSend for toll-free approval include "Reply STOP to opt out," but the live OTP/reminder templates in `core.py` don't yet. Decide whether to update the running templates to match what was submitted. |
+| SMS message template STOP/HELP language | Resolved (Aug 27) — `routers/sms.py` OTP message and both `core.py` reminder SMS templates now append "Reply STOP to opt out, HELP for help." to match what was submitted to ClickSend. |
 
 ---
 
@@ -422,7 +421,7 @@ Kyle reported that after the Session Security / Auth Hardening fix above shipped
 | MAILGUN_FROM | ✅ Set |
 | CLICKSEND_USERNAME | ⚠ Not yet set — replaces TWILIO_ACCOUNT_SID (Doppler) |
 | CLICKSEND_API_KEY | ⚠ Not yet set — replaces TWILIO_AUTH_TOKEN (Doppler) |
-| CLICKSEND_FROM_NUMBER | ⚠ Not yet set — pending ClickSend toll-free approval; replaces TWILIO_FROM_NUMBER (Doppler) |
+| CLICKSEND_FROM_NUMBER | ✅ Set locally (+18447397712, approved Aug 27) — still needs setting in Doppler for production (Doppler CLI not available on this machine) |
 | GEMINI_API_KEY | ⚠ Needs billing attached in Google Cloud |
 | FRONTEND_URL | ✅ Set (https://illinoisjobtracker.app) |
 | CORS_ORIGINS | ✅ Updated (includes .com and .app domains) |
@@ -542,7 +541,7 @@ Kyle reported that after the Session Security / Auth Hardening fix above shipped
 | ADJ034F report only populated Last Name and ID/SSN | Fixed (Aug 20, not yet deployed) | Wrong AcroForm field names (guessed, didn't match the real form except by coincidence), dead date-reformat code, and a broken middle-initial/name-derivation path — all three fixed in `routers/reports.py`. See "ADJ034F Report Field-Population Fix" under Completed |
 | `test_pdf_report_has_logo_and_unofficial` expected a logo/"UNOFFICIAL" overlay that doesn't exist in the code | Fixed (Aug 20) | Pre-existing gap, found while fixing the field-mapping bug. Kyle chose not to build the reportlab logo/disclaimer overlay — test removed, and a lightweight generation-timestamp stamp added to the PDF instead (see "ADJ034F Report Field-Population Fix" under Completed) |
 | Gemini AI hitting quota immediately | P1 | Blocked on Google Cloud billing |
-| ClickSend toll-free number not yet approved | P2 | Registration submitted (migrated from Twilio Aug 19-20) — follow up if not approved within the usual review window |
+| ClickSend toll-free number not yet approved | Resolved (Aug 27) | Approved by ClickSend; +18447397712 wired into `CLICKSEND_FROM_NUMBER` locally. Still needs to be set in Doppler for the DigitalOcean production deploy. |
 | Git divergence between PC and Mac | Resolved | Root cause was nested duplicate repo, now deleted. Still: always pull before pushing |
 | Backend deploy failing / auto-rollback | P0 | Code verified correct locally. Suspected DigitalOcean stale build cache. Try requirements.txt cache-bust. Confirm still relevant now that the backend has been split into `core.py`/`routers/*.py` |
 | CORS blocking error responses | Fixed (pending deploy) | CORSMiddleware was registered AFTER security_headers middleware, so error responses lost CORS headers. Reordered so CORS wraps outermost |

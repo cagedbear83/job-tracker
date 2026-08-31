@@ -29,7 +29,7 @@ async def sms_send_otp(body: OtpSendIn, user=Depends(get_current_user)):
         "used": False,
         "created_at": datetime.now(timezone.utc),
     })
-    msg = f"Illinois UI Tracker verification code: {code} (expires in 10 minutes)"
+    msg = f"Illinois UI Tracker verification code: {code} (expires in 10 minutes). Reply STOP to opt out, HELP for help."
     sent, reason = await send_sms_rate_limited(phone, msg, body.claimant_id)
     await log_audit(user["id"], "OTP_SEND", "claimant", body.claimant_id, f"OTP to {phone}: {'sent' if sent else reason}")
     if not sent:

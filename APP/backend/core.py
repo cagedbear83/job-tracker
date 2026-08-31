@@ -828,6 +828,7 @@ async def _send_user_reminder(user: dict, kind: str):
             sms_text = f"[IL UI Tracker] {title}: {contacts_count}/3 contacts for week {sun}–{sat}."
             if kind == "friday" and contacts_count < 3:
                 sms_text += f" Log {deficit} more by Sat."
+            sms_text += " Reply STOP to opt out, HELP for help."
             ok_sms, reason = await send_sms_rate_limited(c["sms_phone"], sms_text, c["id"])
             if ok_sms:
                 await log_audit(user["id"], f"SMS_{kind.upper()}", "claimant", c["id"], f"SMS sent to {c['sms_phone']}")
@@ -971,7 +972,7 @@ async def _send_certification_final_reminders():
                     ev["id"], f"Email sent to {to_email}",
                 )
             if claimant and claimant.get("sms_enabled") and claimant.get("sms_phone") and claimant.get("sms_verified"):
-                sms_text = "[IL UI Tracker] Certification due today — file by 7PM CT."
+                sms_text = "[IL UI Tracker] Certification due today — file by 7PM CT. Reply STOP to opt out, HELP for help."
                 ok_sms, reason = await send_sms_rate_limited(claimant["sms_phone"], sms_text, claimant["id"])
                 if ok_sms:
                     await log_audit(
