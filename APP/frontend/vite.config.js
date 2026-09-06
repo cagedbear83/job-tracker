@@ -72,6 +72,21 @@ export default defineConfig({
               networkTimeoutSeconds: 3,
             },
           },
+          {
+            // Cache the PWA manifest with a 24-hour TTL so the browser
+            // doesn't re-fetch it on every navigation. Without this entry
+            // the manifest isn't in any cache, and Cloudflare's WAF rate
+            // limiter fires a 429 when the browser (and SW update checks)
+            // request it repeatedly across a session.
+            urlPattern: /\/manifest\.webmanifest$/,
+            handler: "StaleWhileRevalidate",
+            options: {
+              cacheName: "pwa-manifest",
+              expiration: {
+                maxAgeSeconds: 60 * 60 * 24, // 24 hours
+              },
+            },
+          },
         ],
       },
     }),
