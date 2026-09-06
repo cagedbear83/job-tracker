@@ -516,6 +516,7 @@ def send_sms(to_number: str, body: str) -> bool:
             "https://rest.clicksend.com/v3/sms/send",
             auth=(username, api_key),
             json={"messages": [message]},
+            timeout=15,
         )
         if response.status_code == 200:
             status = (response.json().get("data", {}).get("messages") or [{}])[0].get("status", "")
@@ -551,7 +552,7 @@ async def send_sms_rate_limited(
                 False,
                 f"rate-limited ({int(delta.total_seconds() / 60)}m / {SMS_MIN_INTERVAL_MINUTES}m)",
             )
-    ok = send_sms(phone, body)
+    ok = await asyncio.to_thread(send_sms, phone, body)
     if ok:
         await db.sms_log.insert_one(
             {
