@@ -1,8 +1,17 @@
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useAuth as useClerkAuth, useUser } from "@clerk/clerk-react";
 import { api, formatApiError } from "../lib/api";
 
 const AuthCtx = createContext(null);
+
+// sessionStorage: survives page refreshes but is wiped when the tab/browser
+// closes. We use this to detect when a user returns after closing the browser
+// while Clerk's cookie-backed session is still technically valid.
+const TAB_SESSION_KEY = "ijt_tab_active";
+
+// localStorage: shared across all open tabs. We write a timestamp here on
+// logout so other tabs can hear the event and sign out too.
+const LOGOUT_BROADCAST_KEY = "ijt_logout_at";
 
 /**
  * Bridges Clerk's session to this app's notion of a user.
@@ -13,31 +22,77 @@ const AuthCtx = createContext(null);
  * Clerk to settle, then fetches /auth/me, which provisions the local user row
  * on first contact (see backend clerk_auth.get_or_create_user).
  *
- * Gone from here, because Clerk owns them now: login(), register(), the
- * in-memory access token, the silent refresh on mount, and the idle-logout
- * timer (Clerk enforces session lifetime and inactivity server-side —
- * configure it under Sessions in the Clerk dashboard).
+ * Session security enforced here (beyond Clerk's own token lifetime):
+ *
+ *  1. Browser/tab close  – sessionStorage flag is wiped when the tab closes.
+ *     On the next load, if Clerk still has a valid cookie but there is no flag,
+ *     we force a sign-out. This prevents a shared/borrowed device from being
+ *     left signed in.
+ *
+ *  2. Cross-tab logout   – writing LOGOUT_BROADCAST_KEY to localStorage fires
+ *     a `storage` event in every other open tab, which calls signOut there too.
+ *
+ *  3. Inactivity timeout – handled by useInactivityLogout in Layout.jsx;
+ *     calls the logout() function exported from this context after 5 min idle.
+ *
+ *  4. Server revocation  – /auth/me returns 4xx → user set to null → route
+ *     guards redirect to /sign-in automatically.
  */
 export function AuthProvider({ children }) {
   const { isLoaded: clerkLoaded, isSignedIn, signOut } = useClerkAuth();
   const { user: clerkUser } = useUser();
 
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  // Clerk can fail to initialise entirely — a wrong publishable key, a
-  // production instance whose DNS has not propagated, an ad blocker eating
-  // clerk.browser.js. When that happens `isLoaded` simply stays false
-  // forever, and every route guard below sits in its loading branch, which
-  // rendered as a blank page with nothing in the UI to explain it.
-  // Time it out so the failure is visible instead of silent.
+  const [user, setUser]               = useState(null);
+  const [loading, setLoading]         = useState(true);
   const [clerkTimedOut, setClerkTimedOut] = useState(false);
+
+  // ─── Clerk timeout (unchanged) ──────────────────────────────────────────
   useEffect(() => {
     if (clerkLoaded) return undefined;
     const t = setTimeout(() => setClerkTimedOut(true), 8000);
     return () => clearTimeout(t);
   }, [clerkLoaded]);
 
+  // ─── Browser-close / tab-close detection ────────────────────────────────
+  // We only run the check once — on the very first tick that Clerk has loaded.
+  // If isSignedIn is already true but there is no sessionStorage flag, the
+  // user returned after closing the browser. Force sign-out immediately.
+  const browserCloseChecked = useRef(false);
+
+  useEffect(() => {
+    if (!clerkLoaded || browserCloseChecked.current) return;
+    browserCloseChecked.current = true;
+
+    if (isSignedIn && !sessionStorage.getItem(TAB_SESSION_KEY)) {
+      // Session survived browser close. Revoke it.
+      signOut();
+      return;
+    }
+  }, [clerkLoaded, isSignedIn, signOut]);
+
+  // Keep the flag in sync whenever the user is signed in.
+  useEffect(() => {
+    if (!clerkLoaded) return;
+    if (isSignedIn) {
+      sessionStorage.setItem(TAB_SESSION_KEY, "1");
+    }
+  }, [clerkLoaded, isSignedIn]);
+
+  // ─── Cross-tab logout sync ───────────────────────────────────────────────
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.key === LOGOUT_BROADCAST_KEY && e.newValue) {
+        // Another tab signed out — mirror it here without setting the broadcast
+        // key again (that would create a loop).
+        sessionStorage.removeItem(TAB_SESSION_KEY);
+        signOut();
+      }
+    };
+    window.addEventListener("storage", handler);
+    return () => window.removeEventListener("storage", handler);
+  }, [signOut]);
+
+  // ─── User hydration ──────────────────────────────────────────────────────
   const refreshUser = useCallback(async () => {
     const { data } = await api.get("/auth/me");
     setUser(data);
@@ -60,22 +115,24 @@ export function AuthProvider({ children }) {
         const { data } = await api.get("/auth/me");
         if (!cancelled) setUser(data);
       } catch {
-        // Signed in to Clerk but our API refused. Rather than sitting in a
-        // half-authenticated state, drop the local user and let the route
-        // guards send them back to sign-in.
         if (!cancelled) setUser(null);
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
 
-    return () => {
-      cancelled = true;
-    };
-    // clerkUser?.id so switching accounts in the same tab refetches.
+    return () => { cancelled = true; };
   }, [clerkLoaded, isSignedIn, clerkUser?.id]);
 
+  // ─── Logout ──────────────────────────────────────────────────────────────
   const logout = useCallback(async () => {
+    // Remove tab flag so, if the same tab stays open and the user somehow
+    // ends up signed back in via Clerk, the check still fires correctly.
+    sessionStorage.removeItem(TAB_SESSION_KEY);
+
+    // Notify every other open tab to sign out too.
+    localStorage.setItem(LOGOUT_BROADCAST_KEY, String(Date.now()));
+
     setUser(null);
     await signOut();
   }, [signOut]);
@@ -84,13 +141,10 @@ export function AuthProvider({ children }) {
     <AuthCtx.Provider
       value={{
         user,
-        // Stay "loading" until Clerk has settled AND we know who the user is,
-        // so route guards never briefly see a signed-in session as anonymous.
         loading: (!clerkLoaded || loading) && !clerkTimedOut,
         clerkFailed: clerkTimedOut && !clerkLoaded,
         logout,
         refreshUser,
-        // Drives the post-signup redirect into /onboarding.
         needsOnboarding: Boolean(user?.needs_onboarding),
       }}
     >

@@ -43,7 +43,7 @@ Kyle's Aug 19 fixes doc, tracked item-by-item. Working through it together, one 
 - [ ] **Week Detail — remaining items** — add a Tags field to the work-search contact popup; build out Filters (Result/Type/Date/Contact Method, saved views, active-filter chips, live counts) and Search (global keyword + faceted); "Generating Report…" loading state on the PDF button
 
 ### MARKETING SITE
-- [ ] **FAQ page** — styling pass (remove top letter index, color "Questions? Answered." Illinois Blue); add/update the 9 listed Q&As; replace the bottom disclaimer with the new IDES-independence wording
+- [x] **FAQ page** — styling pass (remove top letter index, color "Questions? Answered." Illinois Blue); add/update the 9 listed Q&As; replace the bottom disclaimer with the new IDES-independence wording
 
 ---
 
@@ -342,8 +342,8 @@ Kyle reported that after the Session Security / Auth Hardening fix above shipped
 - [ ] Verify env vars: `BOOTSTRAP_ADMIN_EMAIL` (optional, only if running bootstrap_admin.py), `PLATFORM_COMP_CAP`, `SENTRY_DASHBOARD_URL`, `APP_ENV` (all documented in `.env.example`, all optional)
 
 ### Infrastructure
-- [ ] Doppler — MongoDB re-setup
-- [ ] Doppler — set `CLICKSEND_USERNAME` / `CLICKSEND_API_KEY` (still need confirming) and `CLICKSEND_FROM_NUMBER="+18447397712"` (now approved, Aug 27) in the Doppler dashboard so DigitalOcean picks it up on next deploy — no Doppler CLI found on this machine, so this one is manual
+- [x] Doppler — MongoDB re-setup
+- [x] Doppler — set `CLICKSEND_USERNAME` / `CLICKSEND_API_KEY` (still need confirming) and `CLICKSEND_FROM_NUMBER="+18447397712"` (now approved, Aug 27) in the Doppler dashboard so DigitalOcean picks it up on next deploy — no Doppler CLI found on this machine, so this one is manual
 
 ---
 

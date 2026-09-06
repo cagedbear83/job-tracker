@@ -1,6 +1,9 @@
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useCallback, useState } from "react";
+import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
+import { useInactivityLogout } from "@/hooks/useInactivityLogout";
+import { useOfflineLogout } from "@/hooks/useOfflineLogout";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import Logo from "@/components/Logo";
@@ -22,63 +25,20 @@ import {
 } from "@phosphor-icons/react";
 
 const userNav = [
-  {
-    to: "/dashboard",
-    label: "Dashboard",
-    Icon: HouseIcon,
-    testid: "nav-dashboard",
-  },
-  {
-    to: "/profile",
-    label: "Profile",
-    Icon: IdentificationCardIcon,
-    testid: "nav-profile",
-  },
-  {
-    to: "/weeks",
-    label: "Benefit Weeks",
-    Icon: CalendarBlankIcon,
-    testid: "nav-weeks",
-  },
-  {
-    to: "/calendar",
-    label: "Calendar",
-    Icon: CalendarCheckIcon,
-    testid: "nav-calendar",
-  },
-  {
-    to: "/documents",
-    label: "My Documents",
-    Icon: FolderOpenIcon,
-    testid: "nav-documents",
-  },
-  {
-    to: "/import",
-    label: "Import",
-    Icon: UploadSimpleIcon,
-    testid: "nav-import",
-  },
-  {
-    to: "/audit",
-    label: "Audit Log",
-    Icon: ClockCounterClockwiseIcon,
-    testid: "nav-audit",
-  },
+  { to: "/dashboard",  label: "Dashboard",     Icon: HouseIcon,                testid: "nav-dashboard" },
+  { to: "/profile",    label: "Profile",        Icon: IdentificationCardIcon,   testid: "nav-profile"   },
+  { to: "/weeks",      label: "Benefit Weeks",  Icon: CalendarBlankIcon,        testid: "nav-weeks"     },
+  { to: "/calendar",   label: "Calendar",       Icon: CalendarCheckIcon,        testid: "nav-calendar"  },
+  { to: "/documents",  label: "My Documents",   Icon: FolderOpenIcon,           testid: "nav-documents" },
+  { to: "/import",     label: "Import",         Icon: UploadSimpleIcon,         testid: "nav-import"    },
+  { to: "/audit",      label: "Audit Log",      Icon: ClockCounterClockwiseIcon,testid: "nav-audit"     },
 ];
 
 const adminNav = [
-  { to: "/admin", label: "Admin", Icon: ShieldCheckIcon, testid: "nav-admin" },
-  {
-    to: "/audit",
-    label: "Audit Log",
-    Icon: ClockCounterClockwiseIcon,
-    testid: "nav-audit",
-  },
+  { to: "/admin", label: "Admin",     Icon: ShieldCheckIcon,          testid: "nav-admin" },
+  { to: "/audit", label: "Audit Log", Icon: ClockCounterClockwiseIcon,testid: "nav-audit" },
 ];
 
-// Link to the new admin-platform surface (src/pages/AdminPlatform.jsx).
-// Shown separately from adminNav/userNav since it's gated on platform_role
-// (support_staff or platform_admin), not the legacy binary role field.
 const platformNavItem = {
   to: "/admin/platform",
   label: "Admin Platform",
@@ -86,12 +46,17 @@ const platformNavItem = {
   testid: "nav-admin-platform",
 };
 
-// Mirrors rbac.py's legacy-role fallback and App.jsx's platformRoleFor():
-// treats role === "admin" as platform_admin until platform_role is backfilled.
 function platformRoleFor(user) {
   if (user?.platform_role) return user.platform_role;
   return user?.role === "admin" ? "platform_admin" : "user";
 }
+
+const INACTIVITY_TOAST_ID = "inactivity-warning";
+
+const OFFLINE_LOGOUT_MESSAGES = {
+  hidden:  "You've been signed out — your session expired while the app was in the background.",
+  offline: "You've been signed out — your session expired while you were offline.",
+};
 
 export default function Layout() {
   const { user, logout } = useAuth();
@@ -99,11 +64,62 @@ export default function Layout() {
   const isAdmin = user?.role === "admin";
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const onLogout = async () => {
-    await logout();
-    navigate("/login");
-  };
+  const isAuthenticated = Boolean(user);
 
+  // ─── Shared logout executor ───────────────────────────────────────────────
+  // Accepts an optional message to show after redirect. All auto-logout paths
+  // funnel through here so Clerk sign-out + navigation happen exactly once.
+  const executeLogout = useCallback(async (message) => {
+    toast.dismiss(INACTIVITY_TOAST_ID);
+    await logout();
+    navigate("/sign-in");
+    if (message) {
+      // Slight delay so the toast renders on the sign-in page, not the
+      // page that is being unmounted.
+      setTimeout(() => toast.error(message, { duration: 8000 }), 100);
+    }
+  }, [logout, navigate]);
+
+  // ─── Inactivity (5 min idle) ──────────────────────────────────────────────
+  const handleInactivityLogout = useCallback(() => {
+    executeLogout("You've been signed out due to inactivity.");
+  }, [executeLogout]);
+
+  const handleInactivityWarning = useCallback(() => {
+    toast.warning(
+      "Still there? You'll be signed out in 1 minute due to inactivity.",
+      { id: INACTIVITY_TOAST_ID, duration: 60_000, closeButton: true },
+    );
+  }, []);
+
+  const handleActivityResume = useCallback(() => {
+    toast.dismiss(INACTIVITY_TOAST_ID);
+  }, []);
+
+  useInactivityLogout({
+    onLogout:  handleInactivityLogout,
+    onWarning: handleInactivityWarning,
+    onResume:  handleActivityResume,
+    enabled:   isAuthenticated,
+  });
+
+  // ─── Offline / hidden-tab (5 min threshold) ───────────────────────────────
+  const handleOfflineLogout = useCallback((reason) => {
+    executeLogout(OFFLINE_LOGOUT_MESSAGES[reason] ?? "You've been signed out.");
+  }, [executeLogout]);
+
+  useOfflineLogout({
+    onLogout: handleOfflineLogout,
+    enabled:  isAuthenticated,
+  });
+
+  // ─── Manual logout ────────────────────────────────────────────────────────
+  const onLogout = useCallback(async () => {
+    await logout();
+    navigate("/sign-in");
+  }, [logout, navigate]);
+
+  // ─── Nav ──────────────────────────────────────────────────────────────────
   const platformRole = platformRoleFor(user);
   const canSeePlatformAdmin =
     platformRole === "support_staff" || platformRole === "platform_admin";
@@ -116,7 +132,6 @@ export default function Layout() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <div className="brand-bar" />
-      {/* Sticky + blurred to match the marketing site nav. */}
       <header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur">
         <div className="max-w-[1440px] mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3">
