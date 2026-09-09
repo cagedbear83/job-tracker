@@ -6,7 +6,6 @@ import {
   TrashIcon,
   ArrowSquareOutIcon,
   PlusIcon,
-  FileIcon,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { FeatureGate } from "@/components/FeatureGate";

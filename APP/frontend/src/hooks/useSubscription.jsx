@@ -4,7 +4,7 @@
 // showing/hiding buttons, disabling actions, displaying usage bars, and
 // triggering the upgrade modal before a blocked request even fires.
 
-import { useState, useEffect, useCallback, createContext, useContext } from "react";
+import { useState, useEffect, useCallback, useMemo, createContext, useContext } from "react";
 import { api } from "@/lib/api";
 
 const TIER_LIMITS = {
@@ -82,9 +82,13 @@ export function SubscriptionProvider({ children }) {
     : 1;
   const baseLimits = TIER_LIMITS[tier] || TIER_LIMITS.free;
   // Case Worker storage is 1 GB per seat; scale the frontend limit to match the backend.
-  const limits = tier === "caseworker"
-    ? { ...baseLimits, document_storage_mb: (baseLimits.document_storage_mb ?? 1024) * seats }
-    : baseLimits;
+  const limits = useMemo(
+    () =>
+      tier === "caseworker"
+        ? { ...baseLimits, document_storage_mb: (baseLimits.document_storage_mb ?? 1024) * seats }
+        : baseLimits,
+    [tier, seats, baseLimits]
+  );
 
   const hasFeature = useCallback(
     (feature) => Boolean(limits[feature]),
