@@ -129,6 +129,11 @@ TRUST_PROXY = os.environ.get("TRUST_PROXY", "true").lower() in ("1", "true", "ye
 LOGIN_MAX_ATTEMPTS = int(os.environ.get("LOGIN_MAX_ATTEMPTS", "5"))
 LOCKOUT_DURATION_MINUTES = int(os.environ.get("LOCKOUT_DURATION_MINUTES", "15"))
 
+# ---- Account deletion grace period ----
+# Days between a user requesting deletion and the hard purge of their data.
+# Must match the value shown in the UI confirmation dialog (Profile.jsx).
+ACCOUNT_PURGE_GRACE_DAYS = int(os.environ.get("ACCOUNT_PURGE_GRACE_DAYS", "30"))
+
 # ---- Password policy ----
 PASSWORD_MIN_LENGTH = int(os.environ.get("PASSWORD_MIN_LENGTH", "12"))
 PASSWORD_MAX_LENGTH = int(os.environ.get("PASSWORD_MAX_LENGTH", "64"))
