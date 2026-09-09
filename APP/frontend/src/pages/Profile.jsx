@@ -272,7 +272,7 @@ export default function Profile() {
             <span>
               <span className="inline-flex items-center gap-1 font-medium">
                 <DeviceMobileIcon size={16} weight="bold" />
-                Also send SMS reminders
+                Receive SMS reminders
               </span>
               <span className="block text-xs text-muted-foreground mt-1 leading-relaxed">
                 By checking this box, you agree to receive automated SMS
@@ -287,7 +287,7 @@ export default function Profile() {
                   target="_blank"
                   rel="noreferrer"
                 >
-                  Terms &amp; Conditions
+                  Terms of Service
                 </a>{" "}
                 and{" "}
                 <a
@@ -473,7 +473,7 @@ export default function Profile() {
           {otpStep === 1 && (
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                Enter the phone in E.164 format. We'll text a 6-digit code.
+                Enter your 10-digit phone number. We'll text a 6-digit code.
               </p>
               <Input
                 value={otpPhone}

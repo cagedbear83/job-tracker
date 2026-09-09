@@ -1,7 +1,7 @@
 # Illinois UI Job Search Tracker — Project State
 **Owner:** Kyle Gagen — KMG123 Enterprises LLC
-**Last Updated:** August 20, 2026
-**Version:** 1.16
+**Last Updated:** September 8, 2026
+**Version:** 1.17
 
 ---
 
@@ -33,7 +33,7 @@
 Kyle's Aug 19 fixes doc, tracked item-by-item. Working through it together, one item at a time, ASAP items first. Updated as each is completed — see the dated entries under **✅ Completed** below for the actual detail on finished items.
 
 ### MAIN SITE
-- [x] **Full-Stack — session logout (ASAP)** (Aug 20) — "App doesn't log the user out when they exit the browser or after a certain amount of time" — fixed via a full access/refresh-token rework, see "Session Security / Auth Hardening" under Completed
+- [x] **Full-Stack — session logout (ASAP)** (Aug 20, re-done Sep 8) — "App doesn't log the user out when they exit the browser or after a certain amount of time" — originally fixed Aug 20 via JWT/refresh-token rework; that approach was superseded when the app migrated to Clerk. Re-implemented Sep 8 as client-side Clerk hooks — see "Client-Side Session Management — Clerk Auto-Logout" under Completed
 - [x] **Calendar** (Aug 20) — reminder engine, 5-business-day work-search follow-up, and the bi-weekly certification reminder cutoff all built — see "Calendar Reminder Engine" under Completed
 - [ ] **Documents** — confirm IDES-document upload/encrypted-storage is actually wired up; malware-scan uploads + enforce PDF/.doc/.docx/.jpg + size limit; convert uploads to PDF; compress uploads to save space
 - [x] **Register page** (Aug 20) — branding/disclaimer added, phone auto-format, required-field marking, and the "next certification date" question with 26-week auto-seed — see "Register Page — Branding, Validation & Certification-Date Seeding" under Completed
@@ -55,7 +55,7 @@ Kyle's Aug 19 fixes doc, tracked item-by-item. Working through it together, one 
 | Language | Python 3.11 |
 | Framework | FastAPI |
 | Database driver | Motor (async MongoDB) |
-| Auth | JWT + bcrypt, single-active-session enforcement |
+| Auth | JWT + bcrypt, single-active-session enforcement ⚠ Frontend migrated to Clerk (Sep 8) — backend still issues its own JWTs for API calls; this row reflects backend-only auth |
 | Email | Mailgun REST API |
 | SMS | ClickSend REST API (migrated from Twilio Aug 19-20) |
 | AI | Google Gemini 2.0 Flash |
@@ -68,6 +68,7 @@ Kyle's Aug 19 fixes doc, tracked item-by-item. Working through it together, one 
 | Technology | Detail |
 |---|---|
 | Framework | React 18, built with Vite (migrated off Create React App — `craco.config.js` is a stale leftover, not in use) |
+| Auth | Clerk (`@clerk/clerk-react`) — migrated from custom JWT/refresh-token system; handles sign-in, sign-out, and session tokens. Client-side inactivity/offline/browser-close logout layered on top via custom hooks (Sep 8) |
 | Styling | Tailwind CSS v3 + shadcn/ui |
 | Icons | Phosphor Icons |
 | Routing | React Router v6 |
@@ -90,7 +91,24 @@ Kyle's Aug 19 fixes doc, tracked item-by-item. Working through it together, one 
 
 ## ✅ Completed
 
-### VerifyEmail Page Redesign (Aug 20 — latest session)
+### Client-Side Session Management — Clerk Auto-Logout (Sep 8, 2026)
+Revisits and replaces the Aug 20 "Session Security / Auth Hardening" work for the frontend. The app migrated from a custom JWT/refresh-token system to Clerk between Aug 20 and Sep 8 — Clerk manages the session token lifecycle on the server side, but does NOT enforce client-side inactivity, browser-close logout, or extended offline logout on its own. All four logout paths funnel through a shared `executeLogout()` in `Layout.jsx` to ensure exactly one `logout()` call and one navigation.
+
+- [x] **5-minute inactivity auto-logout** — New `src/hooks/useInactivityLogout.jsx` tracks mouse, keyboard, scroll, touch, and pointer activity (mousemove, mousedown, keydown, scroll, touchstart, click, pointerdown). Resets a 5-minute countdown on any event. At 4 minutes, fires a dismissible sonner warning toast ("Still there? You'll be signed out in 1 minute…") via `INACTIVITY_TOAST_ID` so the same toast can be dismissed by ID. At 5 minutes, calls `logout()`, navigates to `/sign-in`, and shows an error toast explaining the reason (shown with 100ms delay so it renders on the sign-in page, not during unmount). Warning toast auto-dismisses when the user becomes active again before the timer fires. Only runs when `enabled: Boolean(user)` — no-op for unauthenticated users.
+- [x] **Browser/tab close → force logout on return** — `AuthContext.jsx` writes a `sessionStorage` flag (`ijt_tab_active`) whenever `isSignedIn=true`. `sessionStorage` survives page refreshes but is wiped when a tab or browser closes. On the first tick that Clerk loads (`clerkLoaded=true`), a one-time check via `browserCloseChecked` ref fires: if `isSignedIn=true` but the flag is absent → `signOut()` immediately. New logins are not affected — `isSignedIn` goes `false→true` after the one-time check already ran, so the guard is correctly skipped for fresh sign-ins.
+- [x] **Cross-tab logout sync** — When `logout()` is called in any open tab, it writes a timestamp to `localStorage` key `ijt_logout_at`. Every other open tab listens for the `storage` event and signs out automatically via a `useEffect` in `AuthContext.jsx` — logging out in one tab instantly closes all other active sessions in the same browser.
+- [x] **Extended offline auto-logout (5-minute threshold)** — New `src/hooks/useOfflineLogout.jsx` handles two additional scenarios: (a) tab hidden for >5 minutes — laptop lid closed, screen locked, app switched on mobile; browsers freeze/throttle `setTimeout` on backgrounded tabs so the inactivity hook alone cannot catch this; (b) network offline for >5 minutes. In both cases, logout fires when the triggering condition resolves (tab becomes visible again, or network comes back online). Toast messages are distinct per reason: "…expired while the app was in the background" vs "…expired while you were offline." `firedRef` prevents double-fire if both triggers happen simultaneously.
+- [x] `logout()` in `AuthContext.jsx` now removes the `sessionStorage` flag, sets the `localStorage` broadcast key, clears local user state, then calls Clerk `signOut()` — all paths clean up both storage keys before hand-off to Clerk.
+- [ ] **Not yet done:** files written to the local working tree, not yet committed/pushed to git.
+- [ ] **Known gap still open:** Clerk's server-side session lifetime (Clerk Dashboard → Sessions → Session lifetime) is still at default (can be very long). The client-side 5-minute inactivity/offline logic catches most cases, but if the timers are somehow bypassed the Clerk session cookie can persist much longer. Configuring Clerk's dashboard session lifetime (e.g., 12-hour absolute) would provide belt-and-suspenders coverage. The browser-close `sessionStorage` check is the only guard in that scenario.
+
+**Files changed this session (Sep 8, 2026):**
+- `APP/frontend/src/hooks/useInactivityLogout.jsx` — **NEW**
+- `APP/frontend/src/hooks/useOfflineLogout.jsx` — **NEW**
+- `APP/frontend/src/context/AuthContext.jsx` — updated (browser-close detection, cross-tab sync, logout cleanup)
+- `APP/frontend/src/components/Layout.jsx` — updated (wired both hooks, shared `executeLogout`, distinct toast messages per logout reason)
+
+### VerifyEmail Page Redesign (Aug 20)
 Fixes the VerifyEmail punch-list item. This page is a small, mostly-transient shim — for current registrations the verification link goes straight to the backend, which redirects on to `/login`; this page only renders for older pre-change email links, and even then only briefly (it immediately forwards to the backend once it reads the token), so a full Login/Register-style two-column hero layout would be overkill for a screen almost nobody actually looks at for more than a second. Scoped the redesign to matching the same branding quality instead:
 - [x] Added the "IL" badge + "Illinois UI Job Search Tracker" header treatment (same visual pattern as the reminder emails' header — see `core.py`'s `_reminder_html`), replacing the old plain color-strip `brand-bar`
 - [x] Added the "Unofficial tool — not affiliated with IDES" disclaimer footer, matching `InviteSignup.jsx`'s wording — this page had no IDES disclaimer at all before
@@ -98,7 +116,7 @@ Fixes the VerifyEmail punch-list item. This page is a small, mostly-transient sh
 - [x] JSX syntax verified via an esbuild parse (no dev environment available to run the project's own ESLint here)
 - [ ] **Not yet done:** file written directly into the local working tree, not yet committed/pushed
 
-### Calendar Reminder Engine (Aug 20 — latest session)
+### Calendar Reminder Engine (Aug 20)
 Fixes the Calendar punch-list item. Was blocked on Register's certification-date capture (built earlier this session — see below), since there was previously no data to build certification reminders on top of. All new code lives in `core.py`'s new "Calendar Event Reminders" section, `server.py`'s scheduler block, and `routers/contacts.py`.
 - [x] **Generic reminder engine, not certification-specific.** `_broadcast_event_reminders(kind)` scans `calendar_events` daily at 8AM CT for anything landing 3 days out ("3day") or today ("morning") and emails a reminder — works for certification, IDES interview, appeal, questionnaire, and the new auto-added work-search follow-up (below) alike, whether the event was hand-added on the Calendar page or system-seeded. Built generic on purpose (Kyle's call) so it automatically covers Register's 26-week certification auto-seed and the follow-up feature with no special-casing
 - [x] **Certification cutoff reminder.** `_send_certification_final_reminders()` fires separately at 5PM CT — 2 hours ahead of the 7PM CT IDES filing cutoff — for certification events landing today, over **email and SMS** (for claimants who've opted into SMS). Certification events are excluded from the generic 8AM "morning-of" reminder so this 5PM one is the one that actually lands close to the deadline, not a redundant earlier one
@@ -107,7 +125,7 @@ Fixes the Calendar punch-list item. Was blocked on Register's certification-date
 - [x] Verified end-to-end via `TestClient` + mongomock: seeded certification events at +3 days and today, an IDES-interview event today; confirmed the 3-day scan fires exactly once (certification +3d), the morning scan fires exactly once and only for the non-certification event, and the cert-final scan fires exactly once with both an email AND an SMS recorded. Separately verified a real `POST /contacts` call auto-creates the follow-up event on the correct business-day-adjusted date
 - [ ] **Not yet done:** files written directly into the local working tree, not yet committed/pushed. No live send has happened yet (Mailgun/ClickSend not exercised outside the mocked test) — first real firing will be the next scheduled 8AM/5PM CT tick after deploy
 
-### Register Page — Branding, Validation & Certification-Date Seeding (Aug 20 — latest session)
+### Register Page — Branding, Validation & Certification-Date Seeding (Aug 20)
 Fixes the Register-page punch-list item above. Was also the unblock for the Calendar item (which needs a claimant's certification date to exist before it can build certification reminders on top of it — that data didn't exist anywhere in the app before this).
 - [x] **Branding/disclaimer (was missing).** `Register.jsx` was a bare centered form with no product name and no IDES disclaimer anywhere — unlike `Login.jsx`, which already has a full left-side hero panel (brand bar, "Job Search Tracker" heading, "State of Illinois" label, and the "Unofficial tool — not affiliated with IDES" line). Rebuilt Register as the same two-column layout, reusing Login's exact copy/pattern rather than inventing new wording, so the two auth pages are now visually consistent
 - [x] **Phone auto-format.** New `formatPhone()` masks input to `(XXX) XXX-XXXX` as the user types, stripping non-digits first so pasted numbers or a leading "1" don't break it
@@ -119,7 +137,7 @@ Fixes the Register-page punch-list item above. Was also the unblock for the Cale
 - [x] Verified via a full FastAPI `TestClient` run against mongomock: blank required field → 422; `knows_next_cert_date=yes` with no date → 422; a valid registration seeds exactly 26 events at the correct 14-day cadence (spot-checked first/second/last dates) with a `CALENDAR_SEED` audit-log entry; `knows_next_cert_date=no` seeds nothing. Register.jsx's JSX syntax verified with an esbuild parse (no dev environment available to run the project's own ESLint here)
 - [ ] **Not yet done:** files written directly into the local working tree, not yet committed/pushed. Calendar's actual reminder-sending engine (scanning these seeded events and firing email/SMS) is still separate, not-yet-built work — this task only builds the data + the Register-page UX
 
-### ADJ034F Report Field-Population Fix (Aug 20 — latest session)
+### ADJ034F Report Field-Population Fix (Aug 20)
 Fixes the ASAP "Week Detail" punch-list item above ("generated PDF only populates Last Name and ID/SSN, must populate every field every time"). All in `routers/reports.py`. Root cause was three separate bugs stacked in the same function:
 - [x] **Wrong AcroForm field names (the main bug).** The fill code was writing to guessed field names ("weekend1", "date1", "name1", "address1", ...) that don't exist on the real form — pypdf silently no-ops on an unmatched field name instead of erroring, so almost everything rendered blank. "Last Name"/"ID or SSN" only ever worked by coincidence (those two guesses happened to match). Read the real field names directly off `assets/ADJ034F.pdf` via `PdfReader(...).get_fields()` (158 fields) and rewrote the mapping to match: 5 week-blocks ("Week Ending 1".."Week Ending 5"), each with 5 lettered contact rows a-e (25 rows total, not 30), and a single combined "Name and Address" field per row rather than separate name/address fields
 - [x] **Dates never reformatted.** `_to_mmddyyyy()`'s `hasattr(value, "strftime")` check was dead code — `week_end`/`contact_date` are plain ISO strings per the Pydantic models, never datetime objects, so it never fired and dates landed on the form as raw "2026-08-08" text. Added a proper ISO-string parse path, falling back to the original string if parsing fails
@@ -129,7 +147,7 @@ Fixes the ASAP "Week Detail" punch-list item above ("generated PDF only populate
 - [x] **Added instead: a generation-timestamp stamp** along the bottom of every page of the generated PDF ("Generated by Illinois UI Job Tracker — MM/DD/YYYY HH:MM AM/PM UTC"), per Kyle's request. Implemented via a pypdf `FreeText` annotation (no reportlab needed) with the `/F=4` printable flag set so it survives printing, not just on-screen viewing. Verified: field values still fill correctly alongside the new annotation, annotation confirmed present on both pages after a full write/re-read round-trip
 - [x] **Follow-up fix (below): "First Name" blank + claimant's first name leaking into the page-2 "Results 4d" box** — a second, deeper defect in the same template, found after Kyle reported it live. See "ADJ034F — First Name / Results 4d Field-Conflation Fix + Local Timestamp" below
 
-### ADJ034F — First Name / Results 4d Field-Conflation Fix + Local Timestamp (Aug 20 — latest session)
+### ADJ034F — First Name / Results 4d Field-Conflation Fix + Local Timestamp (Aug 20)
 Fixes two bugs Kyle found in the generated PDF after the fix above shipped: (1) "First Name" blank at the top of page 1, and (2) the claimant's first name printed into the 4th Results line of the middle contact group on page 2 (that box should hold the 19th contact's own result text). Also fixes a follow-up request to show the generation timestamp in local time instead of UTC. All in `routers/reports.py`.
 - [x] **Root cause: a genuine authoring defect in the state's own `ADJ034F.pdf` template**, not a bug in our fill code. Dumped every "Results *" field's page + rect and found 4a/4b/4c/4e present but **4d entirely missing** from the form's field list — with the orphaned second widget of the "First Name" field landing exactly in that gap on page 2. In other words: the template's "First Name" field has **two widget annotations sharing one field identity** (the real box on page 1, plus a stray one on page 2 that should have been its own separate "Results 4d" field). Because both widgets share one field name, whatever value gets set for "First Name" is written to **both** locations — standard PDF behavior for a shared field name (like an SSN repeated on every page), just applied by mistake to two fields that are supposed to be independent. That's why the claimant's first name showed up in the page-2 Results box, and (per how pypdf resolves per-page appearance streams for a field split across pages) why the real First Name box on page 1 could end up rendering blank instead
 - [x] **Fix:** new `_repair_adj034f_first_name_field(writer)`, run once against every generated PDF right after the template loads and before any fields are filled. It detaches the orphaned page-2 widget from "First Name"'s `/Kids` array, renames it to "Results 4d", and registers it as its own independent top-level AcroForm field — the existing fill logic already tries to write `field_values["Results 4d"]`, it just had nowhere valid to land before. Identifies the orphan by which page it actually renders on (not a hardcoded coordinate), so it stays correct if the template's layout ever shifts slightly. Safe to call unconditionally — a no-op if the template is ever fixed upstream
@@ -138,17 +156,16 @@ Fixes two bugs Kyle found in the generated PDF after the fix above shipped: (1) 
 - [x] `routers/reports.py` delivered and committed to the device
 - [ ] **Not yet done:** not yet committed to git / pushed
 
-### Session Security / Auth Hardening (Aug 20 — latest session)
-Fixes item 1 of the Site Fixes punch list above (ASAP: "app doesn't log the user out when they exit the browser or after a certain amount of time"). Root cause was four separate gaps, not one bug: the JWT lived in `localStorage` (survives closing the browser), had a flat 7-day expiry with no idle timeout, `AuthContext.jsx` only ever checked expiry once on mount (not while the tab stayed open), and `/auth/logout` never actually revoked anything server-side. Rebuilt as short-lived access tokens + rotating refresh tokens:
+### Session Security / Auth Hardening (Aug 20) — ⚠ Superseded on frontend by Clerk migration
+Fixes item 1 of the Site Fixes punch list above (ASAP: "app doesn't log the user out when they exit the browser or after a certain amount of time"). Root cause was four separate gaps, not one bug: the JWT lived in `localStorage` (survives closing the browser), had a flat 7-day expiry with no idle timeout, `AuthContext.jsx` only ever checked expiry once on mount (not while the tab stayed open), and `/auth/logout` never actually revoked anything server-side. Rebuilt as short-lived access tokens + rotating refresh tokens. **⚠ The frontend portion of this work (tokenStorage.js, api.js, the old AuthContext idle timer, getValidToken) was superseded when the app migrated to Clerk. The backend refresh-token infrastructure (core.py, auth.py, routers/invites.py) may or may not still be active — confirm whether the backend was updated to match Clerk's auth model or still issues its own JWTs for API calls alongside Clerk session tokens.**
 - [x] **Backend (`core.py`, `routers/auth.py`, `routers/invites.py`, `server.py`, `.env.example`)** — access-token JWT lifetime cut from 7 days to `ACCESS_TOKEN_MINUTES` (default 10). New `refresh_tokens` Mongo collection backs an opaque, rotating refresh token delivered as an httpOnly/Secure/SameSite=None cookie scoped to `/api/auth` — never readable by JS. `POST /auth/refresh` validates + rotates it (sliding `REFRESH_TOKEN_IDLE_MINUTES` expiry, default 30, hard-capped at `REFRESH_TOKEN_ABSOLUTE_HOURS` from the original login, default 12). Presenting an already-rotated-away token (a theft signal) revokes the entire session family immediately. `/auth/logout` now actually revokes the refresh token server-side instead of just writing an audit-log line. `refresh_tokens` added to the account-deletion purge list
-- [x] **Frontend (`tokenStorage.js`, `api.js`, `AuthContext.jsx`, `WeekDetail.jsx`, `Documents.jsx`, `BenefitWeeks.jsx`)** — access token now lives only in a JS module variable (never in `localStorage`/`sessionStorage`), so it's gone the instant a tab closes and an XSS payload only ever gets a few minutes of it. `api.js` proactively refreshes an expiring token before a request goes out and silently retries once on 401. `AuthContext` re-establishes a session from the refresh cookie on page load (instead of reading a persisted token) and adds a 15-minute client-side idle timer as a UX backstop ahead of the backend's 30-minute window. The three pages that build raw `fetch()` downloads (PDF/CSV export, document upload/view) switched from `getToken()` to a new `getValidToken()` that refreshes first if needed, since they bypass the axios interceptor
-- [x] **Removed the stale "Capacitor" comment** in `tokenStorage.js` — claimed `localStorage` was needed for a mobile (Capacitor) build; a full sweep of both `job-tracker` and `ijt-marketing` (deps, lockfiles, configs, source, docs, CI) found zero trace of Capacitor anywhere — no such build exists in either repo
-- [x] **Real bug caught during testing:** `create_refresh_token()` crashed on every rotation (`TypeError: can't compare offset-naive and offset-aware datetimes`) — Mongo strips `tzinfo` off datetimes on round-trip (same class of issue this codebase already works around elsewhere, e.g. `_check_account_lockout`), so the rotated token's `family_started_at` came back naive and blew up comparing against the tz-aware idle expiry. Fixed by reattaching `tzinfo=utc` on read, same pattern as the rest of the file
-- [x] Verified end-to-end: direct unit tests of rotation/reuse-detection/absolute-ceiling against an in-memory Mongo, plus a full FastAPI `TestClient` run of login → refresh → rotation → old-token-reuse-rejected-and-family-revoked → logout → refresh-after-logout-rejected. All 6 touched frontend files pass the project's ESLint config clean
-- [x] **Committed and pushed** — confirmed on `origin/main` (commit `harden session auth, fix ADJ034F PDF, ship Register/Calendar/VerifyEmail`). ⚠ Also touches `.env.example` with 6 new optional session-security vars — see Environment Variables Checklist below for prod-specific notes (cross-site cookie between Vercel frontend and DigitalOcean backend needs `REFRESH_COOKIE_SECURE=true` + `REFRESH_COOKIE_SAMESITE=none`, which are already the defaults)
-- [ ] **Separately flagged, not yet investigated:** `PROJECT_STATE.md`'s own Authentication & Security section (below) claims "single-active-session enforcement via session_id/sid JWT claim" — reading `core.py` directly, the JWT payload is only `{sub, email, exp, iat}` and `get_current_user()` does no session_id/sid check anywhere. This refresh-token rework does NOT add single-active-session enforcement either (each login gets its own independent refresh-token family; nothing stops two concurrent logins). Flagging the doc claim as inaccurate rather than quietly fixing/removing it — confirm with Kyle whether single-session enforcement was ever actually built, or was aspirational/planned and never shipped
+- [x] **Frontend** — ⚠ superseded by Clerk migration. The in-memory token, api.js refresh interceptor, getValidToken, and 15-min idle timer from this session no longer apply; replaced by the Sep 8 Clerk-based hooks (see "Client-Side Session Management — Clerk Auto-Logout" above)
+- [x] **Removed the stale "Capacitor" comment** in `tokenStorage.js`
+- [x] **Real bug caught during testing:** `create_refresh_token()` crashed on every rotation (`TypeError: can't compare offset-naive and offset-aware datetimes`) — fixed by reattaching `tzinfo=utc` on read
+- [x] Verified end-to-end and **committed/pushed** — confirmed on `origin/main`
+- [ ] **Separately flagged, not yet investigated:** `PROJECT_STATE.md`'s own Authentication & Security section (below) claims "single-active-session enforcement via session_id/sid JWT claim" — reading `core.py` directly, the JWT payload is only `{sub, email, exp, iat}` and `get_current_user()` does no session_id/sid check anywhere. Not added by the Aug 20 refresh-token work either. Flagging the doc claim as inaccurate — confirm with Kyle whether this was ever actually built
 
-### PWA Service Worker Was Serving a Stale, Pre-Session-Fix Bundle (Aug 20 — latest session)
+### PWA Service Worker Was Serving a Stale, Pre-Session-Fix Bundle (Aug 20)
 Kyle reported that after the Session Security / Auth Hardening fix above shipped, he closed Chrome completely overnight, reopened it the next day, and was **still logged in** — seemingly proof the new 30-min-idle / 12h-absolute session logic wasn't working. Root cause was NOT the session logic (verified correct and live — see below), it was the frontend's PWA service worker serving an old cached bundle instead of ever loading the new one.
 - [x] **Verified the new auth code actually was live** before looking anywhere else: confirmed `origin/main`'s HEAD matches the local repo's HEAD (both at commit `4ad268bf...`), and read the deployed `core.py`/`auth.py`/`AuthContext.jsx`/`tokenStorage.js`/`api.js` directly — the refresh-token idle/absolute expiry math, the tz-aware datetime comparisons, and the in-memory-only access token are all correct. This ruled out "the fix never shipped" and "the fix has a logic bug" as explanations
 - [x] **Found the real cause: `vite.config.js`'s VitePWA config precached `html`** (`globPatterns: ["**/*.{js,css,html,woff2}"]`) with no override for navigation requests. Workbox's precache-and-route serves precached routes (including `/` → `/index.html`) straight from whatever was in the cache **at the service worker's install time** — a service worker installed in Kyle's browser any time before this fix shipped keeps serving that old HTML+JS pair indefinitely, regardless of what's actually deployed, until that specific service worker instance happens to get replaced through its own update cycle. The old bundle it served still used the pre-Aug-20 approach (JWT saved to `localStorage`, 7-day expiry) — so a fully-closed-and-reopened Chrome could load the stale service worker's cached old bundle, find the old still-unexpired `localStorage` token, and render "logged in," without the new session code ever running
@@ -221,6 +238,7 @@ Kyle reported that after the Session Security / Auth Hardening fix above shipped
 - [x] Password reset flow with token expiry
 - [x] bcrypt password hashing
 - [x] JWT auth with configurable secret
+- [x] Clerk authentication on frontend (sep 8) — sign-in, sign-out, session token managed by Clerk; client-side inactivity/offline/browser-close logout layered on top via `useInactivityLogout` + `useOfflineLogout`
 
 ### Main App — Core Features
 - [x] Multi-claimant profile management (scoped per user)
@@ -388,6 +406,7 @@ Kyle reported that after the Session Security / Auth Hardening fix above shipped
 - [ ] Google Cloud billing — attach billing to unblock Gemini free tier quota
 - [ ] Inline Stripe Elements card form (replace Checkout redirect)
 - [ ] Fix db.claimants → db.profiles at server.py line 431 (orphaned collection bug) — note: current backend is split into routers, confirm this line reference still applies to whichever file now owns that logic
+- [ ] Configure Clerk Dashboard → Sessions → Session lifetime to set a reasonable absolute maximum (e.g. 12 hours) as belt-and-suspenders alongside the client-side 5-minute inactivity hooks — the client-side timers are the primary guard but a Clerk server-side limit prevents indefinitely-lived sessions if the timers are ever bypassed
 - [x] Rate limiting on SMS sends to prevent abuse — already implemented via `SMS_MIN_INTERVAL_MINUTES` in `send_sms_rate_limited()` (core.py); confirmed while working on the ClickSend migration (Aug 19-20)
 - [x] Split server.py into FastAPI routers — done. `APP/backend` is now `core.py` + `server.py` (composition root) + `routers/*.py`; the old monolith is backed up at `APP/server_monolith.py.bak`
 
@@ -403,6 +422,7 @@ Kyle reported that after the Session Security / Auth Hardening fix above shipped
 | Annual billing UI | Design confirmed, build after first paying customers |
 | Layer 2 IP anomaly detection | Deferred — revisit when user base grows |
 | SMS message template STOP/HELP language | Resolved (Aug 27) — `routers/sms.py` OTP message and both `core.py` reminder SMS templates now append "Reply STOP to opt out, HELP for help." to match what was submitted to ClickSend. |
+| Clerk server-side session lifetime | Open — Clerk Dashboard default may allow very long-lived sessions; recommend setting an absolute max (12hr) to match the client-side inactivity logic as a server-side backstop |
 
 ---
 
@@ -448,6 +468,7 @@ Kyle reported that after the Session Security / Auth Hardening fix above shipped
 ### Frontend — Main App (Vercel)
 | Variable | Status |
 |---|---|
+| VITE_CLERK_PUBLISHABLE_KEY | ✅ Required — Clerk publishable key for the frontend (`pk_live_...` for prod, `pk_test_...` for dev). Set in Vercel environment variables. |
 | REACT_APP_BACKEND_URL | ✅ Set |
 | REACT_APP_SENTRY_DSN | ⚠ Optional — no-op if not set |
 
@@ -491,28 +512,29 @@ Kyle reported that after the Session Security / Auth Hardening fix above shipped
 ### Frontend — Main App (APP/frontend/src/)
 | File | Purpose |
 |---|---|
+| hooks/useInactivityLogout.jsx | **NEW (Sep 8)** — 5-minute inactivity auto-logout. Tracks activity events, resets countdown on any interaction, fires warning toast at 4 min, fires logout at 5 min, auto-dismisses warning on activity resume. Stable callback refs via `useRef` so effects don't re-run on every render. Only active when `enabled=true`. |
+| hooks/useOfflineLogout.jsx | **NEW (Sep 8)** — Logout after 5+ minutes hidden (laptop lid/screen lock/app switch) or 5+ minutes offline. Page Visibility API + online/offline events; timestamps when hidden/offline, checks elapsed on return. `firedRef` prevents double-fire if both triggers fire simultaneously. Distinct `reason` passed to `onLogout` for per-scenario toast messages. |
+| context/AuthContext.jsx | Auth state. Updated (Aug 20) with refresh-token session. **Updated (Sep 8)** — migrated to Clerk: `useAuth`/`useUser`/`useClerk` from `@clerk/clerk-react`; added `sessionStorage` flag (`ijt_tab_active`) for browser-close detection (one-time check on Clerk load via `browserCloseChecked` ref); `localStorage` broadcast key (`ijt_logout_at`) + `storage` event listener for cross-tab logout sync; `logout()` now removes sessionStorage flag, sets broadcast key, clears user state, then calls Clerk `signOut()`. |
+| components/Layout.jsx | Updated (Aug 19) — admin platform link. Updated (Aug 20) — dark-mode toggle fix. **Updated (Sep 8)** — wired `useInactivityLogout` and `useOfflineLogout`; shared `executeLogout()` helper (dismisses warning toast → calls `logout()` → navigates to /sign-in → shows reason toast with 100ms delay); `INACTIVITY_TOAST_ID` for stable dismissal; `OFFLINE_LOGOUT_MESSAGES` map for distinct messages per reason. Both hooks gated on `Boolean(user)`. |
 | pages/WeekDetail.jsx | Benefit week + contacts, loading/error states. Updated (Aug 20) — PDF/CSV download now calls `getValidToken()` instead of the old `getToken()` so a stale in-memory access token refreshes first. Also where the ADJ034F report bug's endpoint (`GET /reports/benefit-week/{id}`) was traced to — see In Progress |
 | pages/Documents.jsx, pages/BenefitWeeks.jsx | Updated (Aug 20) — same `getValidToken()` swap as WeekDetail.jsx, for their raw-`fetch()` upload/download/export calls |
 | pages/AdminPlatform.jsx | New (Aug 17-19) — admin-platform dashboard (users, comps, refunds, disputes, system, compliance panels) |
 | components/RequireRole.jsx | New (Aug 17-19) — front-end role gate for the admin-platform route |
 | lib/adminApi.js | New (Aug 17-19) — admin-platform API client, uses the shared Bearer-JWT axios client |
-| components/Layout.jsx | Updated (Aug 19) — added sidebar/mobile-drawer link to /admin/platform for support_staff/platform_admin. Updated (Aug 20) — dark-mode toggle now uses `resolvedTheme` + mount guard (fixes inverted light/dark) |
 | pages/Dashboard.jsx | Updated (Aug 20) — Recharts axes/tooltip/reference-line use `hsl(var(--...))` tokens so the compliance chart is correct in dark mode |
 | index.css | Updated (Aug 20) — button press feedback + `prefers-reduced-motion`/`prefers-reduced-transparency` support |
 | hooks/useSubscription.jsx | Tier/usage/feature checks |
 | components/UpgradeModal.jsx | Pricing modal, fires on 402 |
 | components/FeatureGate.jsx | Locks gated buttons |
 | components/DeleteAccountSection.jsx | Delete account UI |
-| context/AuthContext.jsx | Auth state. Updated (Aug 20) — was checking a persisted `sessionStorage`-described-but-actually-`localStorage` token once on mount; now re-establishes session via `refreshSession()` (httpOnly cookie) on load and adds a 15-min client-side idle logout timer |
 | lib/api.js | Axios client + JWT interceptor. Updated (Aug 20) — `withCredentials: true`, proactive refresh-before-expiry, silent refresh-and-retry-once on 401, exports `refreshSession()`/`getValidToken()` |
-| lib/tokenStorage.js | Updated (Aug 20) — access token moved from `localStorage` (survived closing the browser, readable by any script for its full life) to an in-memory JS variable only; also removes a stale comment claiming it was needed for a "Capacitor" mobile build that doesn't exist anywhere in this repo |
-| pages/Register.jsx | Updated (Aug 19-20) — added unchecked-by-default SMS opt-in checkbox below the phone field, for ClickSend toll-free compliance |
-| pages/Profile.jsx | Updated (Aug 19-20) — SMS card now carries full opt-in disclosure (brand name, frequency, rates, STOP/HELP, Terms/Privacy links) around the existing SMS toggle |
-| pages/PrivacyPolicy.jsx, pages/Terms.jsx | Updated (Aug 19-20) — SMS sections rewritten for ClickSend (Data Collection/Usage/Sharing/Opt-Out); "⚠ ATTORNEY REVIEW REQUIRED" header comment removed |
-| pages/Admin.jsx | Updated (Aug 19-20) — Integrations tab SMS provider card changed from hardcoded "Twilio" to "ClickSend" |
+| lib/tokenStorage.js | Updated (Aug 20) — access token moved from `localStorage` to an in-memory JS variable only; also removes a stale Capacitor comment |
+| pages/Register.jsx | Updated (Aug 19-20) — SMS opt-in checkbox. Updated (Aug 20) — two-column branding/disclaimer layout, phone auto-format, required-field marking, certification-date question |
+| pages/Profile.jsx | Updated (Aug 19-20) — SMS card full opt-in disclosure |
+| pages/PrivacyPolicy.jsx, pages/Terms.jsx | Updated (Aug 19-20) — SMS sections rewritten for ClickSend; "⚠ ATTORNEY REVIEW REQUIRED" header comment removed |
+| pages/Admin.jsx | Updated (Aug 19-20) — Integrations tab SMS provider card "Twilio" → "ClickSend" |
 | pages/Landing.jsx | Updated (Aug 19-20) — feature-grid copy "Mailgun + Twilio" → "Mailgun + ClickSend" |
-| pages/Register.jsx | Updated (Aug 20) — two-column branding/disclaimer layout matching Login.jsx, phone auto-format, required-field marking, and the new "next certification date" Yes/No/N/A question with conditional date field |
-| pages/VerifyEmail.jsx | Updated (Aug 20) — branded "IL" badge header (matches the reminder-email header style) + IDES disclaimer footer added; error/spinner states polished |
+| pages/VerifyEmail.jsx | Updated (Aug 20) — branded "IL" badge header + IDES disclaimer footer added; error/spinner states polished |
 
 ### Marketing Site (ijt-marketing/)
 | File | Purpose |
@@ -539,7 +561,7 @@ Kyle reported that after the Session Security / Auth Hardening fix above shipped
 | db.claimants → db.profiles at server.py line 431 | P1 | Open — fix before production claimants. ⚠ confirm this line reference still applies given the router split |
 | ADJ034F.pdf missing from assets/ | Doc error, corrected (Aug 20) | This file was always present on disk (1.5MB, confirmed via `PdfReader` reading its 158 AcroForm fields) — the "missing" claim in this doc was stale/inaccurate |
 | ADJ034F report only populated Last Name and ID/SSN | Fixed (Aug 20, not yet deployed) | Wrong AcroForm field names (guessed, didn't match the real form except by coincidence), dead date-reformat code, and a broken middle-initial/name-derivation path — all three fixed in `routers/reports.py`. See "ADJ034F Report Field-Population Fix" under Completed |
-| `test_pdf_report_has_logo_and_unofficial` expected a logo/"UNOFFICIAL" overlay that doesn't exist in the code | Fixed (Aug 20) | Pre-existing gap, found while fixing the field-mapping bug. Kyle chose not to build the reportlab logo/disclaimer overlay — test removed, and a lightweight generation-timestamp stamp added to the PDF instead (see "ADJ034F Report Field-Population Fix" under Completed) |
+| `test_pdf_report_has_logo_and_unofficial` expected a logo/"UNOFFICIAL" overlay that doesn't exist in the code | Fixed (Aug 20) | Pre-existing gap, found while fixing the field-mapping bug. Kyle chose not to build the reportlab logo/disclaimer overlay — test removed, and a lightweight generation-timestamp stamp added to the PDF instead |
 | Gemini AI hitting quota immediately | P1 | Blocked on Google Cloud billing |
 | ClickSend toll-free number not yet approved | Resolved (Aug 27) | Approved by ClickSend; +18447397712 wired into `CLICKSEND_FROM_NUMBER` locally. Still needs to be set in Doppler for the DigitalOcean production deploy. |
 | Git divergence between PC and Mac | Resolved | Root cause was nested duplicate repo, now deleted. Still: always pull before pushing |
@@ -548,15 +570,16 @@ Kyle reported that after the Session Security / Auth Hardening fix above shipped
 | Marketing site → app registration flow | Untested | Pro purchase link goes to /register but email verification was blocked by the CORS bug |
 | admin_portal's original adminApi.js used cookie auth (`credentials:"include"`) | Fixed (Aug 17-19) | This app uses Bearer JWT via axios interceptor, not cookies — every admin-platform request would have silently 401'd. Rewritten to use the shared api client before it ever shipped |
 | Disputes.py had unshipped syntax errors | Fixed (Aug 17-19) | `tags+[...]` instead of `=`, `duct` typo for `dict`, dangling `from server import db` — rewritten as a pure engine module |
-| Stale Render blueprint/docs implied the backend was hosted on Render | Fixed (Aug 19) | `APP/render.yaml` was never an active deploy — Render was never actually live. Deleted it along with `docs/DEPLOYMENT.md`/`docs/DEPLOYMENT.html` (both written entirely around Render); fixed the one line in `README.md` that referenced it. DigitalOcean is the confirmed live backend host |
-| Marketing Tailwind utilities resolved to nothing (`text-danger`, `bg-surface`, `font-heading`, `bg-primary-hover`, etc.) | Fixed (Aug 20) | `ijt-marketing/tailwind.config.js` never defined those color tokens or the `heading`/`body` font families, though pages used them everywhere — errors weren't red, surface panels had no bg, display font fell back silently. Config updated; ⚠ needs commit/push to deploy |
-| App dark-mode toggle inverted when OS drives the theme | Fixed (Aug 20) | `Layout.jsx` toggle read `theme` (which is `"system"` under `enableSystem`) instead of `resolvedTheme`, so label/icon disagreed with the rendered colors. Now uses `resolvedTheme` + mount guard. On branch `refactor/split-server`, pending merge/deploy |
+| Stale Render blueprint/docs implied the backend was hosted on Render | Fixed (Aug 19) | `APP/render.yaml` was never an active deploy — Render was never actually live. Deleted it along with `docs/DEPLOYMENT.md`/`docs/DEPLOYMENT.html`; fixed the one line in `README.md` that referenced it. DigitalOcean is the confirmed live backend host |
+| Marketing Tailwind utilities resolved to nothing (`text-danger`, `bg-surface`, `font-heading`, `bg-primary-hover`, etc.) | Fixed (Aug 20) | `ijt-marketing/tailwind.config.js` never defined those color tokens or the `heading`/`body` font families, though pages used them everywhere. Config updated; ⚠ needs commit/push to deploy |
+| App dark-mode toggle inverted when OS drives the theme | Fixed (Aug 20) | `Layout.jsx` toggle read `theme` (which is `"system"` under `enableSystem`) instead of `resolvedTheme`. Now uses `resolvedTheme` + mount guard. On branch `refactor/split-server`, pending merge/deploy |
 | Dashboard compliance chart light-styled in dark mode | Fixed (Aug 20) | Recharts axes/tooltip/reference-line used hardcoded hex; migrated to `hsl(var(--...))` tokens |
-| Sentry React JS snippet pasted into Python `core.py` | Fixed (Aug 20) | Sentry onboarding wizard's browser-SDK snippet landed in the backend file (would crash on startup) and made a junk root `package.json`. Caught in `git diff`, `git restore`d — never committed or deployed |
-| Stale Twilio references throughout backend, admin UI, and legal pages | Fixed (Aug 19-20) | Full sweep after switching SMS providers: `core.py` send_sms, requirements.txt, .env.example, docker-compose.yml, admin_platform_system.py, admin.py, Admin.jsx, Landing.jsx, tests — all migrated to ClickSend. App and marketing-site legal pages gained ClickSend-specific SMS compliance language for the Sept 1, 2026 toll-free carrier rules |
-| App doesn't log the user out on browser close or after time elapses | Fixed (Aug 20, not yet deployed) | 7-day `localStorage` JWT with no idle timeout and no server-side logout revocation. Rebuilt as a 10-min in-memory access token + rotating httpOnly-cookie refresh token (30-min idle / 12-hr absolute ceiling), real server-side revocation on logout, and a 15-min client-side idle timer. See "Session Security / Auth Hardening" under Completed |
-| `create_refresh_token()` crashed on every rotation (naive/aware datetime TypeError) | Fixed (Aug 20, caught in testing, never shipped) | Mongo strips `tzinfo` off datetimes on round-trip; `family_started_at` came back naive and blew up comparing against a tz-aware expiry. Reattached `tzinfo=utc` on read, matching the pattern already used elsewhere in `core.py` |
+| Sentry React JS snippet pasted into Python `core.py` | Fixed (Aug 20) | Sentry onboarding wizard's browser-SDK snippet landed in the backend file. Caught in `git diff`, `git restore`d — never committed or deployed |
+| Stale Twilio references throughout backend, admin UI, and legal pages | Fixed (Aug 19-20) | Full sweep after switching SMS providers — all migrated to ClickSend. Legal pages gained ClickSend-specific SMS compliance language |
+| App doesn't log the user out on browser close or after time elapses | Fixed (Sep 8, not yet committed) | Originally fixed Aug 20 as JWT/refresh-token rework; superseded by Clerk migration. Re-implemented Sep 8 as Clerk-based client-side hooks: 5-min inactivity (`useInactivityLogout`), browser-close detection via sessionStorage flag in `AuthContext`, cross-tab logout sync via localStorage broadcast, and 5-min offline/hidden logout (`useOfflineLogout`). See "Client-Side Session Management — Clerk Auto-Logout" under Completed |
+| `create_refresh_token()` crashed on every rotation (naive/aware datetime TypeError) | Fixed (Aug 20, caught in testing, never shipped) | Mongo strips `tzinfo` off datetimes on round-trip. Reattached `tzinfo=utc` on read |
 | `PROJECT_STATE.md` claims single-active-session enforcement (session_id/sid JWT claim) that isn't in the code | Open — needs Kyle to confirm | `core.py`'s JWT payload has no `sid`/`session_id` field and `get_current_user()` doesn't check one. Not added by the Aug 20 refresh-token work either — multiple concurrent logins are currently unrestricted |
+| Clerk server-side session lifetime not configured | Open — low urgency | Clerk Dashboard default allows very long-lived sessions. Client-side 5-min inactivity hooks handle the normal case; setting a server-side absolute max in Clerk Dashboard provides a backstop if client-side timers are ever bypassed |
 
 ---
 
