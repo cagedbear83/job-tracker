@@ -39,6 +39,7 @@ Kyle's Aug 19 fixes doc, tracked item-by-item. Working through it together, one 
 - [x] **Register page** (Aug 20) — branding/disclaimer added, phone auto-format, required-field marking, and the "next certification date" question with 26-week auto-seed — see "Register Page — Branding, Validation & Certification-Date Seeding" under Completed
 - [x] **VerifyEmail page** (Aug 20) — branded header + disclaimer added, both states polished — see "VerifyEmail Page Redesign" under Completed
 - [ ] **Dashboard** — analytics/visual breakdowns of job-search trends and success rates
+- [ ] **Profile — subscription actions** — add "Upgrade to Pro" button for free-tier users; button changes to "Cancel Pro" when user is already on a Pro subscription
 - [x] **Week Detail — ADJ034F report bug (ASAP)** (Aug 20) — generated PDF only populated Last Name and ID/SSN; root cause found and fixed, see "ADJ034F Report Field-Population Fix" under Completed
 - [ ] **Week Detail — remaining items** — add a Tags field to the work-search contact popup; build out Filters (Result/Type/Date/Contact Method, saved views, active-filter chips, live counts) and Search (global keyword + faceted); "Generating Report…" loading state on the PDF button
 

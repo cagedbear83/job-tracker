@@ -21,8 +21,12 @@ import {
   PaperPlaneTiltIcon,
   WarningIcon,
   TrashIcon,
+  CrownIcon,
+  ArrowSquareOutIcon,
 } from "@phosphor-icons/react";
 import { marketingUrl } from "@/lib/site";
+import { useSubscription } from "@/hooks/useSubscription";
+import { useUpgradeModal } from "@/components/UpgradeModal";
 
 const FIELDS = [
   ["first_name", "First Name", "sm:col-span-6"],
@@ -56,6 +60,10 @@ const blankForm = () => ({
 export default function Profile() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+
+  const { isFree, isPro, isCaseworker, tierLabel } = useSubscription();
+  const { show: showUpgradeModal } = useUpgradeModal();
+  const [portalBusy, setPortalBusy] = useState(false);
 
   const [form, setForm] = useState(blankForm());
   const [profileId, setProfileId] = useState(null);
@@ -91,6 +99,17 @@ export default function Profile() {
       toast.error(formatApiError(err));
     } finally {
       setBusy(false);
+    }
+  };
+
+  const openPortal = async () => {
+    setPortalBusy(true);
+    try {
+      const { data } = await api.post("/billing/portal");
+      window.location.href = data.portal_url;
+    } catch (err) {
+      toast.error(formatApiError(err));
+      setPortalBusy(false);
     }
   };
 
@@ -357,6 +376,49 @@ export default function Profile() {
               <PaperPlaneTiltIcon size={11} weight="bold" /> {k.slice(0, 3)}
             </button>
           ))}
+        </div>
+      </div>
+
+      {/* ── Subscription ── */}
+      <div className="border border-border bg-card p-6 sm:p-8">
+        <div className="kbd-label">Subscription</div>
+        <h2 className="font-display font-bold text-xl tracking-tight mt-1">
+          Your Plan
+        </h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Currently on the{" "}
+          <span className="font-semibold text-foreground">{tierLabel}</span>{" "}
+          plan.
+        </p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {isFree && (
+            <Button
+              type="button"
+              className="rounded-none bg-primary hover:bg-primary/90"
+              onClick={() => showUpgradeModal(null)}
+              data-testid="upgrade-to-pro-button"
+            >
+              <CrownIcon size={16} weight="fill" className="mr-2" />
+              Upgrade to Pro
+            </Button>
+          )}
+          {(isPro || isCaseworker) && (
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-none border-border"
+              onClick={openPortal}
+              disabled={portalBusy}
+              data-testid="manage-subscription-button"
+            >
+              <ArrowSquareOutIcon size={16} weight="bold" className="mr-2" />
+              {portalBusy
+                ? "Redirecting..."
+                : isPro
+                ? "Cancel Pro"
+                : "Manage Subscription"}
+            </Button>
+          )}
         </div>
       </div>
 
