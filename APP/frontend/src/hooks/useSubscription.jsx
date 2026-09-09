@@ -77,7 +77,14 @@ export function SubscriptionProvider({ children }) {
   }, [refresh]);
 
   const tier = status?.tier || "free";
-  const limits = TIER_LIMITS[tier] || TIER_LIMITS.free;
+  const seats = tier === "caseworker"
+    ? Math.max(1, parseInt(status?.subscription?.seats ?? 1, 10))
+    : 1;
+  const baseLimits = TIER_LIMITS[tier] || TIER_LIMITS.free;
+  // Case Worker storage is 1 GB per seat; scale the frontend limit to match the backend.
+  const limits = tier === "caseworker"
+    ? { ...baseLimits, document_storage_mb: (baseLimits.document_storage_mb ?? 1024) * seats }
+    : baseLimits;
 
   const hasFeature = useCallback(
     (feature) => Boolean(limits[feature]),

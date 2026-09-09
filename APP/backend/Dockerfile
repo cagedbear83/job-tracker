@@ -13,7 +13,7 @@ WORKDIR /app
 
 # curl is only needed for the container HEALTHCHECK below.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
+    && apt-get install -y --no-install-recommends curl libmagic1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install dependencies first so they cache across code changes.

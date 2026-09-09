@@ -7,7 +7,6 @@ import {
   ArrowSquareOutIcon,
   PlusIcon,
   FileIcon,
-  ImageIcon,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { FeatureGate } from "@/components/FeatureGate";
@@ -47,7 +46,7 @@ const DOC_TYPES = [
 const docTypeLabel = Object.fromEntries(DOC_TYPES.map((t) => [t.value, t.label]));
 
 const MAX_MB = 4;
-const ACCEPT  = "image/jpeg,image/png,image/webp,application/pdf";
+const ACCEPT  = "image/jpeg,image/png,image/webp,application/pdf";  // images converted to PDF on upload
 
 function formatBytes(bytes) {
   if (bytes < 1024) return `${bytes} B`;
@@ -187,8 +186,6 @@ export default function DocumentsPage() {
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
-  const isImage = (ct) => ct?.startsWith("image/");
-
   return (
     <div className="space-y-6" data-testid="documents-page">
       <div className="flex items-end justify-between gap-4 flex-wrap">
@@ -200,6 +197,7 @@ export default function DocumentsPage() {
           <p className="text-sm text-muted-foreground mt-2 max-w-2xl">
             Upload photos or scans of IDES letters, forms, and correspondence.
             Supported formats: JPEG, PNG, WEBP, PDF — max {MAX_MB} MB each.
+            Images are automatically converted to PDF and compressed before storage.
           </p>
         </div>
         <FeatureGate feature="document_storage_mb">
@@ -239,13 +237,9 @@ export default function DocumentsPage() {
               className="border border-border bg-background hover:border-muted-foreground transition-colors"
               data-testid={`doc-card-${doc.id}`}
             >
-              {/* Icon / preview placeholder */}
+              {/* Icon / preview placeholder — all stored files are PDF */}
               <div className="bg-secondary border-b border-border h-28 flex items-center justify-center">
-                {isImage(doc.content_type) ? (
-                  <ImageIcon size={36} weight="thin" className="text-muted-foreground" />
-                ) : (
-                  <FileIcon size={36} weight="thin" className="text-muted-foreground" />
-                )}
+                <FileTextIcon size={36} weight="thin" className="text-muted-foreground" />
               </div>
 
               <div className="p-3 space-y-2">
@@ -362,7 +356,7 @@ export default function DocumentsPage() {
                     Drag & drop or <span className="text-primary font-semibold">browse</span>
                   </div>
                   <div className="text-xs text-muted-foreground mt-1">
-                    JPEG · PNG · WEBP · PDF — max {MAX_MB} MB
+                    JPEG · PNG · WEBP · PDF — max {MAX_MB} MB · images saved as PDF
                   </div>
                 </div>
               )}

@@ -4,8 +4,62 @@
 # UploadFile, Request, the response classes), the Pydantic models, config,
 # db, and the public helpers.
 from core import *  # noqa: F401,F403
+import io
+import magic as _magic          # python-magic: validates actual file bytes
+from PIL import Image, ImageOps
+from pypdf import PdfReader, PdfWriter
+from pypdf.errors import PdfReadError
+
 
 router = APIRouter()
+
+
+
+# ── Document processing helpers ──────────────────────────────────────────────
+
+def _detect_mime(raw: bytes) -> str:
+    """Return the MIME type detected from actual file content (not HTTP header)."""
+    return _magic.from_buffer(raw[:4096], mime=True)
+
+
+def _image_to_pdf(raw: bytes) -> bytes:
+    """Convert JPEG / PNG / WEBP bytes → a single-page compressed PDF."""
+    img = Image.open(io.BytesIO(raw))
+    img = ImageOps.exif_transpose(img)          # honour EXIF rotation
+    if img.mode == "RGBA":
+        bg = Image.new("RGB", img.size, (255, 255, 255))
+        bg.paste(img, mask=img.split()[3])
+        img = bg
+    elif img.mode not in ("RGB", "L"):
+        img = img.convert("RGB")
+    # Cap the long edge at 2 000 px to save storage
+    MAX_PX = 2000
+    if img.width > MAX_PX or img.height > MAX_PX:
+        img.thumbnail((MAX_PX, MAX_PX), Image.LANCZOS)
+    buf = io.BytesIO()
+    img.save(buf, format="PDF", optimize=True)
+    return buf.getvalue()
+
+
+def _compress_pdf(raw: bytes) -> bytes:
+    """Losslessly compress a PDF via pypdf stream compression."""
+    try:
+        reader = PdfReader(io.BytesIO(raw))
+        writer = PdfWriter()
+        for page in reader.pages:
+            page.compress_content_streams()
+            writer.add_page(page)
+        writer.compress_identical_objects(remove_identicals=True, remove_orphans=True)
+        buf = io.BytesIO()
+        writer.write(buf)
+        compressed = buf.getvalue()
+        # Only use the compressed version if it's actually smaller
+        return compressed if len(compressed) < len(raw) else raw
+    except PdfReadError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid or corrupt PDF: {exc}",
+        ) from exc
 
 
 
@@ -33,6 +87,12 @@ async def upload_document(
                 "message": "Document storage requires a paid plan. Upgrade to upload documents.",
             },
         )
+
+    # Case Worker quota is per-seat: 1 GB × number of licensed seats.
+    if tier == sub.Tier.CASEWORKER:
+        sub_doc = await db.subscriptions.find_one({"user_id": user["id"]})
+        seats = max(1, int(sub_doc.get("seats", 1))) if sub_doc else 1
+        storage_mb = storage_mb * seats
 
     if file.content_type not in DOC_MIME_ALLOWLIST:
         raise HTTPException(
@@ -66,6 +126,33 @@ async def upload_document(
                 ),
             },
         )
+    # ── Security: validate actual content matches claimed MIME ──────────────
+    detected_mime = _detect_mime(raw)
+    if detected_mime not in DOC_MIME_ALLOWLIST:
+        raise HTTPException(
+            status_code=415,
+            detail=(
+                f"File content was detected as '{detected_mime}', which is not allowed. "
+                "Please upload a valid JPEG, PNG, WEBP, or PDF."
+            ),
+        )
+
+    # ── Normalise: images → PDF; compress all PDFs before storage ────────
+    base_name = (file.filename or "document").rsplit(".", 1)[0]
+    if detected_mime.startswith("image/"):
+        try:
+            raw = _image_to_pdf(raw)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=422, detail=f"Could not process image: {exc}"
+            ) from exc
+        stored_content_type = "application/pdf"
+        stored_filename = base_name + ".pdf"
+    else:
+        raw = _compress_pdf(raw)
+        stored_content_type = "application/pdf"
+        stored_filename = base_name + ".pdf"
+
     import base64
     file_b64 = base64.b64encode(raw).decode("ascii")
     doc = {
@@ -76,8 +163,8 @@ async def upload_document(
         "document_type": document_type,
         "received_date": received_date or None,
         "notes": notes.strip(),
-        "filename": file.filename or "document",
-        "content_type": file.content_type,
+        "filename": stored_filename,
+        "content_type": stored_content_type,
         "file_data": file_b64,
         "file_size": len(raw),
         "created_at": datetime.utcnow(),
