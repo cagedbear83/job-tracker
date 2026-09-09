@@ -61,9 +61,14 @@ export default function Profile() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
-  const { isFree, isPro, isCaseworker, tierLabel } = useSubscription();
+  const { isFree, isPro, isCaseworker, tierLabel, periodEnd, cancelAtPeriodEnd, refresh } = useSubscription();
   const { show: showUpgradeModal } = useUpgradeModal();
   const [portalBusy, setPortalBusy] = useState(false);
+
+  // Re-fetch billing status when this page mounts so that a user returning
+  // from the Stripe portal sees their updated plan / cancellation state
+  // without a full page reload.
+  useEffect(() => { refresh(); }, [refresh]);
 
   const [form, setForm] = useState(blankForm());
   const [profileId, setProfileId] = useState(null);
@@ -199,6 +204,13 @@ export default function Profile() {
   };
 
   if (loading) return <div className="kbd-label">Loading...</div>;
+
+  const fmtPeriodDate = (iso) => {
+    if (!iso) return null;
+    return new Date(iso).toLocaleDateString("en-US", {
+      month: "long", day: "numeric", year: "numeric",
+    });
+  };
 
   return (
     <div className="space-y-6" data-testid="profile-page">
@@ -390,6 +402,27 @@ export default function Profile() {
           <span className="font-semibold text-foreground">{tierLabel}</span>{" "}
           plan.
         </p>
+        {(isPro || isCaseworker) && periodEnd && (
+          <p className="text-sm text-muted-foreground mt-1">
+            {cancelAtPeriodEnd ? (
+              <>
+                Plan ends{" "}
+                <span className="font-semibold text-foreground">
+                  {fmtPeriodDate(periodEnd)}
+                </span>{" "}
+                — account reverts to Free after that.
+              </>
+            ) : (
+              <>
+                Next charge:{" "}
+                <span className="font-semibold text-foreground">
+                  {fmtPeriodDate(periodEnd)}
+                </span>
+                .
+              </>
+            )}
+          </p>
+        )}
         <div className="mt-4 flex flex-wrap gap-2">
           {isFree && (
             <Button

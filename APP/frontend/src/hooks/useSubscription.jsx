@@ -110,6 +110,11 @@ export function SubscriptionProvider({ children }) {
     [status, limits]
   );
 
+  // Billing date info — from the subscription doc returned by /billing/status
+  const subDoc = status?.subscription ?? null;
+  const cancelAtPeriodEnd = subDoc?.cancel_at_period_end ?? false;
+  const periodEnd = subDoc?.current_period_end ?? null;
+
   const value = {
     tier,
     tierLabel: TIER_LABELS[tier],
@@ -121,6 +126,8 @@ export function SubscriptionProvider({ children }) {
     isFree: tier === "free",
     isPro: tier === "pro",
     isCaseworker: tier === "caseworker",
+    cancelAtPeriodEnd,
+    periodEnd,
   };
 
   return (
