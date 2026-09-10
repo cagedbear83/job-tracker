@@ -265,3 +265,75 @@ async def billing_status(db, user: dict) -> dict:
         "usage": usage,
         "subscription": sub,
     }
+
+
+def _build_price_tier_map() -> dict:
+    """Reverse-map Stripe price IDs → display tier labels."""
+    labels = {Tier.PRO: "Pro", Tier.CASEWORKER: "Case Worker"}
+    m = {}
+    for tier, prices in STRIPE_PRICE_IDS.items():
+        label = labels.get(tier, tier.value)
+        for pid in prices.values():
+            if pid:
+                m[pid] = label
+    return m
+
+
+async def billing_invoices(db, user: dict) -> list:
+    """
+    Fetch the user's Stripe invoice history.
+    Returns up to 24 paid invoices with date, tier, amounts, last4, and
+    a link to the Stripe-hosted receipt (hosted_invoice_url).
+    """
+    sub = await db.subscriptions.find_one({"user_id": user["id"]})
+    if not sub or not sub.get("stripe_customer_id"):
+        return []
+
+    price_map = _build_price_tier_map()
+
+    try:
+        inv_list = stripe.Invoice.list(
+            customer=sub["stripe_customer_id"],
+            limit=24,
+            expand=["data.charge"],
+        )
+    except stripe.StripeError:
+        return []
+
+    result = []
+    for inv in inv_list.auto_paging_iter():
+        if inv.status != "paid":
+            continue
+
+        # Determine plan label from line item price IDs
+        tier_label = "Pro"  # safe default
+        for line in inv.lines.data or []:
+            price = getattr(line, "price", None)
+            pid = getattr(price, "id", None)
+            if pid and pid in price_map:
+                tier_label = price_map[pid]
+                break
+
+        # Last 4 digits — available via the expanded Charge object
+        last4 = None
+        charge = getattr(inv, "charge", None)
+        if charge and not isinstance(charge, str):
+            try:
+                last4 = charge.payment_method_details.card.last4
+            except AttributeError:
+                pass
+
+        result.append({
+            "id": inv.id,
+            "date": inv.created,           # Unix timestamp; frontend formats
+            "tier": tier_label,
+            "subtotal_cents": inv.subtotal,
+            "tax_cents": inv.tax or 0,
+            "total_cents": inv.total,
+            "currency": inv.currency or "usd",
+            "last4": last4,
+            "receipt_url": getattr(inv, "hosted_invoice_url", None),
+            "status": inv.status,
+        })
+
+    return result

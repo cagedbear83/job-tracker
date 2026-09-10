@@ -31,3 +31,8 @@ async def billing_portal(user=Depends(get_current_user)):
 @router.get("/billing/status")
 async def billing_status_route(user=Depends(get_current_user)):
     return await billing_logic.billing_status(db, user)
+
+
+@router.get("/billing/invoices")
+async def billing_invoices_route(user=Depends(get_current_user)):
+    return await billing_logic.billing_invoices(db, user)

@@ -23,6 +23,7 @@ import {
   TrashIcon,
   CrownIcon,
   ArrowSquareOutIcon,
+  ReceiptIcon,
 } from "@phosphor-icons/react";
 import { marketingUrl } from "@/lib/site";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -205,12 +206,31 @@ export default function Profile() {
 
   if (loading) return <div className="kbd-label">Loading...</div>;
 
+  const [invoices, setInvoices]         = useState([]);
+  const [invoicesLoading, setInvoicesLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isPro && !isCaseworker) return;
+    setInvoicesLoading(true);
+    api.get("/billing/invoices")
+      .then(({ data }) => setInvoices(data))
+      .catch(() => {})
+      .finally(() => setInvoicesLoading(false));
+  }, [isPro, isCaseworker]);
+
   const fmtPeriodDate = (iso) => {
     if (!iso) return null;
     return new Date(iso).toLocaleDateString("en-US", {
       month: "long", day: "numeric", year: "numeric",
     });
   };
+
+
+  const fmtCents = (cents, currency = "usd") =>
+    (cents / 100).toLocaleString("en-US", { style: "currency", currency: currency.toUpperCase() });
+
+  const fmtInvoiceDate = (unix) =>
+    new Date(unix * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
   return (
     <div className="space-y-6" data-testid="profile-page">
@@ -455,6 +475,63 @@ export default function Profile() {
             </Button>
           )}
         </div>
+
+        {/* ── Billing history ── */}
+        {(isPro || isCaseworker) && (
+          <div className="mt-6">
+            <div className="flex items-center gap-2 mb-3">
+              <ReceiptIcon size={14} weight="bold" className="text-muted-foreground" />
+              <span className="kbd-label">Billing History</span>
+            </div>
+            {invoicesLoading ? (
+              <p className="text-xs text-muted-foreground">Loading receipts…</p>
+            ) : invoices.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No receipts yet.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-border">
+                      {["Date", "Plan", "Subtotal", "Tax", "Total", "Card", "Receipt"].map((h) => (
+                        <th key={h} className="text-left py-1.5 pr-4 font-semibold text-muted-foreground whitespace-nowrap">
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {invoices.map((inv) => (
+                      <tr key={inv.id} className="border-b border-border/50 hover:bg-secondary/40 transition-colors">
+                        <td className="py-1.5 pr-4 whitespace-nowrap text-foreground">{fmtInvoiceDate(inv.date)}</td>
+                        <td className="py-1.5 pr-4 whitespace-nowrap text-foreground">{inv.tier}</td>
+                        <td className="py-1.5 pr-4 whitespace-nowrap tabular-nums">{fmtCents(inv.subtotal_cents, inv.currency)}</td>
+                        <td className="py-1.5 pr-4 whitespace-nowrap tabular-nums">{fmtCents(inv.tax_cents, inv.currency)}</td>
+                        <td className="py-1.5 pr-4 whitespace-nowrap tabular-nums font-semibold text-foreground">{fmtCents(inv.total_cents, inv.currency)}</td>
+                        <td className="py-1.5 pr-4 whitespace-nowrap text-muted-foreground">
+                          {inv.last4 ? `···· ${inv.last4}` : "—"}
+                        </td>
+                        <td className="py-1.5">
+                          {inv.receipt_url ? (
+                            <a
+                              href={inv.receipt_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-primary underline hover:no-underline"
+                            >
+                              View <ArrowSquareOutIcon size={10} weight="bold" />
+                            </a>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── Danger zone ── */}
