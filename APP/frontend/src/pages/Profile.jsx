@@ -447,6 +447,8 @@ export default function Profile() {
               <ArrowSquareOutIcon size={16} weight="bold" className="mr-2" />
               {portalBusy
                 ? "Redirecting..."
+                : cancelAtPeriodEnd
+                ? "Reactivate Plan"
                 : isPro
                 ? "Cancel Pro"
                 : "Manage Subscription"}
