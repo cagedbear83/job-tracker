@@ -204,8 +204,6 @@ export default function Profile() {
     }
   };
 
-  if (loading) return <div className="kbd-label">Loading...</div>;
-
   const [invoices, setInvoices]         = useState([]);
   const [invoicesLoading, setInvoicesLoading] = useState(false);
 
@@ -217,6 +215,8 @@ export default function Profile() {
       .catch(() => {})
       .finally(() => setInvoicesLoading(false));
   }, [isPro, isCaseworker]);
+
+  if (loading) return <div className="kbd-label">Loading...</div>;
 
   const fmtPeriodDate = (iso) => {
     if (!iso) return null;
