@@ -47,8 +47,9 @@ def _compress_pdf(raw: bytes) -> bytes:
         reader = PdfReader(io.BytesIO(raw))
         writer = PdfWriter()
         for page in reader.pages:
-            page.compress_content_streams()
             writer.add_page(page)
+        for page in writer.pages:
+            page.compress_content_streams()
         writer.compress_identical_objects(remove_identicals=True, remove_orphans=True)
         buf = io.BytesIO()
         writer.write(buf)
