@@ -40,7 +40,7 @@ function filtersToParams(q, filters) {
   if (filters.result) p.result = filters.result;
   if (filters.method) p.method = filters.method;
   if (filters.type_of_work) p.type_of_work = filters.type_of_work;
-  if (filters.tags.length) p.tag = filters.tags[0]; // API takes one tag id
+  if (filters.tags.length) p.tag = filters.tags[0];
   if (filters.date_mode === "single" && filters.date_single) {
     p.date_from = filters.date_single;
     p.date_to = filters.date_single;
@@ -109,15 +109,13 @@ function GatedRow({ row }) {
     <tr className="border-b border-border relative">
       <td colSpan={6} className="p-0">
         <div className="relative overflow-hidden">
-          {/* Blurred placeholder content */}
           <div className="flex items-center gap-4 px-4 py-3 select-none pointer-events-none opacity-40 blur-[3px]">
-            <span className="text-sm w-24 bg-muted h-4 rounded" />
-            <span className="text-sm w-36 bg-muted h-4 rounded" />
-            <span className="text-sm w-20 bg-muted h-4 rounded" />
-            <span className="text-sm w-28 bg-muted h-4 rounded" />
-            <span className="text-sm w-16 bg-muted h-4 rounded" />
+            <span className="inline-block w-24 h-4 bg-muted rounded" />
+            <span className="inline-block w-36 h-4 bg-muted rounded" />
+            <span className="inline-block w-20 h-4 bg-muted rounded" />
+            <span className="inline-block w-28 h-4 bg-muted rounded" />
+            <span className="inline-block w-16 h-4 bg-muted rounded" />
           </div>
-          {/* Overlay */}
           <div className="absolute inset-0 flex items-center justify-center bg-background/60">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <LockIcon size={13} weight="bold" />
@@ -141,8 +139,8 @@ export default function AllContacts() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const [q, setQ] = useState(searchParams.get("q") || "");
   const [inputQ, setInputQ] = useState(searchParams.get("q") || "");
+  const [q, setQ] = useState(searchParams.get("q") || "");
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [filterOpen, setFilterOpen] = useState(false);
 
@@ -159,10 +157,9 @@ export default function AllContacts() {
 
   // Load tags + saved views on mount
   useEffect(() => {
-    api.get("/tags").then((r) => r.json()).then(setAllTags).catch(() => {});
-    api.get("/saved-views").then((r) => r.json()).then(setSavedViews).catch(() => {});
+    api.get("/tags").then((r) => setAllTags(r.data)).catch(() => {});
+    api.get("/saved-views").then((r) => setSavedViews(r.data)).catch(() => {});
 
-    // If there was a ?q= param, run the search immediately
     const initQ = searchParams.get("q") || "";
     if (initQ.trim()) {
       runSearch(initQ, EMPTY_FILTERS);
@@ -175,9 +172,7 @@ export default function AllContacts() {
     try {
       const params = filtersToParams(searchQ, searchFilters);
       const qs = new URLSearchParams(params).toString();
-      const res = await api.get(`/contacts/search${qs ? `?${qs}` : ""}`);
-      if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
+      const { data } = await api.get(`/contacts/search${qs ? `?${qs}` : ""}`);
       setResults(data.results || []);
       setFacets(data.facets || { result: [], method: [], type_of_work: [], tags: [] });
       setAnyGated(data.gated || false);
@@ -199,39 +194,37 @@ export default function AllContacts() {
     [inputQ, filters, runSearch, setSearchParams]
   );
 
-  // Re-run when filters change (if we've already searched)
-  const filtersRef = useRef(filters);
-  filtersRef.current = filters;
-  const searchedRef = useRef(searched);
+  const searchedRef = useRef(false);
   searchedRef.current = searched;
+  const qRef = useRef(q);
+  qRef.current = q;
 
   const applyFilter = useCallback(
     (update) => {
       setFilters((prev) => {
         const next = { ...prev, ...update };
         if (searchedRef.current) {
-          runSearch(q, next);
+          runSearch(qRef.current, next);
         }
         return next;
       });
     },
-    [q, runSearch]
+    [runSearch]
   );
 
   const clearFilters = useCallback(() => {
     setFilters(EMPTY_FILTERS);
-    if (searched) runSearch(q, EMPTY_FILTERS);
-  }, [q, runSearch, searched]);
+    if (searchedRef.current) runSearch(qRef.current, EMPTY_FILTERS);
+  }, [runSearch]);
 
-  // Saved view ops
   const loadView = useCallback(
     (view) => {
       const f = { ...EMPTY_FILTERS, ...view.filters };
       setFilters(f);
       setFilterOpen(false);
-      if (searched || q) runSearch(q, f);
+      if (searchedRef.current || qRef.current) runSearch(qRef.current, f);
     },
-    [q, runSearch, searched]
+    [runSearch]
   );
 
   const saveView = useCallback(async () => {
@@ -239,9 +232,7 @@ export default function AllContacts() {
     if (!name) return;
     setSavingView(true);
     try {
-      const res = await api.post("/saved-views", { name, filters });
-      if (!res.ok) throw new Error(await res.text());
-      const view = await res.json();
+      const { data: view } = await api.post("/saved-views", { name, filters });
       setSavedViews((prev) => [...prev, view].sort((a, b) => a.name.localeCompare(b.name)));
       setSaveViewName("");
       toast.success(`View "${name}" saved`);
@@ -261,7 +252,6 @@ export default function AllContacts() {
     }
   }, []);
 
-  // Active filter chip helpers
   const removeFilterChip = useCallback(
     (key, value) => {
       setFilters((prev) => {
@@ -273,19 +263,15 @@ export default function AllContacts() {
         } else {
           next[key] = "";
         }
-        if (searchedRef.current) runSearch(q, next);
+        if (searchedRef.current) runSearch(qRef.current, next);
         return next;
       });
     },
-    [q, runSearch]
+    [runSearch]
   );
 
   const filterCount = activeFilterCount(filters);
-
-  // Tag name lookup
   const tagById = (id) => allTags.find((t) => t.id === id)?.name || id;
-
-  // Resolve tag names in facets
   const tagFacets = (facets.tags || []).map((f) => ({
     ...f,
     name: allTags.find((t) => t.id === f.id)?.name || f.id,
@@ -293,7 +279,6 @@ export default function AllContacts() {
 
   return (
     <div className="space-y-4">
-      {/* Page header */}
       <div>
         <h1 className="font-display font-black text-2xl tracking-tight">All Contacts</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
@@ -311,7 +296,7 @@ export default function AllContacts() {
           <Input
             value={inputQ}
             onChange={(e) => setInputQ(e.target.value)}
-            placeholder="Search employer, position, result, notes…"
+            placeholder="Search employer, position, result…"
             className="pl-9 rounded-none"
           />
         </div>
@@ -482,14 +467,12 @@ export default function AllContacts() {
                     value={filters.date_from}
                     onChange={(e) => applyFilter({ date_from: e.target.value })}
                     className="w-full border border-border bg-background text-sm px-2 py-1"
-                    placeholder="From"
                   />
                   <input
                     type="date"
                     value={filters.date_to}
                     onChange={(e) => applyFilter({ date_to: e.target.value })}
                     className="w-full border border-border bg-background text-sm px-2 py-1"
-                    placeholder="To"
                   />
                 </div>
               )}
@@ -520,7 +503,6 @@ export default function AllContacts() {
               </div>
             </div>
 
-            {/* Clear */}
             {filterCount > 0 && (
               <div className="p-2">
                 <button
@@ -592,7 +574,7 @@ export default function AllContacts() {
         </div>
       )}
 
-      {/* Results table */}
+      {/* Results */}
       {!searched && !loading && (
         <div className="border border-border p-12 text-center text-muted-foreground">
           <MagnifyingGlassIcon size={32} className="mx-auto mb-3 opacity-30" />
@@ -636,9 +618,7 @@ export default function AllContacts() {
                     onClick={() => navigate(`/weeks/${row.benefit_week_id}`)}
                     className="border-b border-border hover:bg-secondary cursor-pointer transition-colors"
                   >
-                    <td className="px-4 py-2.5 whitespace-nowrap">
-                      {fmtDate(row.contact_date)}
-                    </td>
+                    <td className="px-4 py-2.5 whitespace-nowrap">{fmtDate(row.contact_date)}</td>
                     <td className="px-4 py-2.5">
                       <div className="font-medium">{row.employer_name}</div>
                       {row.employer_address && (
@@ -654,9 +634,7 @@ export default function AllContacts() {
                         <div className="flex flex-wrap gap-1 mt-1">
                           {(row.tags || []).map((tid) => {
                             const tagName = allTags.find((t) => t.id === tid)?.name;
-                            return tagName ? (
-                              <TagChip key={tid} name={tagName} small />
-                            ) : null;
+                            return tagName ? <TagChip key={tid} name={tagName} small /> : null;
                           })}
                         </div>
                       )}
@@ -677,7 +655,9 @@ export default function AllContacts() {
           <div className="px-4 py-2 border-t border-border text-xs text-muted-foreground">
             {results.filter((r) => !r.gated).length} contact
             {results.filter((r) => !r.gated).length !== 1 ? "s" : ""}
-            {anyGated ? ` shown · ${results.filter((r) => r.gated).length} gated` : ""}
+            {anyGated
+              ? ` shown · ${results.filter((r) => r.gated).length} gated`
+              : ""}
           </div>
         </div>
       )}
