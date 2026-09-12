@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { api, formatApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -33,23 +33,6 @@ const EMPTY_FILTERS = {
   date_from: "",
   date_to: "",
 };
-
-function filtersToParams(q, filters) {
-  const p = {};
-  if (q && q.trim()) p.q = q.trim();
-  if (filters.result) p.result = filters.result;
-  if (filters.method) p.method = filters.method;
-  if (filters.type_of_work) p.type_of_work = filters.type_of_work;
-  if (filters.tags.length) p.tag = filters.tags[0];
-  if (filters.date_mode === "single" && filters.date_single) {
-    p.date_from = filters.date_single;
-    p.date_to = filters.date_single;
-  } else if (filters.date_mode === "range") {
-    if (filters.date_from) p.date_from = filters.date_from;
-    if (filters.date_to) p.date_to = filters.date_to;
-  }
-  return p;
-}
 
 function activeFilterCount(filters) {
   let n = 0;
@@ -140,7 +123,6 @@ export default function AllContacts() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [inputQ, setInputQ] = useState(searchParams.get("q") || "");
-  const [q, setQ] = useState(searchParams.get("q") || "");
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [filterOpen, setFilterOpen] = useState(false);
 
@@ -149,84 +131,117 @@ export default function AllContacts() {
   const [saveViewName, setSaveViewName] = useState("");
   const [savingView, setSavingView] = useState(false);
 
-  const [results, setResults] = useState([]);
-  const [facets, setFacets] = useState({ result: [], method: [], type_of_work: [], tags: [] });
+  // allContacts holds the full unfiltered set from the server
+  const [allContacts, setAllContacts] = useState([]);
   const [anyGated, setAnyGated] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [searched, setSearched] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  // Load tags + saved views on mount
+  // Sync URL query param as user types
+  useEffect(() => {
+    const trimmed = inputQ.trim();
+    setSearchParams(trimmed ? { q: trimmed } : {}, { replace: true });
+  }, [inputQ, setSearchParams]);
+
+  // Load all contacts + supporting data on mount
   useEffect(() => {
     api.get("/tags").then((r) => setAllTags(r.data)).catch(() => {});
     api.get("/saved-views").then((r) => setSavedViews(r.data)).catch(() => {});
 
-    const initQ = searchParams.get("q") || "";
-    if (initQ.trim()) {
-      runSearch(initQ, EMPTY_FILTERS);
-    }
+    api.get("/contacts/search")
+      .then(({ data }) => {
+        setAllContacts(data.results || []);
+        setAnyGated(data.gated || false);
+      })
+      .catch((e) => toast.error(formatApiError(e)))
+      .finally(() => setLoading(false));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const runSearch = useCallback(async (searchQ, searchFilters) => {
-    setLoading(true);
-    setSearched(true);
-    try {
-      const params = filtersToParams(searchQ, searchFilters);
-      const qs = new URLSearchParams(params).toString();
-      const { data } = await api.get(`/contacts/search${qs ? `?${qs}` : ""}`);
-      setResults(data.results || []);
-      setFacets(data.facets || { result: [], method: [], type_of_work: [], tags: [] });
-      setAnyGated(data.gated || false);
-    } catch (e) {
-      toast.error(formatApiError(e));
-    } finally {
-      setLoading(false);
-    }
+  // ─── Client-side filtering ─────────────────────────────────────────────────
+  const displayedResults = useMemo(() => {
+    const qLow = inputQ.trim().toLowerCase();
+    return allContacts.filter((c) => {
+      // Gated stubs have no real fields — always show them so the upgrade
+      // prompt remains visible even when filters are active.
+      if (c.gated) return true;
+
+      // Text match across key fields
+      if (
+        qLow &&
+        ![c.employer_name, c.position_applied, c.type_of_work, c.contact_method, c.result, c.employer_address]
+          .some((v) => v && v.toLowerCase().includes(qLow))
+      ) {
+        return false;
+      }
+
+      // Facet filters
+      if (filters.result && c.result !== filters.result) return false;
+      if (filters.method && c.contact_method !== filters.method) return false;
+      if (filters.type_of_work && c.type_of_work !== filters.type_of_work) return false;
+      if (filters.tags.length && !filters.tags.some((tid) => (c.tags || []).includes(tid))) return false;
+
+      // Date filters
+      if (filters.date_mode === "single" && filters.date_single) {
+        if (c.contact_date !== filters.date_single) return false;
+      } else if (filters.date_mode === "range") {
+        if (filters.date_from && c.contact_date < filters.date_from) return false;
+        if (filters.date_to && c.contact_date > filters.date_to) return false;
+      }
+
+      return true;
+    });
+  }, [allContacts, inputQ, filters]);
+
+  // ─── Facets computed from the full dataset (counts reflect total, not view) ─
+  const facets = useMemo(() => {
+    const result = {};
+    const method = {};
+    const type_of_work = {};
+    const tags = {};
+    allContacts.filter((c) => !c.gated).forEach((c) => {
+      if (c.result) result[c.result] = (result[c.result] || 0) + 1;
+      if (c.contact_method) method[c.contact_method] = (method[c.contact_method] || 0) + 1;
+      if (c.type_of_work) type_of_work[c.type_of_work] = (type_of_work[c.type_of_work] || 0) + 1;
+      (c.tags || []).forEach((tid) => { tags[tid] = (tags[tid] || 0) + 1; });
+    });
+    const toArr = (obj) =>
+      Object.entries(obj)
+        .map(([value, count]) => ({ value, count }))
+        .sort((a, b) => b.count - a.count);
+    const toTagArr = (obj) =>
+      Object.entries(obj)
+        .map(([id, count]) => ({ id, count }))
+        .sort((a, b) => b.count - a.count);
+    return {
+      result: toArr(result),
+      method: toArr(method),
+      type_of_work: toArr(type_of_work),
+      tags: toTagArr(tags),
+    };
+  }, [allContacts]);
+
+  // ─── Filter handlers (no API call needed — useMemo reacts automatically) ───
+  const applyFilter = useCallback((update) => {
+    setFilters((prev) => ({ ...prev, ...update }));
   }, []);
-
-  const handleSearch = useCallback(
-    (e) => {
-      e?.preventDefault();
-      const trimmed = inputQ.trim();
-      setQ(trimmed);
-      setSearchParams(trimmed ? { q: trimmed } : {}, { replace: true });
-      runSearch(trimmed, filters);
-    },
-    [inputQ, filters, runSearch, setSearchParams]
-  );
-
-  const searchedRef = useRef(false);
-  searchedRef.current = searched;
-  const qRef = useRef(q);
-  qRef.current = q;
-
-  const applyFilter = useCallback(
-    (update) => {
-      setFilters((prev) => {
-        const next = { ...prev, ...update };
-        if (searchedRef.current) {
-          runSearch(qRef.current, next);
-        }
-        return next;
-      });
-    },
-    [runSearch]
-  );
 
   const clearFilters = useCallback(() => {
     setFilters(EMPTY_FILTERS);
-    if (searchedRef.current) runSearch(qRef.current, EMPTY_FILTERS);
-  }, [runSearch]);
+  }, []);
 
-  const loadView = useCallback(
-    (view) => {
-      const f = { ...EMPTY_FILTERS, ...view.filters };
-      setFilters(f);
-      setFilterOpen(false);
-      if (searchedRef.current || qRef.current) runSearch(qRef.current, f);
-    },
-    [runSearch]
-  );
+  const loadView = useCallback((view) => {
+    setFilters({ ...EMPTY_FILTERS, ...view.filters });
+    setFilterOpen(false);
+  }, []);
 
+  const removeFilterChip = useCallback((key, value) => {
+    setFilters((prev) => {
+      if (key === "tags") return { ...prev, tags: prev.tags.filter((id) => id !== value) };
+      if (key === "date") return { ...prev, date_mode: "none", date_single: "", date_from: "", date_to: "" };
+      return { ...prev, [key]: "" };
+    });
+  }, []);
+
+  // ─── Saved views ──────────────────────────────────────────────────────────
   const saveView = useCallback(async () => {
     const name = saveViewName.trim();
     if (!name) return;
@@ -252,30 +267,15 @@ export default function AllContacts() {
     }
   }, []);
 
-  const removeFilterChip = useCallback(
-    (key, value) => {
-      setFilters((prev) => {
-        let next = { ...prev };
-        if (key === "tags") {
-          next.tags = prev.tags.filter((id) => id !== value);
-        } else if (key === "date") {
-          next = { ...next, date_mode: "none", date_single: "", date_from: "", date_to: "" };
-        } else {
-          next[key] = "";
-        }
-        if (searchedRef.current) runSearch(qRef.current, next);
-        return next;
-      });
-    },
-    [runSearch]
-  );
-
   const filterCount = activeFilterCount(filters);
   const tagById = (id) => allTags.find((t) => t.id === id)?.name || id;
-  const tagFacets = (facets.tags || []).map((f) => ({
+  const tagFacets = facets.tags.map((f) => ({
     ...f,
     name: allTags.find((t) => t.id === f.id)?.name || f.id,
   }));
+
+  const visibleCount = displayedResults.filter((r) => !r.gated).length;
+  const gatedCount = displayedResults.filter((r) => r.gated).length;
 
   return (
     <div className="space-y-4">
@@ -287,7 +287,7 @@ export default function AllContacts() {
       </div>
 
       {/* Search bar */}
-      <form onSubmit={handleSearch} className="flex items-center gap-2">
+      <form onSubmit={(e) => e.preventDefault()} className="flex items-center gap-2">
         <div className="relative flex-1">
           <MagnifyingGlassIcon
             size={16}
@@ -296,13 +296,20 @@ export default function AllContacts() {
           <Input
             value={inputQ}
             onChange={(e) => setInputQ(e.target.value)}
-            placeholder="Search employer, position, result…"
+            placeholder="Filter by employer, position, result…"
             className="pl-9 rounded-none"
+            autoFocus
           />
+          {inputQ && (
+            <button
+              type="button"
+              onClick={() => setInputQ("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              <XIcon size={14} />
+            </button>
+          )}
         </div>
-        <Button type="submit" className="rounded-none" disabled={loading}>
-          {loading ? <CircleNotchIcon size={15} className="animate-spin" /> : "Search"}
-        </Button>
 
         {/* Filter popover */}
         <Popover open={filterOpen} onOpenChange={setFilterOpen}>
@@ -354,10 +361,10 @@ export default function AllContacts() {
             )}
 
             {/* Result facets */}
-            {(facets.result || []).length > 0 && (
+            {facets.result.length > 0 && (
               <div className="border-b border-border pb-2">
                 <div className="px-3 pt-3 pb-1 kbd-label">Result</div>
-                {(facets.result || []).map((f) => (
+                {facets.result.map((f) => (
                   <FacetOption
                     key={f.value}
                     label={f.value}
@@ -372,10 +379,10 @@ export default function AllContacts() {
             )}
 
             {/* Method facets */}
-            {(facets.method || []).length > 0 && (
+            {facets.method.length > 0 && (
               <div className="border-b border-border pb-2">
                 <div className="px-3 pt-3 pb-1 kbd-label">Contact Method</div>
-                {(facets.method || []).map((f) => (
+                {facets.method.map((f) => (
                   <FacetOption
                     key={f.value}
                     label={f.value}
@@ -390,10 +397,10 @@ export default function AllContacts() {
             )}
 
             {/* Type of Work facets */}
-            {(facets.type_of_work || []).length > 0 && (
+            {facets.type_of_work.length > 0 && (
               <div className="border-b border-border pb-2">
                 <div className="px-3 pt-3 pb-1 kbd-label">Type of Work</div>
-                {(facets.type_of_work || []).map((f) => (
+                {facets.type_of_work.map((f) => (
                   <FacetOption
                     key={f.value}
                     label={f.value}
@@ -574,28 +581,30 @@ export default function AllContacts() {
         </div>
       )}
 
-      {/* Results */}
-      {!searched && !loading && (
-        <div className="border border-border p-12 text-center text-muted-foreground">
-          <MagnifyingGlassIcon size={32} className="mx-auto mb-3 opacity-30" />
-          <p className="text-sm">Enter a keyword or apply filters to search your contacts.</p>
-        </div>
-      )}
-
-      {searched && !loading && results.length === 0 && (
-        <div className="border border-border p-12 text-center text-muted-foreground">
-          <p className="text-sm">No contacts matched your search.</p>
-        </div>
-      )}
-
+      {/* Loading */}
       {loading && (
         <div className="border border-border p-12 text-center text-muted-foreground">
           <CircleNotchIcon size={24} className="animate-spin mx-auto mb-2 opacity-40" />
-          <p className="text-sm">Searching…</p>
+          <p className="text-sm">Loading contacts…</p>
         </div>
       )}
 
-      {!loading && results.length > 0 && (
+      {/* Empty states */}
+      {!loading && allContacts.length === 0 && (
+        <div className="border border-border p-12 text-center text-muted-foreground">
+          <MagnifyingGlassIcon size={32} className="mx-auto mb-3 opacity-30" />
+          <p className="text-sm">No contacts yet. Add your first work-search contact from a benefit week.</p>
+        </div>
+      )}
+
+      {!loading && allContacts.length > 0 && displayedResults.length === 0 && (
+        <div className="border border-border p-12 text-center text-muted-foreground">
+          <p className="text-sm">No contacts match your search.</p>
+        </div>
+      )}
+
+      {/* Results table */}
+      {!loading && displayedResults.length > 0 && (
         <div className="border border-border overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -609,7 +618,7 @@ export default function AllContacts() {
               </tr>
             </thead>
             <tbody>
-              {results.map((row) =>
+              {displayedResults.map((row) =>
                 row.gated ? (
                   <GatedRow key={row.id} row={row} />
                 ) : (
@@ -653,10 +662,10 @@ export default function AllContacts() {
             </tbody>
           </table>
           <div className="px-4 py-2 border-t border-border text-xs text-muted-foreground">
-            {results.filter((r) => !r.gated).length} contact
-            {results.filter((r) => !r.gated).length !== 1 ? "s" : ""}
-            {anyGated
-              ? ` shown · ${results.filter((r) => r.gated).length} gated`
+            {visibleCount} contact{visibleCount !== 1 ? "s" : ""}
+            {anyGated ? ` shown · ${gatedCount} gated` : ""}
+            {allContacts.filter((c) => !c.gated).length !== visibleCount
+              ? ` (filtered from ${allContacts.filter((c) => !c.gated).length})`
               : ""}
           </div>
         </div>
