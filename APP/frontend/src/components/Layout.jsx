@@ -1,5 +1,5 @@
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
-import { useCallback, useState, useRef } from "react";
+import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { useInactivityLogout } from "@/hooks/useInactivityLogout";
@@ -27,7 +27,7 @@ import {
 } from "@phosphor-icons/react";
 
 const userNav = [
-  { to: "/dashboard",  label: "Dashboard",     Icon: HouseIcon,                testid: "nav-dashboard" },
+  { to: "/dashboard",  label: "Dashboard",      Icon: HouseIcon,                testid: "nav-dashboard" },
   { to: "/profile",    label: "Profile",        Icon: IdentificationCardIcon,   testid: "nav-profile"   },
   { to: "/weeks",      label: "Benefit Weeks",  Icon: CalendarBlankIcon,        testid: "nav-weeks"     },
   { to: "/contacts",   label: "All Contacts",   Icon: AddressBookIcon,          testid: "nav-contacts"  },
