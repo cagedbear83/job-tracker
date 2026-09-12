@@ -94,11 +94,46 @@ api.interceptors.response.use(
   (error) => Promise.reject(error)
 );
 
+// Maps an axios error to a human-readable string suitable for display in a
+// toast or inline error. Covers the most common failure modes so users see
+// something actionable rather than a raw axios message like "Network Error"
+// or "Request failed with status code 504".
 export function formatApiError(err) {
+  const status = err?.response?.status;
   const d = err?.response?.data?.detail;
-  if (d == null) return err?.message || "Something went wrong";
-  if (typeof d === "string") return d;
-  if (Array.isArray(d)) return d.map((e) => e?.msg || JSON.stringify(e)).join(" ");
-  if (typeof d?.msg === "string") return d.msg;
-  return JSON.stringify(d);
+
+  // Gateway / server errors — the backend may be healthy but slow, restarting,
+  // or overloaded. Give the user enough context to self-triage or include in a
+  // support message without exposing internal infrastructure details.
+  if (status === 504) {
+    return "The server took too long to respond (Error 504). Please try again in a moment — if this keeps happening, contact support and mention Error 504.";
+  }
+  if (status === 502) {
+    return "The server is temporarily unavailable (Error 502). Please try again shortly — if the problem persists, contact support and mention Error 502.";
+  }
+  if (status === 503) {
+    return "The service is temporarily unavailable (Error 503). Please try again in a moment — if the problem persists, contact support and mention Error 503.";
+  }
+  if (status === 500) {
+    const msg = typeof d === "string" ? d : null;
+    return msg
+      ? `${msg} (Error 500)`
+      : "Something went wrong on our end (Error 500). Please try again — if this continues, contact support and mention Error 500.";
+  }
+
+  // Backend sent a structured detail message — use it directly.
+  if (d != null) {
+    if (typeof d === "string") return d;
+    if (Array.isArray(d)) return d.map((e) => e?.msg || JSON.stringify(e)).join(" ");
+    if (typeof d?.msg === "string") return d.msg;
+    return JSON.stringify(d);
+  }
+
+  // axios "Network Error" means the request never reached the server — no
+  // internet, DNS failure, CORS preflight blocked, server completely unreachable.
+  if (!err?.response && err?.message === "Network Error") {
+    return "Unable to reach the server. Check your internet connection and try again — if the problem continues, contact support and mention \"Network Error\".";
+  }
+
+  return err?.message || "Something went wrong. Please try again.";
 }

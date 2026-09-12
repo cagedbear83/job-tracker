@@ -1088,6 +1088,7 @@ class ContactRequest(BaseModel):
     phone: str
     reason: str
     message: str
+    error_message: Optional[str] = None  # populated when reason == "Technical Support"
 
 
 REASON_CODES = {

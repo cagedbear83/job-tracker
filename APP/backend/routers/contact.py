@@ -42,6 +42,7 @@ async def contact_form(payload: ContactRequest, request: Request):
               <td style="padding:8px 0;">{payload.phone}</td></tr>
           <tr><td style="padding:8px 0;color:#52525b;">Reason</td>
               <td style="padding:8px 0;">{payload.reason}</td></tr>
+          {f'<tr><td style="padding:8px 0;color:#52525b;vertical-align:top;">Error Message</td><td style="padding:8px 0;font-family:monospace;background:#f4f4f5;padding:4px 8px;">{html.escape(payload.error_message)}</td></tr>' if payload.error_message else ''}
         </table>
         <hr style="border:none;border-top:1px solid #e4e4e7;margin:16px 0;">
         <p style="color:#52525b;font-size:13px;margin:0 0 8px;">Message:</p>
@@ -73,6 +74,7 @@ async def contact_form(payload: ContactRequest, request: Request):
         <table style="width:100%;border-collapse:collapse;font-size:13px;">
           <tr><td style="padding:6px 0;color:#52525b;width:140px;">Reason</td>
               <td style="padding:6px 0;">{html.escape(payload.reason)}</td></tr>
+          {f'<tr><td style="padding:6px 0;color:#52525b;vertical-align:top;">Error Message</td><td style="padding:6px 0;font-family:monospace;">{html.escape(payload.error_message)}</td></tr>' if payload.error_message else ''}
         </table>
         <div style="background:#f4f4f5;padding:12px 16px;margin-top:12px;font-size:13px;white-space:pre-wrap;">{html.escape(payload.message)}</div>
         <hr style="border:none;border-top:1px solid #e4e4e7;margin:20px 0;">
@@ -87,9 +89,10 @@ async def contact_form(payload: ContactRequest, request: Request):
     """
 
     # Email 1 → support inbox (subject includes ref for easy inbox search)
+    error_suffix = f" · {payload.error_message}" if payload.error_message else ""
     await send_email(
         "support@illinoisjobtracker.app",
-        f"[{ref}] Contact form: {payload.reason} — {payload.first_name} {payload.last_name}",
+        f"[{ref}] Contact form: {payload.reason}{error_suffix} — {payload.first_name} {payload.last_name}",
         support_html,
     )
 
