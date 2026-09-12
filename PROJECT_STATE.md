@@ -1,7 +1,7 @@
 # Illinois UI Job Search Tracker — Project State
 **Owner:** Kyle Gagen — KMG123 Enterprises LLC
-**Last Updated:** September 8, 2026
-**Version:** 1.17
+**Last Updated:** September 12, 2026
+**Version:** 1.19
 
 ---
 
@@ -35,13 +35,13 @@ Kyle's Aug 19 fixes doc, tracked item-by-item. Working through it together, one 
 ### MAIN SITE
 - [x] **Full-Stack — session logout (ASAP)** (Aug 20, re-done Sep 8) — "App doesn't log the user out when they exit the browser or after a certain amount of time" — originally fixed Aug 20 via JWT/refresh-token rework; that approach was superseded when the app migrated to Clerk. Re-implemented Sep 8 as client-side Clerk hooks — see "Client-Side Session Management — Clerk Auto-Logout" under Completed
 - [x] **Calendar** (Aug 20) — reminder engine, 5-business-day work-search follow-up, and the bi-weekly certification reminder cutoff all built — see "Calendar Reminder Engine" under Completed
-- [ ] **Documents** — confirm IDES-document upload/encrypted-storage is actually wired up; malware-scan uploads + enforce PDF/.doc/.docx/.jpg + size limit; convert uploads to PDF; compress uploads to save space
+- [x] **Documents** — confirm IDES-document upload/encrypted-storage is actually wired up; malware-scan uploads + enforce PDF/.doc/.docx/.jpg + size limit; convert uploads to PDF; compress uploads to save space
 - [x] **Register page** (Aug 20) — branding/disclaimer added, phone auto-format, required-field marking, and the "next certification date" question with 26-week auto-seed — see "Register Page — Branding, Validation & Certification-Date Seeding" under Completed
 - [x] **VerifyEmail page** (Aug 20) — branded header + disclaimer added, both states polished — see "VerifyEmail Page Redesign" under Completed
 - [ ] **Dashboard** — analytics/visual breakdowns of job-search trends and success rates
-- [ ] **Profile — subscription actions** — add "Upgrade to Pro" button for free-tier users; button changes to "Cancel Pro" when user is already on a Pro subscription
+- [x] **Profile — subscription actions** — add "Upgrade to Pro" button for free-tier users; button changes to "Cancel Pro" when user is already on a Pro subscription
 - [x] **Week Detail — ADJ034F report bug (ASAP)** (Aug 20) — generated PDF only populated Last Name and ID/SSN; root cause found and fixed, see "ADJ034F Report Field-Population Fix" under Completed
-- [ ] **Week Detail — remaining items** — add a Tags field to the work-search contact popup; build out Filters (Result/Type/Date/Contact Method, saved views, active-filter chips, live counts) and Search (global keyword + faceted); "Generating Report…" loading state on the PDF button
+- [ ] **Week Detail — remaining items** — add a Tags field to the work-search contact popup; build out Filters (Result/Type/Date/Contact Method, saved views, active-filter chips, live counts) and Search (global keyword + faceted); ~~"Generating Report…" loading state on the PDF button~~ (already implemented — spinner + "Generating Report..." text present in WeekDetail.jsx, confirmed Sep 12)
 
 ### MARKETING SITE
 - [x] **FAQ page** — styling pass (remove top letter index, color "Questions? Answered." Illinois Blue); add/update the 9 listed Q&As; replace the bottom disclaimer with the new IDES-independence wording
@@ -91,6 +91,35 @@ Kyle's Aug 19 fixes doc, tracked item-by-item. Working through it together, one 
 ---
 
 ## ✅ Completed
+
+### Error Visibility & Technical Support Contact Flow (Sep 12, 2026)
+Two complementary changes so users can self-triage errors and give support reps the right information when they reach out.
+
+**Error messages — main app (`lib/api.js`)**
+- [x] `formatApiError` rewritten. Previously fell through to the raw axios `err.message` for any error without a backend `detail` field — including all gateway/network errors — producing bare strings like "Network Error" or "Error code: 504" in Sonner toasts. Now maps status codes and network conditions to actionable, user-readable messages:
+  - **504**: "The server took too long to respond (Error 504). Please try again in a moment — if this keeps happening, contact support and mention Error 504."
+  - **502**: "The server is temporarily unavailable (Error 502). Please try again shortly…"
+  - **503**: "The service is temporarily unavailable (Error 503)…"
+  - **500**: passes through any backend `detail` string (appends "(Error 500)"), or falls back to a generic message that still names 500
+  - **Network Error**: "Unable to reach the server. Check your internet connection and try again — if the problem continues, contact support and mention \"Network Error\"."
+  - All other error paths preserved (backend `detail` string/array passthrough, generic fallback)
+
+**Contact form — Technical Support option & error field (`ijt-marketing`)**
+- [x] "Technical Support" added as the first option in the reason dropdown on the `/contact` page
+- [x] When "Technical Support" is selected, a conditional "Error Message (optional)" text input appears below the reason dropdown with a placeholder ("e.g. Network Error, Error 504, Error 502…") and a helper note directing the user to copy the exact message they saw on screen
+- [x] `error_message` sent in the POST body only when reason = "Technical Support" and the field is non-empty
+- [x] Next.js proxy (`app/api/contact/route.ts`) updated to explicitly forward `error_message` to the backend
+- [x] `ContactRequest` Pydantic model (`APP/backend/core.py`) gained `error_message: Optional[str] = None`
+- [x] `routers/contact.py` — both email templates updated:
+  - Support email: conditional "Error Message" row (monospace, light gray background) + error message appended to the subject line (e.g., `[IJT-TSP-001234] Contact form: Technical Support · Network Error — Jane Doe`) for instant inbox triage
+  - Customer confirmation recap: same conditional row so the customer can see what they submitted
+
+**Files changed (Sep 12, 2026):**
+- `APP/frontend/src/lib/api.js` — `formatApiError` rewritten
+- `ijt-marketing/app/contact/page.tsx` — Technical Support option + conditional error field + `error_message` in POST body
+- `ijt-marketing/app/api/contact/route.ts` — explicit payload build, `error_message` forwarding
+- `APP/backend/core.py` — `ContactRequest.error_message: Optional[str] = None`
+- `APP/backend/routers/contact.py` — conditional Error Message rows in both email templates; error suffix in support subject line
 
 ### Client-Side Session Management — Clerk Auto-Logout (Sep 8, 2026)
 Revisits and replaces the Aug 20 "Session Security / Auth Hardening" work for the frontend. The app migrated from a custom JWT/refresh-token system to Clerk between Aug 20 and Sep 8 — Clerk manages the session token lifecycle on the server side, but does NOT enforce client-side inactivity, browser-close logout, or extended offline logout on its own. All four logout paths funnel through a shared `executeLogout()` in `Layout.jsx` to ensure exactly one `logout()` call and one navigation.
@@ -155,7 +184,7 @@ Fixes two bugs Kyle found in the generated PDF after the fix above shipped: (1) 
 - [x] **Verified at three levels:** (1) an isolated test of the repair function alone, round-tripping two distinct values with no cross-contamination; (2) a no-19th-contact scenario confirming First Name populates and Results 4d stays correctly empty (no leakage when the slot isn't in use); (3) a full production-path end-to-end test — real `POST /auth/register` → real benefit week → 19 real contacts via `POST /contacts` (specifically enough to land contact #19 in section 4, letter "d", matching Kyle's exact "second page, middle group, 4th line" report) → real `GET /reports/benefit-week/{id}` → read the actual PDF back with pypdf. Confirmed: `First Name` = "Johnathan" (no longer blank), `Results 4d` = "Result-for-contact-19" (the contact's own result, not the claimant's name), `Name and Address 4d` = the contact's own employer/address, and the repaired "First Name" field has exactly 1 widget (`kids: 1`) after a full write/re-read round trip — confirming the detach stuck
 - [x] **Timestamp switched from UTC to America/Chicago local time**, per Kyle's request — matches the timezone the rest of the app already runs on (scheduler, week bounds). Sample verified output: `08/20/2026 02:41 PM CDT` (correctly resolves the CDT/CST abbreviation via `%Z`, not hardcoded)
 - [x] `routers/reports.py` delivered and committed to the device
-- [ ] **Not yet done:** not yet committed to git / pushed
+
 
 ### Session Security / Auth Hardening (Aug 20) — ⚠ Superseded on frontend by Clerk migration
 Fixes item 1 of the Site Fixes punch list above (ASAP: "app doesn't log the user out when they exit the browser or after a certain amount of time"). Root cause was four separate gaps, not one bug: the JWT lived in `localStorage` (survives closing the browser), had a flat 7-day expiry with no idle timeout, `AuthContext.jsx` only ever checked expiry once on mount (not while the tab stayed open), and `/auth/logout` never actually revoked anything server-side. Rebuilt as short-lived access tokens + rotating refresh tokens. **⚠ The frontend portion of this work (tokenStorage.js, api.js, the old AuthContext idle timer, getValidToken) was superseded when the app migrated to Clerk. The backend refresh-token infrastructure (core.py, auth.py, routers/invites.py) may or may not still be active — confirm whether the backend was updated to match Clerk's auth model or still issues its own JWTs for API calls alongside Clerk session tokens.**
@@ -494,7 +523,7 @@ Kyle reported that after the Session Security / Auth Hardening fix above shipped
 | routers/admin_platform_*.py | New (Aug 17-19) — users, subscriptions, comps, refunds, system, compliance |
 | admin_rbac_migration.py | New (Aug 17-19) — backfills platform_role, creates indexes. Not yet run against production |
 | bootstrap_admin.py | New (Aug 17-19) — promotes one user to platform_admin via BOOTSTRAP_ADMIN_EMAIL. Not yet run against production |
-| core.py | Shared app state, models, helpers. `send_sms()` migrated to ClickSend's REST API (Aug 19-20); `RegisterIn`/`Profile` models gained `sms_opt_in` / `sms_opt_in_at`. Updated (Aug 20) — access-token lifetime cut to 10 min; new refresh-token issue/rotate/revoke helpers backed by a new `refresh_tokens` collection |
+| core.py | Shared app state, models, helpers. `send_sms()` migrated to ClickSend's REST API (Aug 19-20); `RegisterIn`/`Profile` models gained `sms_opt_in` / `sms_opt_in_at`. Updated (Aug 20) — access-token lifetime cut to 10 min; new refresh-token issue/rotate/revoke helpers backed by a new `refresh_tokens` collection. **Updated (Sep 12)** — `ContactRequest` model gained `error_message: Optional[str] = None` |
 | routers/sms.py | OTP send/verify endpoints — Twilio-trial error message rewritten for ClickSend (Aug 19-20) |
 | routers/auth.py | Registration handler — now seeds SMS opt-in consent (`sms_enabled`, `sms_opt_in_at`, `SMS_OPT_IN` audit log entry) from the Register-page checkbox (Aug 19-20). Updated (Aug 20) — `/auth/login` and the new `/auth/refresh` issue/rotate the refresh cookie; `/auth/logout` now revokes it server-side |
 | routers/invites.py | Updated (Aug 20) — `/invite/redeem` now also issues a refresh-token cookie on account creation (previously only returned a bare access token with no way to refresh it) |
@@ -503,6 +532,7 @@ Kyle reported that after the Session Security / Auth Hardening fix above shipped
 | routers/auth.py — `/auth/register` | Updated (Aug 20) — calls `_seed_certification_events()` when `knows_next_cert_date == "yes"`, logs a `CALENDAR_SEED` audit entry |
 | core.py — "Calendar Event Reminders" section | New (Aug 20) — `_broadcast_event_reminders()`, `_send_certification_final_reminders()`, `_due_calendar_events()`, `_add_business_days()`, `EVENT_TYPE_LABELS` — the Calendar reminder engine |
 | server.py — scheduler | Updated (Aug 20) — 3 new jobs: `cal_3day`/`cal_morning` (daily 8AM CT) and `cal_cert_5pm` (daily 5PM CT), alongside the existing purge/weekly-reminder jobs |
+| routers/contact.py | Marketing-site contact form handler. **Updated (Sep 12)** — conditional Error Message row in both support and customer HTML email templates; error message appended to the support email subject line for instant inbox triage |
 | routers/contacts.py — `create_contact` | Updated (Aug 20) — auto-adds a 5-business-day follow-up `calendar_events` entry after logging a contact |
 | assets/ADJ034F.pdf | Present on disk (confirmed Aug 20; doc previously claimed it was missing — see Known Bugs) |
 | routers/reports.py | Updated (Aug 20) — fixed the ADJ034F field-population bug: real AcroForm field names (were guessed/wrong), proper ISO-to-US date formatting (was dead code), Middle Initial + multi-word last names read directly from the profile instead of a broken concatenate-and-resplit; also now stamps a generation timestamp along the bottom of every page via a pypdf FreeText annotation |
@@ -528,7 +558,7 @@ Kyle reported that after the Session Security / Auth Hardening fix above shipped
 | components/UpgradeModal.jsx | Pricing modal, fires on 402 |
 | components/FeatureGate.jsx | Locks gated buttons |
 | components/DeleteAccountSection.jsx | Delete account UI |
-| lib/api.js | Axios client + JWT interceptor. Updated (Aug 20) — `withCredentials: true`, proactive refresh-before-expiry, silent refresh-and-retry-once on 401, exports `refreshSession()`/`getValidToken()` |
+| lib/api.js | Axios client + JWT interceptor. Updated (Aug 20) — `withCredentials: true`, proactive refresh-before-expiry, silent refresh-and-retry-once on 401, exports `refreshSession()`/`getValidToken()`. **Updated (Sep 12)** — `formatApiError` rewritten: maps 502/503/504/500 and bare "Network Error" to actionable user-readable messages that include the error code for easy support reporting |
 | lib/tokenStorage.js | Updated (Aug 20) — access token moved from `localStorage` to an in-memory JS variable only; also removes a stale Capacitor comment |
 | pages/Register.jsx | Updated (Aug 19-20) — SMS opt-in checkbox. Updated (Aug 20) — two-column branding/disclaimer layout, phone auto-format, required-field marking, certification-date question |
 | pages/Profile.jsx | Updated (Aug 19-20) — SMS card full opt-in disclosure |
@@ -548,8 +578,8 @@ Kyle reported that after the Session Security / Auth Hardening fix above shipped
 | components/site-footer.tsx | Footer, IDES disclaimer banner |
 | components/ui-bits.tsx | Button (primary/outline/white), Check, Section, PageHeader |
 | app/pricing/page.tsx | Three-tier pricing with monthly/annual toggle |
-| app/contact/page.tsx | Contact form — posts to Next.js proxy |
-| app/api/contact/route.ts | Next.js server-side proxy → FastAPI backend (eliminates CORS) |
+| app/contact/page.tsx | Contact form — posts to Next.js proxy. **Updated (Sep 12)** — "Technical Support" added as first reason option; conditional "Error Message (optional)" field appears when selected; `error_message` included in POST body |
+| app/api/contact/route.ts | Next.js server-side proxy → FastAPI backend (eliminates CORS). **Updated (Sep 12)** — explicit payload build; forwards optional `error_message` to the backend |
 | app/unsubscribe/page.tsx | Branded unsubscribe confirmation page |
 | app/terms/page.tsx, app/privacy/page.tsx | Updated (Aug 19-20) — gained new SMS text-messaging sections (previously had none), for ClickSend toll-free compliance |
 

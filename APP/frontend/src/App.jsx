@@ -31,6 +31,7 @@ const ImportPage    = lazy(() => import("@/pages/ImportPage"));
 const AuditLog      = lazy(() => import("@/pages/AuditLog"));
 const DocumentsPage = lazy(() => import("@/pages/Documents"));
 const SmsOptIn      = lazy(() => import("@/pages/SmsOptIn"));
+const AllContacts   = lazy(() => import("@/pages/AllContacts"));
 
 function PageLoader() {
   return (
@@ -232,6 +233,7 @@ export function App() {
                 <Route path="/documents" element={<DocumentsPage />} />
                 <Route path="/import" element={<ImportPage />} />
                 <Route path="/audit" element={<AuditLog />} />
+                <Route path="/contacts" element={<AllContacts />} />
                 <Route path="/admin" element={<AdminPage />} />
                 <Route path="/admin/platform" element={<AdminPlatformRoute />} />
                 <Route path="/sms-opt-in" element={<SmsOptIn />} />

@@ -392,6 +392,7 @@ class ContactIn(BaseModel):
     person_contacted: str = ""
     result: str = ""
     source_url: str = ""
+    tags: list[str] = []
 
 
 class Contact(ContactIn):
