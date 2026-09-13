@@ -23,11 +23,10 @@ import {
   FolderOpenIcon,
   GearSixIcon,
   AddressBookIcon,
-  MagnifyingGlassIcon,
 } from "@phosphor-icons/react";
 
 const userNav = [
-  { to: "/dashboard",  label: "Dashboard",      Icon: HouseIcon,                testid: "nav-dashboard" },
+  { to: "/dashboard",  label: "Dashboard",     Icon: HouseIcon,                testid: "nav-dashboard" },
   { to: "/profile",    label: "Profile",        Icon: IdentificationCardIcon,   testid: "nav-profile"   },
   { to: "/weeks",      label: "Benefit Weeks",  Icon: CalendarBlankIcon,        testid: "nav-weeks"     },
   { to: "/contacts",   label: "All Contacts",   Icon: AddressBookIcon,          testid: "nav-contacts"  },
@@ -245,40 +244,13 @@ export default function Layout() {
             ))}
           </nav>
           {!isAdmin && (
-            <>
-              {/* Quick contact search */}
-              <form
-                className="mt-3"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const val = e.currentTarget.elements.namedItem("q").value.trim();
-                  if (val) navigate(`/contacts?q=${encodeURIComponent(val)}`);
-                  else navigate("/contacts");
-                  e.currentTarget.reset();
-                }}
-              >
-                <div className="relative">
-                  <MagnifyingGlassIcon
-                    size={13}
-                    className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
-                  />
-                  <input
-                    name="q"
-                    type="text"
-                    placeholder="Search contacts…"
-                    className="w-full border border-border bg-background text-xs pl-7 pr-3 py-1.5 text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary"
-                  />
-                </div>
-              </form>
-
-              <div className="mt-3 p-4 border border-border bg-secondary">
-                <div className="kbd-label mb-1">Reminder</div>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Illinois requires a minimum of <b>3 work-search contacts</b> per
-                  benefit week (Sun–Sat).
-                </p>
-              </div>
-            </>
+            <div className="mt-3 p-4 border border-border bg-secondary">
+              <div className="kbd-label mb-1">Reminder</div>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Illinois requires a minimum of <b>3 work-search contacts</b> per
+                benefit week (Sun–Sat).
+              </p>
+            </div>
           )}
         </aside>
 
