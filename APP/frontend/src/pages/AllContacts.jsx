@@ -154,7 +154,7 @@ export default function AllContacts() {
       })
       .catch((e) => toast.error(formatApiError(e)))
       .finally(() => setLoading(false));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   // ─── Client-side filtering ─────────────────────────────────────────────────
   const displayedResults = useMemo(() => {
@@ -298,7 +298,6 @@ export default function AllContacts() {
             onChange={(e) => setInputQ(e.target.value)}
             placeholder="Filter by employer, position, result…"
             className="pl-9 rounded-none"
-            autoFocus
           />
           {inputQ && (
             <button
