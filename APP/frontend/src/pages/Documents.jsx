@@ -263,7 +263,7 @@ export default function DocumentsPage() {
         <StorageBar usedBytes={usedBytes} limitMb={limits.document_storage_mb} />
       )}
 
-      {/* ── Document grid ── */}}
+      {/* ── Document grid ── */}
       {loading ? (
         <div className="text-sm text-muted-foreground py-12 text-center">Loading…</div>
       ) : docs.length === 0 ? (
