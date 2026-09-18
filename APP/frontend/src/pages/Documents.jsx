@@ -9,6 +9,7 @@ import {
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { FeatureGate } from "@/components/FeatureGate";
+import { useSubscription } from "@/hooks/useSubscription";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -69,7 +70,52 @@ const blankForm = () => ({
   file: null,
 });
 
+// ── Storage usage bar ────────────────────────────────────────────────────────
+function StorageBar({ usedBytes, limitMb }) {
+  if (!limitMb) return null;
+  const limitBytes = limitMb * 1024 * 1024;
+  const pct = Math.min(100, (usedBytes / limitBytes) * 100);
+
+  const barColor =
+    pct >= 90 ? "bg-destructive" :
+    pct >= 70 ? "bg-amber-500" :
+    "bg-primary";
+
+  const limitLabel = limitMb >= 1024
+    ? `${(limitMb / 1024).toFixed(0)} GB`
+    : `${limitMb} MB`;
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <span>Storage used</span>
+        <span>
+          <span className={pct >= 90 ? "text-destructive font-semibold" : ""}>
+            {formatBytes(usedBytes)}
+          </span>
+          {" of "}
+          {limitLabel}
+        </span>
+      </div>
+      <div className="h-1.5 w-full bg-secondary border border-border overflow-hidden">
+        <div
+          className={`h-full transition-all duration-500 ${barColor}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      {pct >= 90 && (
+        <p className="text-xs text-destructive">
+          {pct >= 100
+            ? "Storage full — delete a document to upload more."
+            : `Almost full — ${formatBytes(limitBytes - usedBytes)} remaining.`}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function DocumentsPage() {
+  const { limits, isFree } = useSubscription();
   const [docs, setDocs]         = useState([]);
   const [loading, setLoading]   = useState(true);
   const [open, setOpen]         = useState(false);
@@ -91,6 +137,8 @@ export default function DocumentsPage() {
   };
 
   useEffect(() => { load(); }, []);
+
+  const usedBytes = docs.reduce((sum, d) => sum + (d.file_size || 0), 0);
 
   // ── File handling ─────────────────────────────────────────────────────────
   const pickFile = (f) => {
@@ -210,7 +258,12 @@ export default function DocumentsPage() {
         </FeatureGate>
       </div>
 
-      {/* ── Document grid ── */}
+      {/* ── Storage bar — shown once docs are loaded and user has a storage tier ── */}
+      {!loading && !isFree && limits.document_storage_mb > 0 && (
+        <StorageBar usedBytes={usedBytes} limitMb={limits.document_storage_mb} />
+      )}
+
+      {/* ── Document grid ── */}}
       {loading ? (
         <div className="text-sm text-muted-foreground py-12 text-center">Loading…</div>
       ) : docs.length === 0 ? (
