@@ -966,7 +966,7 @@ async def _send_user_reminder(user: dict, kind: str):
 
 
 async def _broadcast_reminders(kind: str):
-    cursor = db.users.find({}, {"_id": 0})
+    cursor = db.users.find({"deleted": {"$ne": True}}, {"_id": 0})
     async for u in cursor:
         try:
             await _send_user_reminder(u, kind)
@@ -1042,7 +1042,7 @@ async def _broadcast_event_reminders(kind: str):
     for ev in events:
         try:
             user = await db.users.find_one({"id": ev["user_id"]}, {"_id": 0})
-            if not user or not user.get("email_verified", False):
+            if not user or user.get("deleted") or not user.get("email_verified", False):
                 continue
             claimant = None
             if ev.get("claimant_id"):
@@ -1080,7 +1080,7 @@ async def _send_certification_final_reminders():
     for ev in events:
         try:
             user = await db.users.find_one({"id": ev["user_id"]}, {"_id": 0})
-            if not user or not user.get("email_verified", False):
+            if not user or user.get("deleted") or not user.get("email_verified", False):
                 continue
             claimant = None
             if ev.get("claimant_id"):
