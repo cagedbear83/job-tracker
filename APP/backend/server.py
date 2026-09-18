@@ -5,7 +5,7 @@ from core import *  # noqa: F401,F403 — re-exports app, api, os, CORSMiddlewar
 
 import clerk_auth
 from core import app, api
-from core import _broadcast_reminders, _purge_due_accounts
+from core import _broadcast_reminders, _purge_due_accounts, _purge_pending_claims, _purge_retention_due, _send_retention_warnings
 from core import _broadcast_event_reminders, _send_certification_final_reminders
 from routers import account, admin, audit, auth, billing_routes, calendar, contact, contacts, dashboard, documents, imports, invites, misc, profile, reminders, reports, sms, webhooks, weeks
 from routers import tags, saved_views
@@ -70,6 +70,15 @@ async def on_startup():
     await db.usage_counters.create_index(
         [("user_id", 1), ("feature", 1), ("period", 1)], unique=True
     )
+    # Indexes for account lifecycle collections
+    await db.pending_claims.create_index([("caseworker_id", 1), ("status", 1)])
+    await db.pending_claims.create_index("invitation_id", unique=True, sparse=True)
+    await db.pending_claims.create_index("expires_at")
+    await db.trial_ledger.create_index("email_hash", unique=True)
+    await db.trial_ledger.create_index("card_hash")
+    # contact_date is queried by the 53-week retention job
+    await db.contacts.create_index("contact_date")
+
     # password_resets, refresh_tokens and invites are all retired collections —
     # Clerk owns password reset, session refresh, and invitations now, so none
     # of them is written any more and none needs indexing. Drop the collections
@@ -169,6 +178,16 @@ async def on_startup():
         # Daily hard-purge of soft-deleted accounts past their grace window.
         scheduler.add_job(
             _purge_due_accounts, CronTrigger(hour=3, minute=30), id="purge_accounts"
+        )
+        scheduler.add_job(
+            _purge_pending_claims, CronTrigger(hour=3, minute=45), id="purge_pending_claims"
+        )
+        # 53-week retention jobs (Illinois UI law)
+        scheduler.add_job(
+            _send_retention_warnings, CronTrigger(hour=8, minute=0), id="retention_warnings"
+        )
+        scheduler.add_job(
+            _purge_retention_due, CronTrigger(hour=4, minute=0), id="purge_retention"
         )
         if os.environ.get("MAILGUN_API_KEY"):
             scheduler.add_job(_broadcast_reminders, CronTrigger(day_of_week="sun", hour=9, minute=0), args=["sunday"], id="rem_sun")

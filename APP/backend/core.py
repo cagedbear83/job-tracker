@@ -588,6 +588,44 @@ class DeleteAccountIn(BaseModel):
     confirm: bool = False
 
 
+# ---------------------------------------------------------------------------
+# Collections purged when a user account is hard-deleted (GDPR erasure or
+# grace-period purge).  Update these lists whenever a new collection is added
+# that stores user data.
+# ---------------------------------------------------------------------------
+# Keyed by user_id
+_USER_SCOPED_COLLECTIONS = [
+    "benefit_weeks",
+    "calendar_events",
+    "contacts",
+    "profiles",
+    "audit_log",
+    "tags",
+    "saved_views",
+    "subscriptions",
+    "usage_counters",
+    "document_files",
+    "otp_codes",
+    "payment_events",
+    "refund_requests",
+    "disputes",
+    "pending_claims",  # caseworker-created slots waiting for claim
+]
+# Keyed by claimant_id (profile id, gathered before the user-scoped pass)
+_PROFILE_SCOPED_COLLECTIONS = [
+    "sms_log",
+]
+# Keyed by email address
+_EMAIL_SCOPED_COLLECTIONS = [
+    "email_events",  # "to" field is an array; MongoDB matches element
+]
+
+# ---------------------------------------------------------------------------
+# Retention constants (Illinois UI law — 53 weeks / 371 days)
+# ---------------------------------------------------------------------------
+RETENTION_DAYS = int(os.environ.get("RETENTION_DAYS", "371"))
+RETENTION_WARN_DAYS = [14, 7, 1]  # days before expiry to send warning emails
+
 async def _purge_user_everywhere(uid: str, email: str) -> dict:
     """
     Hard-delete every trace of a user across all collections. Used by the
@@ -608,9 +646,11 @@ async def _purge_user_everywhere(uid: str, email: str) -> dict:
             res = await db[coll].delete_many({"claimant_id": {"$in": pids}})
             counts[coll] = res.deleted_count
     if email:
-        for coll in _EMAIL_SCOPED_COLLECTIONS:
-            res = await db[coll].delete_many({"email": email})
-            counts[coll] = counts.get(coll, 0) + res.deleted_count
+        # email_events stores recipients in a "to" array; MongoDB's element
+        # match finds docs where the array contains the email address.
+        res = await db.email_events.delete_many({"to": email})
+        counts["email_events"] = counts.get("email_events", 0) + res.deleted_count
+        # If additional email-keyed collections are added, extend here.
     res = await db.users.delete_one({"id": uid})
     counts["users"] = res.deleted_count
     return counts
@@ -630,6 +670,87 @@ async def _purge_due_accounts() -> None:
         if not purge_after or now >= purge_after:
             counts = await _purge_user_everywhere(u["id"], u.get("email", ""))
             logging.info(f"Purged deleted account {u.get('email')}: {counts}")
+
+
+# ============== Pending Claims Purge ==============
+
+
+async def _purge_pending_claims() -> None:
+    """Scheduled daily: delete pending_claims that have expired without being accepted."""
+    now = datetime.now(timezone.utc)
+    result = await db.pending_claims.delete_many({
+        "status": "pending",
+        "expires_at": {"$lt": now},
+    })
+    if result.deleted_count:
+        logging.info(f"Purged {result.deleted_count} expired pending_claims")
+
+
+# ============== 53-Week Retention (Illinois UI Law) ==============
+
+
+async def _send_retention_warnings() -> None:
+    """
+    Scheduled daily: email users whose contacts are approaching the 53-week
+    (371-day) automatic deletion cutoff.  Warning windows: 14 days, 7 days,
+    24 hours before the cutoff.
+    """
+    now = datetime.now(timezone.utc)
+    for days_ahead in RETENTION_WARN_DAYS:
+        # Contacts expiring in exactly [days_ahead] days were entered ~(371-days_ahead) days ago.
+        warn_cutoff = (now - timedelta(days=RETENTION_DAYS - days_ahead)).date()
+        # Find users who have contacts on that target date (entered on warn_cutoff)
+        pipeline = [
+            {
+                "$match": {
+                    "contact_date": {
+                        "$gte": warn_cutoff.isoformat(),
+                        "$lt": (warn_cutoff + timedelta(days=1)).isoformat(),
+                    }
+                }
+            },
+            {"$group": {"_id": "$user_id", "count": {"$sum": 1}}},
+        ]
+        async for agg in db.contacts.aggregate(pipeline):
+            uid = agg["_id"]
+            count = agg["count"]
+            user = await db.users.find_one(
+                {"id": uid, "deleted": {"$ne": True}},
+                {"_id": 0, "email": 1, "name": 1},
+            )
+            if not user or not user.get("email"):
+                continue
+            # Skip users who have opted out of reminder emails
+            profile = await db.profiles.find_one({"user_id": uid}, {"_id": 0, "reminders_enabled": 1, "email_bounced": 1})
+            if profile and (profile.get("reminders_enabled") is False or profile.get("email_bounced")):
+                continue
+
+            days_label = f"{days_ahead} day{'s' if days_ahead != 1 else ''}"
+            subject = f"Heads-up: {count} job contact record{'s' if count != 1 else ''} will be auto-deleted in {days_label}"
+            html = (
+                f"<p>Hi {user.get('name', 'there')},</p>"
+                f"<p>Illinois UI law requires that work-search records be kept for 53 weeks. "
+                f"To stay compliant with that rule, <strong>{count} job contact record{'s' if count != 1 else ''}</strong> "
+                f"you entered around {warn_cutoff.strftime('%B %d, %Y')} will be automatically deleted "
+                f"in <strong>{days_label}</strong>.</p>"
+                f"<p>If you need to keep these records, please <a href='{os.environ.get('FRONTEND_URL', '')}/reports'>export them</a> before they are removed.</p>"
+                f"<p>— Illinois UI Tracker</p>"
+            )
+            await send_email(user["email"], subject, html)
+            logging.info(f"Sent {days_label} retention warning to {uid} ({count} contacts)")
+
+
+async def _purge_retention_due() -> None:
+    """
+    Scheduled daily: hard-delete contact records older than RETENTION_DAYS (371 days).
+    Only contacts are subject to mandatory retention — all other user data is kept
+    until the user explicitly deletes their account.
+    """
+    now = datetime.now(timezone.utc)
+    cutoff = (now - timedelta(days=RETENTION_DAYS)).date().isoformat()
+    result = await db.contacts.delete_many({"contact_date": {"$lt": cutoff}})
+    if result.deleted_count:
+        logging.info(f"Purged {result.deleted_count} contacts past 53-week retention cutoff (before {cutoff})")
 
 
 # ============== Calendar Events ==============

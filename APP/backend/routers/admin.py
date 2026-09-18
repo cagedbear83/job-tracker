@@ -121,3 +121,59 @@ async def integrations_status(admin=Depends(require_admin)):
             "from_number": os.environ.get("CLICKSEND_FROM_NUMBER", ""),
         },
     }
+
+
+# ============== Caseworker Org Management ==============
+
+
+@router.delete("/admin/caseworkers/{caseworker_id}/remove")
+async def remove_caseworker(caseworker_id: str, admin=Depends(require_admin)):
+    """
+    Detach all claimants from a caseworker's org by clearing their
+    `managed_by` field (and the corresponding `org_id` on the user doc).
+
+    This does NOT delete the caseworker's own account or their claimants'
+    accounts — it only orphans the relationship so those claimants show up
+    as self-managed individuals.  Hard-delete of any account is a separate
+    /account/delete or /account/gdpr-erasure action.
+    """
+    # Verify the target is actually a caseworker
+    cw = await db.users.find_one({"id": caseworker_id}, {"_id": 0, "id": 1, "email": 1, "role": 1})
+    if not cw:
+        raise HTTPException(status_code=404, detail="Caseworker not found.")
+
+    # Find all profiles managed by this caseworker
+    managed_profiles = await db.profiles.find(
+        {"managed_by": caseworker_id}, {"_id": 0, "id": 1, "user_id": 1}
+    ).to_list(None)
+
+    profile_ids = [p["id"] for p in managed_profiles]
+    user_ids = list({p["user_id"] for p in managed_profiles})
+
+    if profile_ids:
+        # Clear managed_by on all profiles
+        await db.profiles.update_many(
+            {"managed_by": caseworker_id},
+            {"$unset": {"managed_by": ""}},
+        )
+        # Clear org_id on corresponding user docs
+        if user_ids:
+            await db.users.update_many(
+                {"id": {"$in": user_ids}},
+                {"$unset": {"org_id": ""}},
+            )
+
+    await log_audit(
+        admin["id"],
+        "CASEWORKER_REMOVE",
+        "user",
+        caseworker_id,
+        f"Detached {len(profile_ids)} claimant profile(s) from caseworker {cw.get('email', caseworker_id)}",
+    )
+
+    return {
+        "ok": True,
+        "caseworker_id": caseworker_id,
+        "orphaned_profiles": len(profile_ids),
+        "affected_user_ids": user_ids,
+    }

@@ -93,13 +93,26 @@ async def complete_onboarding(body: OnboardingIn, user=Depends(get_current_user)
         # so this survives later updates.
         "date_of_birth": body.dob,
     }
+
+    # Caseworker-managed accounts: the Clerk invitation carries the inviting
+    # caseworker's user_id in public_metadata["invited_by"].  Wire it onto
+    # both the profile (managed_by) and the user doc (org_id) so the rest of
+    # the app can answer "who manages this claimant?".
+    invited_by = user.get("invited_by")
+    if invited_by:
+        profile_doc["managed_by"] = invited_by
+
     await db.profiles.insert_one(profile_doc)
 
     # Set the active claimant explicitly rather than relying on the
     # first-profile fallback, matching how create_claimant behaves.
+    user_update_set: dict = {"active_claimant_id": pid}
+    if invited_by:
+        # org_id = the caseworker's user_id (the caseworker IS the org).
+        user_update_set["org_id"] = invited_by
     await db.users.update_one(
         {"id": uid},
-        {"$set": {"active_claimant_id": pid}, "$unset": {"pending_claimant_label": ""}},
+        {"$set": user_update_set, "$unset": {"pending_claimant_label": ""}},
     )
 
     if body.knows_next_cert_date == "yes" and body.next_certification_date:

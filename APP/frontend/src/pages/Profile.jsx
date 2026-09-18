@@ -75,6 +75,7 @@ export default function Profile() {
   const [profileId, setProfileId] = useState(null);
   const [smsVerified, setSmsVerified] = useState(false);
   const [smsPhone, setSmsPhone] = useState("");
+  const [managedBy, setManagedBy] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
@@ -85,6 +86,7 @@ export default function Profile() {
         setProfileId(r.data.id || null);
         setSmsVerified(Boolean(r.data.sms_verified));
         setSmsPhone(r.data.sms_phone || "");
+        setManagedBy(r.data.managed_by || null);
       }
     });
 
@@ -534,7 +536,8 @@ export default function Profile() {
         )}
       </div>
 
-      {/* ── Danger zone ── */}
+      {/* ── Danger zone — hidden for caseworker-managed accounts ── */}
+      {!managedBy && (
       <div className="border border-destructive/40 bg-destructive/5 p-6 sm:p-8">
         <div className="kbd-label text-destructive">Danger Zone</div>
         <h2 className="font-display font-bold text-xl tracking-tight mt-1">
@@ -557,6 +560,7 @@ export default function Profile() {
           <TrashIcon size={16} weight="bold" className="mr-2" /> Delete my profile
         </Button>
       </div>
+      )} {/* end !managedBy danger zone */}
 
       {/* Delete confirmation dialog */}
       <Dialog

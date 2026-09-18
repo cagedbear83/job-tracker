@@ -56,3 +56,43 @@ async def delete_account(body: DeleteAccountIn, user=Depends(get_current_user)):
         "ok": True,
         "purge_after": (now + timedelta(days=ACCOUNT_PURGE_GRACE_DAYS)).isoformat(),
     }
+
+
+@router.post("/account/gdpr-erasure")
+async def gdpr_erasure(body: DeleteAccountIn, user=Depends(get_current_user)):
+    """
+    GDPR Right-to-Erasure: immediately and permanently delete all data associated
+    with the authenticated user.  Unlike the soft-delete route this is irreversible
+    and takes effect at once — no grace period, no recovery.
+
+    Requires the same triple confirmation as /account/delete (email, full name,
+    checkbox) so that an accidental tap cannot trigger it.
+    """
+    if not body.confirm:
+        raise HTTPException(status_code=400, detail="You must check the confirmation box.")
+
+    if body.email.strip().lower() != (user.get("email") or "").lower():
+        raise HTTPException(status_code=400, detail="The email you entered does not match your account.")
+
+    profile = await db.profiles.find_one({"user_id": user["id"]}, {"_id": 0})
+    expected_name = ""
+    if profile:
+        expected_name = f"{profile.get('first_name', '')} {profile.get('last_name', '')}".strip()
+
+    def _norm(s: str) -> str:
+        return " ".join((s or "").split()).lower()
+
+    if not expected_name or _norm(body.confirm_name) != _norm(expected_name):
+        raise HTTPException(status_code=400, detail="The name you entered does not match your profile.")
+
+    # Write an audit entry BEFORE the purge — the audit_log row itself will be
+    # deleted by _purge_user_everywhere, but the admin_audit_log is retained.
+    await log_audit(
+        user["id"], "GDPR_ERASURE", "account", user["id"],
+        "GDPR right-to-erasure: immediate hard-delete of all user data",
+    )
+
+    counts = await _purge_user_everywhere(user["id"], user.get("email", ""))
+    logging.info(f"GDPR erasure for {user.get('email')}: {counts}")
+
+    return {"ok": True, "erased": counts}

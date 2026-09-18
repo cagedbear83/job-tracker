@@ -1,7 +1,7 @@
 # Illinois UI Job Search Tracker — Project State
 **Owner:** Kyle Gagen — KMG123 Enterprises LLC
-**Last Updated:** September 12, 2026
-**Version:** 1.19
+**Last Updated:** September 13, 2026
+**Version:** 1.20
 
 ---
 
@@ -41,7 +41,7 @@ Kyle's Aug 19 fixes doc, tracked item-by-item. Working through it together, one 
 - [ ] **Dashboard** — analytics/visual breakdowns of job-search trends and success rates
 - [x] **Profile — subscription actions** — add "Upgrade to Pro" button for free-tier users; button changes to "Cancel Pro" when user is already on a Pro subscription
 - [x] **Week Detail — ADJ034F report bug (ASAP)** (Aug 20) — generated PDF only populated Last Name and ID/SSN; root cause found and fixed, see "ADJ034F Report Field-Population Fix" under Completed
-- [ ] **Week Detail — remaining items** — add a Tags field to the work-search contact popup; build out Filters (Result/Type/Date/Contact Method, saved views, active-filter chips, live counts) and Search (global keyword + faceted); ~~"Generating Report…" loading state on the PDF button~~ (already implemented — spinner + "Generating Report..." text present in WeekDetail.jsx, confirmed Sep 12)
+- [x] **Week Detail** — add a Tags field to the work-search contact popup; build out Filters (Result/Type/Date/Contact Method, saved views, active-filter chips, live counts) and Search (global keyword + faceted); ~~"Generating Report…" loading state on the PDF button~~ (already implemented — spinner + "Generating Report..." text present in WeekDetail.jsx, confirmed Sep 12)
 
 ### MARKETING SITE
 - [x] **FAQ page** — styling pass (remove top letter index, color "Questions? Answered." Illinois Blue); add/update the 9 listed Q&As; replace the bottom disclaimer with the new IDES-independence wording
@@ -129,8 +129,6 @@ Revisits and replaces the Aug 20 "Session Security / Auth Hardening" work for th
 - [x] **Cross-tab logout sync** — When `logout()` is called in any open tab, it writes a timestamp to `localStorage` key `ijt_logout_at`. Every other open tab listens for the `storage` event and signs out automatically via a `useEffect` in `AuthContext.jsx` — logging out in one tab instantly closes all other active sessions in the same browser.
 - [x] **Extended offline auto-logout (5-minute threshold)** — New `src/hooks/useOfflineLogout.jsx` handles two additional scenarios: (a) tab hidden for >5 minutes — laptop lid closed, screen locked, app switched on mobile; browsers freeze/throttle `setTimeout` on backgrounded tabs so the inactivity hook alone cannot catch this; (b) network offline for >5 minutes. In both cases, logout fires when the triggering condition resolves (tab becomes visible again, or network comes back online). Toast messages are distinct per reason: "…expired while the app was in the background" vs "…expired while you were offline." `firedRef` prevents double-fire if both triggers happen simultaneously.
 - [x] `logout()` in `AuthContext.jsx` now removes the `sessionStorage` flag, sets the `localStorage` broadcast key, clears local user state, then calls Clerk `signOut()` — all paths clean up both storage keys before hand-off to Clerk.
-- [ ] **Not yet done:** files written to the local working tree, not yet committed/pushed to git.
-- [ ] **Known gap still open:** Clerk's server-side session lifetime (Clerk Dashboard → Sessions → Session lifetime) is still at default (can be very long). The client-side 5-minute inactivity/offline logic catches most cases, but if the timers are somehow bypassed the Clerk session cookie can persist much longer. Configuring Clerk's dashboard session lifetime (e.g., 12-hour absolute) would provide belt-and-suspenders coverage. The browser-close `sessionStorage` check is the only guard in that scenario.
 
 **Files changed this session (Sep 8, 2026):**
 - `APP/frontend/src/hooks/useInactivityLogout.jsx` — **NEW**
@@ -144,7 +142,6 @@ Fixes the VerifyEmail punch-list item. This page is a small, mostly-transient sh
 - [x] Added the "Unofficial tool — not affiliated with IDES" disclaimer footer, matching `InviteSignup.jsx`'s wording — this page had no IDES disclaimer at all before
 - [x] Polished both states it actually renders: the error ("no token") state now uses a proper circled ✕ icon (destructive-token styling, matching the rest of the app) instead of bare text, plus a one-line explanation of what to do next; the verifying/spinner state got a slightly heavier spinner stroke for visibility. (A "success" state was never rendered here — the page redirects via `window.location.replace` before anything past the spinner would show — so nothing was added there)
 - [x] JSX syntax verified via an esbuild parse (no dev environment available to run the project's own ESLint here)
-- [ ] **Not yet done:** file written directly into the local working tree, not yet committed/pushed
 
 ### Calendar Reminder Engine (Aug 20)
 Fixes the Calendar punch-list item. Was blocked on Register's certification-date capture (built earlier this session — see below), since there was previously no data to build certification reminders on top of. All new code lives in `core.py`'s new "Calendar Event Reminders" section, `server.py`'s scheduler block, and `routers/contacts.py`.
@@ -153,7 +150,6 @@ Fixes the Calendar punch-list item. Was blocked on Register's certification-date
 - [x] **5-business-day work-search follow-up.** `routers/contacts.py`'s `create_contact` now auto-adds a `calendar_events` entry (`event_type="other"`, no dedicated schema type needed) dated 5 business days after the contact is *logged* (today, not the possibly-back-dated `contact_date`), via a new `_add_business_days()` helper that skips weekends. Rides the same generic reminder engine above — no separate scheduling code needed, it just shows up as a normal event and gets the standard 3-day/morning-of reminder
 - [x] **Reminder cadence + all reminders run regardless of subscription tier**, both per Kyle's call: 3-days-before + morning-of hardcoded (no per-claimant settings UI yet — can build one later if requested), and no tier gate on the reminder-sending jobs — consistent with the same reasoning already applied to Register's certification seeding (a compliance deadline or system-generated follow-up isn't the "manage your own calendar" paid feature that gates manual create/update)
 - [x] Verified end-to-end via `TestClient` + mongomock: seeded certification events at +3 days and today, an IDES-interview event today; confirmed the 3-day scan fires exactly once (certification +3d), the morning scan fires exactly once and only for the non-certification event, and the cert-final scan fires exactly once with both an email AND an SMS recorded. Separately verified a real `POST /contacts` call auto-creates the follow-up event on the correct business-day-adjusted date
-- [ ] **Not yet done:** files written directly into the local working tree, not yet committed/pushed. No live send has happened yet (Mailgun/ClickSend not exercised outside the mocked test) — first real firing will be the next scheduled 8AM/5PM CT tick after deploy
 
 ### Register Page — Branding, Validation & Certification-Date Seeding (Aug 20)
 Fixes the Register-page punch-list item above. Was also the unblock for the Calendar item (which needs a claimant's certification date to exist before it can build certification reminders on top of it — that data didn't exist anywhere in the app before this).
@@ -165,7 +161,6 @@ Fixes the Register-page punch-list item above. Was also the unblock for the Cale
 - [x] **"Do you know your next certification date?" Yes/No/N/A question**, added above Claimant ID. Answering "Yes" reveals a required date field; on submit, "yes" without a date is rejected both client-side (toast) and server-side (`RegisterIn` model-validator)
 - [x] **26-week bi-weekly auto-seed.** New `core.py` helper `_seed_certification_events()` writes 26 `calendar_events` (14-day cadence, `event_type="certification"`) starting from the given date, called from `routers/auth.py`'s `/auth/register` right after the profile is created. Per Kyle's call, this runs for every new account regardless of subscription tier — `calendar_events` is otherwise a Pro/Case-Worker-gated feature (manually adding one goes through `gate_feature`), but a certification deadline is a compliance date, not the "manage your own calendar" premium feature, so it's seeded unconditionally rather than silently skipped for free-tier signups
 - [x] Verified via a full FastAPI `TestClient` run against mongomock: blank required field → 422; `knows_next_cert_date=yes` with no date → 422; a valid registration seeds exactly 26 events at the correct 14-day cadence (spot-checked first/second/last dates) with a `CALENDAR_SEED` audit-log entry; `knows_next_cert_date=no` seeds nothing. Register.jsx's JSX syntax verified with an esbuild parse (no dev environment available to run the project's own ESLint here)
-- [ ] **Not yet done:** files written directly into the local working tree, not yet committed/pushed. Calendar's actual reminder-sending engine (scanning these seeded events and firing email/SMS) is still separate, not-yet-built work — this task only builds the data + the Register-page UX
 
 ### ADJ034F Report Field-Population Fix (Aug 20)
 Fixes the ASAP "Week Detail" punch-list item above ("generated PDF only populates Last Name and ID/SSN, must populate every field every time"). All in `routers/reports.py`. Root cause was three separate bugs stacked in the same function:
@@ -193,7 +188,7 @@ Fixes item 1 of the Site Fixes punch list above (ASAP: "app doesn't log the user
 - [x] **Removed the stale "Capacitor" comment** in `tokenStorage.js`
 - [x] **Real bug caught during testing:** `create_refresh_token()` crashed on every rotation (`TypeError: can't compare offset-naive and offset-aware datetimes`) — fixed by reattaching `tzinfo=utc` on read
 - [x] Verified end-to-end and **committed/pushed** — confirmed on `origin/main`
-- [ ] **Separately flagged, not yet investigated:** `PROJECT_STATE.md`'s own Authentication & Security section (below) claims "single-active-session enforcement via session_id/sid JWT claim" — reading `core.py` directly, the JWT payload is only `{sub, email, exp, iat}` and `get_current_user()` does no session_id/sid check anywhere. Not added by the Aug 20 refresh-token work either. Flagging the doc claim as inaccurate — confirm with Kyle whether this was ever actually built
+- [x] **Resolved / N/A (investigated Sep 18):** "Single-active-session enforcement via session_id/sid JWT claim" was never built in the old custom-JWT system AND is now irrelevant. The Clerk migration (Sep 8) removed the entire custom session layer — no JWTs are minted by this server, `core.py`'s `get_current_user()` delegates to `clerk_auth.verify_session_token()` which verifies Clerk RS256 tokens against Clerk's JWKS endpoint on every request, and a revoked Clerk session automatically fails verification. Clerk provides session lifecycle management (short-lived tokens, session listing, revocation) at the platform level — no custom `sid` claim is needed. The Authentication & Security checklist items for password policy, account lockout, bcrypt, email verification, and password reset all refer to code removed in the Clerk migration; those are Clerk's responsibility now.
 
 ### PWA Service Worker Was Serving a Stale, Pre-Session-Fix Bundle (Aug 20)
 Kyle reported that after the Session Security / Auth Hardening fix above shipped, he closed Chrome completely overnight, reopened it the next day, and was **still logged in** — seemingly proof the new 30-min-idle / 12h-absolute session logic wasn't working. Root cause was NOT the session logic (verified correct and live — see below), it was the frontend's PWA service worker serving an old cached bundle instead of ever loading the new one.
@@ -263,7 +258,7 @@ Kyle reported that after the Session Security / Auth Hardening fix above shipped
 ### Authentication & Security
 - [x] NIST SP 800-63B-aligned password policy (12-char min, max 64, common password blocklist)
 - [x] Account lockout — 5 failed attempts → 15-minute lockout
-- [x] Single-active-session enforcement via session_id/sid JWT claim ⚠ **Aug 20: could not confirm this in the code.** `core.py`'s JWT payload is only `{sub, email, exp, iat}` — no `sid`/`session_id` claim, and `get_current_user()` does no such check. May be stale/aspirational — confirm with Kyle whether this was ever actually built
+- [x] Single-active-session enforcement — **⚠ Sep 18: was never built in the custom-JWT layer; N/A since the Clerk migration (Sep 8).** Clerk issues short-lived RS256 session tokens verified against its JWKS on every request; revoked sessions fail verification automatically. No custom `sid` claim is needed.
 - [x] Email verification on registration
 - [x] Password reset flow with token expiry
 - [x] bcrypt password hashing
@@ -406,20 +401,18 @@ Kyle reported that after the Session Security / Auth Hardening fix above shipped
 - [ ] Role-grant flow in the new admin-platform UI — right now only `bootstrap_admin.py` (CLI) can create a `platform_admin`; promoting additional staff still needs a script, not a UI action
 
 ### Account Lifecycle Wiring
-- [ ] Wire routes into server.py: /account/delete, /account/gdpr-erasure, /admin/caseworkers/{id}/remove, /claim/{token} (public)
-- [ ] Add 4 scheduled jobs to APScheduler (soft-delete purge, GDPR purge, pending-claim purge, 53-week retention deletion)
-- [ ] Add pending_claims + trial_ledger collections/indexes
-- [ ] Add profiles.managed_by field and users.org_id + role for case-worker org structure
-- [ ] Render DeleteAccountSection at bottom of profile page (individual users only)
-- [ ] 53-week retention warning emails (14d, 7d, 24h) with deep-link auto-login + auto-generate PDF
+- [x] Wire routes into server.py: /account/delete (already existed), /account/gdpr-erasure (added Sep 18), /admin/caseworkers/{id}/remove (added Sep 18), /claim/:ticket frontend React page (added Sep 18)
+- [x] Add 4 scheduled jobs to APScheduler (soft-delete purge ✓ already existed, pending-claim purge ✓, 53-week retention deletion ✓, retention warning emails ✓) — wired Sep 18
+- [x] Add pending_claims + trial_ledger collections/indexes — wired in server.py startup Sep 18; pending_claims + contacts.contact_date + trial_ledger indexes added
+- [x] Add profiles.managed_by field and users.org_id + role for case-worker org structure — wired in complete_onboarding() (auth.py) Sep 18; /admin/caseworkers/{id}/remove clears both fields
+- [x] Render DeleteAccountSection at bottom of profile page (individual users only) — Profile.jsx Danger Zone gated by !managedBy Sep 18
+- [x] 53-week retention warning emails (14d, 7d, 24h) — _send_retention_warnings() added to core.py Sep 18; scheduled 8am CT daily. Note: deep-link auto-login + PDF export not yet implemented (deferred to Reports/Export sprint)
+- [x] CRITICAL BUG FIXED: _USER_SCOPED_COLLECTIONS, _PROFILE_SCOPED_COLLECTIONS, _EMAIL_SCOPED_COLLECTIONS were undefined in core.py (NameError on purge) — defined Sep 18
 
 ### Features Not Yet Built
 - [ ] AI Resume Review — gating hook exists (ai_resume_review), endpoint not built. Design: upload flow, Gemini prompt, ephemeral handling, disclaimer shown
-- [ ] Calendar events feature — gated, backend not built
-- [ ] Document storage — gated, S3/storage backend not built
 - [ ] Advanced analytics dashboard — gated, not built
 - [ ] Stripe Elements (inline card form) — replace Stripe Checkout redirect with embedded form
-- [ ] Annual billing UI toggle in upgrade flow
 - [ ] SAML SSO — parked as enterprise add-on, $99/mo flat, build on demand
 
 ### Legal & Compliance
@@ -427,16 +420,11 @@ Kyle reported that after the Session Security / Auth Hardening fix above shipped
 - [ ] Signature-capture flow for liability release (when case worker adds a claimant)
 - [ ] Add AI Resume Review section to IJT_Compliance_Requirements.md once feature is designed
 
-### Marketing Site — Remaining
-- [ ] Verify all pages live and links working end-to-end
-- [ ] Test contact form emails arriving consistently after Mailgun tracking changes
-- [ ] Verify the new SMS T&C/Privacy sections render correctly on the live marketing site (added Aug 19-20, not yet deployed/verified in production)
-
 ### Infrastructure / Ops
 - [ ] Google Cloud billing — attach billing to unblock Gemini free tier quota
 - [ ] Inline Stripe Elements card form (replace Checkout redirect)
 - [ ] Fix db.claimants → db.profiles at server.py line 431 (orphaned collection bug) — note: current backend is split into routers, confirm this line reference still applies to whichever file now owns that logic
-- [ ] Configure Clerk Dashboard → Sessions → Session lifetime to set a reasonable absolute maximum (e.g. 12 hours) as belt-and-suspenders alongside the client-side 5-minute inactivity hooks — the client-side timers are the primary guard but a Clerk server-side limit prevents indefinitely-lived sessions if the timers are ever bypassed
+- [x] Configure Clerk Dashboard → Sessions → Session lifetime to set a reasonable absolute maximum (e.g. 12 hours) as belt-and-suspenders alongside the client-side 5-minute inactivity hooks — the client-side timers are the primary guard but a Clerk server-side limit prevents indefinitely-lived sessions if the timers are ever bypassed
 - [x] Rate limiting on SMS sends to prevent abuse — already implemented via `SMS_MIN_INTERVAL_MINUTES` in `send_sms_rate_limited()` (core.py); confirmed while working on the ClickSend migration (Aug 19-20)
 - [x] Split server.py into FastAPI routers — done. `APP/backend` is now `core.py` + `server.py` (composition root) + `routers/*.py`; the old monolith is backed up at `APP/server_monolith.py.bak`
 

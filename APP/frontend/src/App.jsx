@@ -31,6 +31,7 @@ const ImportPage    = lazy(() => import("@/pages/ImportPage"));
 const AuditLog      = lazy(() => import("@/pages/AuditLog"));
 const DocumentsPage = lazy(() => import("@/pages/Documents"));
 const SmsOptIn      = lazy(() => import("@/pages/SmsOptIn"));
+const ClaimInvite   = lazy(() => import("@/pages/ClaimInvite"));
 const AllContacts   = lazy(() => import("@/pages/AllContacts"));
 
 function PageLoader() {
@@ -198,6 +199,8 @@ export function App() {
               <Route path="/reset-password" element={<LegacyRedirect to="/sign-in" />} />
               <Route path="/verify-email" element={<LegacyRedirect to="/sign-in" />} />
               <Route path="/invite/:code" element={<LegacyRedirect to="/sign-up" />} />
+              {/* Invitation claim page — receives Clerk ticket as a URL segment */}
+              <Route path="/claim/:ticket" element={<ClaimInvite />} />
 
               <Route
                 path="/onboarding"
