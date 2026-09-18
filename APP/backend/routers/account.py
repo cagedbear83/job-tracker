@@ -52,6 +52,27 @@ async def delete_account(body: DeleteAccountIn, user=Depends(get_current_user)):
         user["id"], "DELETE", "account", user["id"],
         f"Account soft-deleted; scheduled purge after {ACCOUNT_PURGE_GRACE_DAYS} days",
     )
+
+    purge_date = (now + timedelta(days=ACCOUNT_PURGE_GRACE_DAYS)).strftime("%B %d, %Y")
+    try:
+        await send_email(
+            user.get("email", ""),
+            "Your Illinois UI Tracker account has been scheduled for deletion",
+            _reminder_html(
+                "Account deletion scheduled",
+                f"""<p>We received your request to delete your Illinois UI Tracker account.</p>
+                <p>Your account and all associated data — including your profile, benefit weeks,
+                work-search contacts, calendar events, documents, and history — will be
+                <strong>permanently deleted on {purge_date}</strong>.</p>
+                <p>If you changed your mind, please contact support before that date and we can
+                cancel the deletion.</p>
+                <p style="color:#71717A;font-size:13px;">This action was initiated from your
+                account settings. If you did not request this, contact support immediately.</p>""",
+            ),
+        )
+    except Exception as exc:
+        logging.warning(f"Deletion confirmation email failed for {user.get('email')}: {exc}")
+
     return {
         "ok": True,
         "purge_after": (now + timedelta(days=ACCOUNT_PURGE_GRACE_DAYS)).isoformat(),
@@ -92,7 +113,29 @@ async def gdpr_erasure(body: DeleteAccountIn, user=Depends(get_current_user)):
         "GDPR right-to-erasure: immediate hard-delete of all user data",
     )
 
-    counts = await _purge_user_everywhere(user["id"], user.get("email", ""))
-    logging.info(f"GDPR erasure for {user.get('email')}: {counts}")
+    user_email = user.get("email", "")
+    counts = await _purge_user_everywhere(user["id"], user_email)
+    logging.info(f"GDPR erasure for {user_email}: {counts}")
+
+    try:
+        await send_email(
+            user_email,
+            "Your Illinois UI Tracker data has been permanently deleted",
+            _reminder_html(
+                "Data erasure complete",
+                """<p>Your Illinois UI Tracker account and all associated data have been
+                <strong>permanently and immediately deleted</strong> per your GDPR
+                right-to-erasure request.</p>
+                <p>This includes your profile, benefit weeks, work-search contacts,
+                calendar events, documents, and full account history.
+                <strong>This action is irreversible.</strong></p>
+                <p>You may create a new account at any time using the same email address.</p>
+                <p style="color:#71717A;font-size:13px;">If you did not initiate this request,
+                please contact support — your data has already been removed and cannot be
+                restored.</p>""",
+            ),
+        )
+    except Exception as exc:
+        logging.warning(f"GDPR erasure confirmation email failed for {user_email}: {exc}")
 
     return {"ok": True, "erased": counts}
