@@ -1,7 +1,7 @@
 # Illinois UI Job Search Tracker — Project State
 **Owner:** Kyle Gagen — KMG123 Enterprises LLC
 **Last Updated:** September 28, 2026
-**Version:** 1.21
+**Version:** 1.22
 
 ---
 
@@ -642,10 +642,34 @@ Kyle reported that after the Session Security / Auth Hardening fix above shipped
 | `create_refresh_token()` crashed on every rotation (naive/aware datetime TypeError) | Fixed (Aug 20, caught in testing, never shipped) | Mongo strips `tzinfo` off datetimes on round-trip. Reattached `tzinfo=utc` on read |
 | `PROJECT_STATE.md` claims single-active-session enforcement (session_id/sid JWT claim) that isn't in the code | Open — needs Kyle to confirm | `core.py`'s JWT payload has no `sid`/`session_id` field and `get_current_user()` doesn't check one. Not added by the Aug 20 refresh-token work either — multiple concurrent logins are currently unrestricted |
 | Clerk server-side session lifetime not configured | Open — low urgency | Clerk Dashboard default allows very long-lived sessions. Client-side 5-min inactivity hooks handle the normal case; setting a server-side absolute max in Clerk Dashboard provides a backstop if client-side timers are ever bypassed |
-| `App.jsx.bak` present in frontend src | Low | Created Sep 28 during the admin-redirect work. Safe to delete — `App.jsx` is the live file. Path: `APP/frontend/src/App.jsx.bak` |
-| Dead repo files not yet deleted | Low | Sep 28 audit identified ~12 files/folders for removal (root `index.html`, `assets/`, `docs/`, `APP/server_monolith.py.bak`, `APP/yarn.lock`, `APP/backend/scripts/update_admin_password.py`, `APP/backend/package.json`+`package-lock.json`+`node_modules/`, `bootstrap_admin.py`, `admin_rbac_migration.py`, `APP/backend/api/`) — pending delete permission grant |
+| `App.jsx.bak` present in frontend src | Resolved (Sep 28) | Deleted from disk. Was gitignored, no commit needed. |
+| Dead repo files not yet deleted | Resolved (Sep 28) | All 12 targets were already gone from prior session; `App.jsx.bak` deleted this session. Repo is clean. |
 
 ---
+
+
+---
+
+## ✅ Completed — September 28, 2026 (Session 3)
+
+### Email Reminders — Deleted Accounts (Audit)
+Verified that all four reminder-sending functions in `core.py` already guard against sending to deleted users:
+- `_broadcast_reminders()`: MongoDB query filter `{"deleted": {"$ne": True}}`
+- `_broadcast_event_reminders()`: per-user `if not user or user.get("deleted") ...: continue`
+- `_send_certification_final_reminders()`: same guard
+- `_send_retention_warnings()`: query filter `{"id": uid, "deleted": {"$ne": True}}`
+
+No code changes needed. Feature was already complete.
+
+### Stripe Feature Gate — Claimant Creation (`profile.py`)
+All other gate calls (calendar, screenshot import, PDF export, CSV export, advanced analytics, SMS) were already wired in prior sessions. The one missing gate was claimant creation in `PUT /profile`. Added `await sub.gate_claimant_limit(db, user["id"])` in the create-new-profile branch (when `cid` is `None`). Update branch is unaffected. Free tier is capped at 1 claimant; Case Worker has no limit (`max_claimants = None`). Committed.
+
+### Dashboard N+1 Query Fix (`dashboard.py`)
+`GET /dashboard` was firing up to 100 sequential `count_documents` calls (one per benefit week) plus a profile fetch, all sequential. `GET /dashboard/trend` had the same pattern for up to 52 weeks. Fixed both:
+- Both routes now run a single `$group` aggregation on `contacts` keyed on `benefit_week_id`, replacing all per-week round-trips with one query.
+- `GET /dashboard` also now fires its four independent queries (week count, contact count, recent weeks, profile) concurrently via `asyncio.gather`.
+- Total DB round-trips: was N+1 (up to 101/53), now 2 per route.
+Committed as `9d234d2`.
 
 ## How To Update This File
 
