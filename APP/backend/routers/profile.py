@@ -38,6 +38,8 @@ async def upsert_profile(body: ProfileIn, user=Depends(get_current_user)):
             user["id"], "UPDATE", "claimant", cid, f"Claimant updated — {diff}"
         )
         return {**existing, **update}
+    # Tier gate: free tier allows only 1 claimant profile; Case Worker = unlimited
+    await sub.gate_claimant_limit(db, user["id"])
     pid = str(uuid.uuid4())
     doc = {"id": pid, "user_id": user["id"], "updated_at": now, **body.model_dump()}
     await db.profiles.insert_one(doc)
