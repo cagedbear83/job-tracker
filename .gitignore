@@ -71,3 +71,15 @@ dump.rdb
 # ---------- Tooling scratch ----------
 .tmp.driveupload/
 .claude/
+
+# ---------- Syncthing ----------
+.stfolder/
+.stignore
+
+# ---------- Claude / AI tooling ----------
+.agents/
+skills-lock.json
+
+# ---------- One-off scripts & scratch ----------
+repo_cleanup.sh
+"Claude outputs"/
