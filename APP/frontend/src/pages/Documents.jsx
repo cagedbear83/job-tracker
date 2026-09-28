@@ -71,30 +71,42 @@ const blankForm = () => ({
 });
 
 // ── Storage usage bar ────────────────────────────────────────────────────────
-function StorageBar({ usedBytes, limitMb }) {
-  if (!limitMb) return null;
-  const limitBytes = limitMb * 1024 * 1024;
-  const pct = Math.min(100, (usedBytes / limitBytes) * 100);
+// teaser=true → shown to free-tier users with the Pro limit as a preview.
+function StorageBar({ usedBytes, limitMb, teaser = false }) {
+  if (!limitMb && !teaser) return null;
+  const displayLimit = teaser ? 100 : limitMb;
+  const limitBytes   = displayLimit * 1024 * 1024;
+  const pct          = teaser ? 0 : Math.min(100, (usedBytes / limitBytes) * 100);
 
-  const barColor =
-    pct >= 90 ? "bg-destructive" :
-    pct >= 70 ? "bg-amber-500" :
-    "bg-primary";
+  const barColor = teaser
+    ? "bg-muted-foreground/30"
+    : pct >= 90 ? "bg-destructive"
+    : pct >= 70 ? "bg-amber-500"
+    : "bg-primary";
 
-  const limitLabel = limitMb >= 1024
-    ? `${(limitMb / 1024).toFixed(0)} GB`
-    : `${limitMb} MB`;
+  const limitLabel = displayLimit >= 1024
+    ? `${(displayLimit / 1024).toFixed(0)} GB`
+    : `${displayLimit} MB`;
 
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>Storage used</span>
+        <span>{teaser ? "Document storage" : "Storage used"}</span>
         <span>
-          <span className={pct >= 90 ? "text-destructive font-semibold" : ""}>
-            {formatBytes(usedBytes)}
-          </span>
-          {" of "}
-          {limitLabel}
+          {teaser ? (
+            <>
+              {limitLabel} with{" "}
+              <span className="text-primary font-semibold">Pro</span>
+            </>
+          ) : (
+            <>
+              <span className={pct >= 90 ? "text-destructive font-semibold" : ""}>
+                {formatBytes(usedBytes)}
+              </span>
+              {" of "}
+              {limitLabel}
+            </>
+          )}
         </span>
       </div>
       <div className="h-1.5 w-full bg-secondary border border-border overflow-hidden">
@@ -103,7 +115,12 @@ function StorageBar({ usedBytes, limitMb }) {
           style={{ width: `${pct}%` }}
         />
       </div>
-      {pct >= 90 && (
+      {teaser && (
+        <p className="text-xs text-muted-foreground">
+          Upgrade to Pro to unlock {limitLabel} of secure document storage.
+        </p>
+      )}
+      {!teaser && pct >= 90 && (
         <p className="text-xs text-destructive">
           {pct >= 100
             ? "Storage full — delete a document to upload more."
@@ -258,9 +275,13 @@ export default function DocumentsPage() {
         </FeatureGate>
       </div>
 
-      {/* ── Storage bar — shown once docs are loaded and user has a storage tier ── */}
-      {!loading && !isFree && limits.document_storage_mb > 0 && (
-        <StorageBar usedBytes={usedBytes} limitMb={limits.document_storage_mb} />
+      {/* ── Storage bar — paid users see real usage; free users see a Pro teaser ── */}
+      {!loading && (
+        isFree
+          ? <StorageBar usedBytes={0} limitMb={100} teaser />
+          : limits.document_storage_mb > 0 && (
+              <StorageBar usedBytes={usedBytes} limitMb={limits.document_storage_mb} />
+            )
       )}
 
       {/* ── Document grid ── */}
