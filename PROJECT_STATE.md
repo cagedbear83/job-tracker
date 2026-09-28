@@ -1,7 +1,7 @@
 # Illinois UI Job Search Tracker — Project State
 **Owner:** Kyle Gagen — KMG123 Enterprises LLC
-**Last Updated:** September 13, 2026
-**Version:** 1.20
+**Last Updated:** September 28, 2026
+**Version:** 1.21
 
 ---
 
@@ -91,6 +91,47 @@ Kyle's Aug 19 fixes doc, tracked item-by-item. Working through it together, one 
 ---
 
 ## ✅ Completed
+
+### Account Deletion Confirmation Emails (Sep 28, 2026)
+Both account-deletion routes in `routers/account.py` now send a branded confirmation email after the deletion is processed, using the existing `send_email()` / `_reminder_html()` helpers. Email failures are caught and logged as warnings so a Mailgun outage never blocks the deletion itself.
+
+- [x] `POST /account/delete` — fires before `return`, names the exact purge date ("permanently deleted on {purge_date}"), tells the user to contact support before that date if they changed their mind, and includes a security note if they didn't initiate the request
+- [x] `POST /account/gdpr-erasure` — captures `user_email` before `_purge_user_everywhere()` (user doc is destroyed during the purge), fires after the purge completes; tells the user the erasure is immediate and irreversible and that they can re-register at any time
+
+**Files changed (Sep 28, 2026):**
+- `APP/backend/routers/account.py` — deletion confirmation emails added to both routes (try/except so Mailgun failure is non-fatal)
+
+### Admin Portal — Post-Login Redirect Fix (Sep 28, 2026)
+Admin accounts were landing on `/dashboard` (the claimant surface) after signing in — not useful for an operator who manages other users rather than filing their own benefit weeks. Added a `defaultDest(user, needsOnboarding)` helper in `App.jsx` that routes admin accounts to `/admin/platform` instead.
+
+- [x] New `defaultDest()` helper added after `platformRoleFor()` in `App.jsx` — checks `user?.role === "admin"`, returns `/admin/platform`; falls through to `/onboarding` or `/dashboard` for regular users
+- [x] Both redirect sites in `PublicOnly` and `LandingOrApp` updated to call `defaultDest()` — previously the ternary was inline and duplicated
+
+**Files changed (Sep 28, 2026):**
+- `APP/frontend/src/App.jsx` — `defaultDest()` helper + two redirect sites updated; committed and pushed
+
+### Repo Hygiene & .gitignore Hardening (Sep 28, 2026)
+Several IDE, OS, and tooling files that predated the gitignore rules were still tracked by git (committed before the rule was added). Untracked them and added new ignore patterns to prevent recurrence.
+
+- [x] **Untracked from git history** (files deleted from the index, still present on disk):
+  `.idea/` (JetBrains), `.vscode/` (VS Code metadata), `.stfolder/` (Syncthing), `repo_cleanup.sh` (one-off script), `skills-lock.json` (Claude tooling)
+- [x] **New `.gitignore` patterns added** to the root `.gitignore`:
+  `.stfolder/`, `.stignore` (Syncthing); `.agents/`, `skills-lock.json` (Claude/AI tooling); `repo_cleanup.sh`, `"Claude outputs"/` (one-off scripts and AI output folders)
+- [x] Committed as `74c666a` — 12 files changed, 11 delete-mode entries
+
+**Repo cleanup audit (Sep 28, 2026) — dead files identified, deletion pending:**
+The following files/folders were confirmed unused and should be deleted (requires granting delete permission):
+- `index.html` + `assets/css/style.css` at repo root (pre-React static page, superseded by Vite app)
+- `docs/` folder (deployment guide written for Render, which was never live — `render.yaml` already deleted Aug 19)
+- `APP/server_monolith.py.bak` (backup of the pre-split monolith)
+- `APP/yarn.lock` (root-level, duplicate; actual lockfile lives in `APP/frontend/`)
+- `APP/backend/scripts/update_admin_password.py` (raises `SystemExit` on run — broken; admin role is now managed by Clerk/`ADMIN_EMAILS` env var)
+- `APP/backend/package.json` + `package-lock.json` + `node_modules/` (fake Python-as-npm artifact — `package.json` listed `uvicorn` as an npm dependency, which is nonsense)
+- `APP/backend/bootstrap_admin.py` (one-shot CLI admin-seeding script; unnecessary for a single-admin setup since `clerk_auth.py` already handles role via `ADMIN_EMAILS`)
+- `APP/backend/admin_rbac_migration.py` (backfill script; same reasoning — not needed for current setup)
+- `APP/backend/api/` folder (stub or leftover; superseded by `routers/`)
+- `APP/frontend/src/App.jsx.bak` (created Sep 28 during the redirect work)
+
 
 ### Error Visibility & Technical Support Contact Flow (Sep 12, 2026)
 Two complementary changes so users can self-triage errors and give support reps the right information when they reach out.
@@ -520,6 +561,7 @@ Kyle reported that after the Session Security / Auth Hardening fix above shipped
 | routers/auth.py — `/auth/register` | Updated (Aug 20) — calls `_seed_certification_events()` when `knows_next_cert_date == "yes"`, logs a `CALENDAR_SEED` audit entry |
 | core.py — "Calendar Event Reminders" section | New (Aug 20) — `_broadcast_event_reminders()`, `_send_certification_final_reminders()`, `_due_calendar_events()`, `_add_business_days()`, `EVENT_TYPE_LABELS` — the Calendar reminder engine |
 | server.py — scheduler | Updated (Aug 20) — 3 new jobs: `cal_3day`/`cal_morning` (daily 8AM CT) and `cal_cert_5pm` (daily 5PM CT), alongside the existing purge/weekly-reminder jobs |
+| routers/account.py | Account lifecycle routes (`/account/delete`, `/account/gdpr-erasure`). **Updated (Sep 28)** — deletion confirmation emails added to both routes using existing `send_email()` / `_reminder_html()` helpers; try/except ensures Mailgun failures are non-fatal |
 | routers/contact.py | Marketing-site contact form handler. **Updated (Sep 12)** — conditional Error Message row in both support and customer HTML email templates; error message appended to the support email subject line for instant inbox triage |
 | routers/contacts.py — `create_contact` | Updated (Aug 20) — auto-adds a 5-business-day follow-up `calendar_events` entry after logging a contact |
 | assets/ADJ034F.pdf | Present on disk (confirmed Aug 20; doc previously claimed it was missing — see Known Bugs) |
@@ -535,6 +577,7 @@ Kyle reported that after the Session Security / Auth Hardening fix above shipped
 | hooks/useOfflineLogout.jsx | **NEW (Sep 8)** — Logout after 5+ minutes hidden (laptop lid/screen lock/app switch) or 5+ minutes offline. Page Visibility API + online/offline events; timestamps when hidden/offline, checks elapsed on return. `firedRef` prevents double-fire if both triggers fire simultaneously. Distinct `reason` passed to `onLogout` for per-scenario toast messages. |
 | context/AuthContext.jsx | Auth state. Updated (Aug 20) with refresh-token session. **Updated (Sep 8)** — migrated to Clerk: `useAuth`/`useUser`/`useClerk` from `@clerk/clerk-react`; added `sessionStorage` flag (`ijt_tab_active`) for browser-close detection (one-time check on Clerk load via `browserCloseChecked` ref); `localStorage` broadcast key (`ijt_logout_at`) + `storage` event listener for cross-tab logout sync; `logout()` now removes sessionStorage flag, sets broadcast key, clears user state, then calls Clerk `signOut()`. |
 | components/Layout.jsx | Updated (Aug 19) — admin platform link. Updated (Aug 20) — dark-mode toggle fix. **Updated (Sep 8)** — wired `useInactivityLogout` and `useOfflineLogout`; shared `executeLogout()` helper (dismisses warning toast → calls `logout()` → navigates to /sign-in → shows reason toast with 100ms delay); `INACTIVITY_TOAST_ID` for stable dismissal; `OFFLINE_LOGOUT_MESSAGES` map for distinct messages per reason. Both hooks gated on `Boolean(user)`. |
+| App.jsx | **Updated (Sep 28)** — `defaultDest(user, needsOnboarding)` helper added; admins (`role === "admin"`) now land on `/admin/platform` instead of `/dashboard` after sign-in. Both redirect sites in `PublicOnly` and `LandingOrApp` use `defaultDest()`. **Note:** `App.jsx.bak` present at `APP/frontend/src/` — safe to delete. |
 | pages/WeekDetail.jsx | Benefit week + contacts, loading/error states. Updated (Aug 20) — PDF/CSV download now calls `getValidToken()` instead of the old `getToken()` so a stale in-memory access token refreshes first. Also where the ADJ034F report bug's endpoint (`GET /reports/benefit-week/{id}`) was traced to — see In Progress |
 | pages/Documents.jsx, pages/BenefitWeeks.jsx | Updated (Aug 20) — same `getValidToken()` swap as WeekDetail.jsx, for their raw-`fetch()` upload/download/export calls |
 | pages/AdminPlatform.jsx | New (Aug 17-19) — admin-platform dashboard (users, comps, refunds, disputes, system, compliance panels) |
@@ -599,6 +642,8 @@ Kyle reported that after the Session Security / Auth Hardening fix above shipped
 | `create_refresh_token()` crashed on every rotation (naive/aware datetime TypeError) | Fixed (Aug 20, caught in testing, never shipped) | Mongo strips `tzinfo` off datetimes on round-trip. Reattached `tzinfo=utc` on read |
 | `PROJECT_STATE.md` claims single-active-session enforcement (session_id/sid JWT claim) that isn't in the code | Open — needs Kyle to confirm | `core.py`'s JWT payload has no `sid`/`session_id` field and `get_current_user()` doesn't check one. Not added by the Aug 20 refresh-token work either — multiple concurrent logins are currently unrestricted |
 | Clerk server-side session lifetime not configured | Open — low urgency | Clerk Dashboard default allows very long-lived sessions. Client-side 5-min inactivity hooks handle the normal case; setting a server-side absolute max in Clerk Dashboard provides a backstop if client-side timers are ever bypassed |
+| `App.jsx.bak` present in frontend src | Low | Created Sep 28 during the admin-redirect work. Safe to delete — `App.jsx` is the live file. Path: `APP/frontend/src/App.jsx.bak` |
+| Dead repo files not yet deleted | Low | Sep 28 audit identified ~12 files/folders for removal (root `index.html`, `assets/`, `docs/`, `APP/server_monolith.py.bak`, `APP/yarn.lock`, `APP/backend/scripts/update_admin_password.py`, `APP/backend/package.json`+`package-lock.json`+`node_modules/`, `bootstrap_admin.py`, `admin_rbac_migration.py`, `APP/backend/api/`) — pending delete permission grant |
 
 ---
 
