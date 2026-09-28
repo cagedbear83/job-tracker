@@ -108,7 +108,7 @@ function PublicOnly({ children }) {
   if (clerkFailed) return <AuthUnavailable />;
   if (loading) return <AuthLoading />;
   if (user) {
-    return <Navigate to={needsOnboarding ? "/onboarding" : "/dashboard"} replace />;
+    return <Navigate to={defaultDest(user, needsOnboarding)} replace />;
   }
   return <PublicChrome>{children}</PublicChrome>;
 }
@@ -131,7 +131,7 @@ function LandingOrApp() {
   if (clerkFailed) return <AuthUnavailable />;
   if (loading) return <AuthLoading />;
   if (user) {
-    return <Navigate to={needsOnboarding ? "/onboarding" : "/dashboard"} replace />;
+    return <Navigate to={defaultDest(user, needsOnboarding)} replace />;
   }
   return <ExternalRedirect to={marketingUrl("/")} />;
 }
@@ -142,6 +142,15 @@ function LandingOrApp() {
 function platformRoleFor(user) {
   if (user?.platform_role) return user.platform_role;
   return user?.role === "admin" ? "platform_admin" : "user";
+}
+
+// Returns the correct post-login landing path for a user.
+// Admins bypass the claimant dashboard and land on the platform admin surface
+// — they are operators, not claimants.
+function defaultDest(user, needsOnboarding) {
+  if (needsOnboarding) return "/onboarding";
+  if (user?.role === "admin") return "/admin/platform";
+  return "/dashboard";
 }
 
 // Gates the new /admin/platform surface (see src/pages/AdminPlatform.jsx).
