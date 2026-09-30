@@ -5,6 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { FeatureGate } from "@/components/FeatureGate";
 import {
   Dialog,
@@ -218,7 +219,34 @@ export default function Profile() {
       .finally(() => setInvoicesLoading(false));
   }, [isPro, isCaseworker]);
 
-  if (loading) return <div className="kbd-label">Loading...</div>;
+  if (loading) {
+    return (
+      <div className="space-y-6" aria-busy="true" aria-label="Loading profile" data-testid="profile-page">
+        <div>
+          <Skeleton className="h-3 w-16 mb-2" />
+          <Skeleton className="h-12 w-56" />
+          <Skeleton className="h-4 w-80 mt-2" />
+        </div>
+        <div className="border border-border bg-card p-6 sm:p-8">
+          <div className="grid grid-cols-12 gap-4">
+            <div className="col-span-12 sm:col-span-6"><Skeleton className="h-3 w-20 mb-2" /><Skeleton className="h-10 w-full" /></div>
+            <div className="col-span-12 sm:col-span-2"><Skeleton className="h-3 w-6 mb-2" /><Skeleton className="h-10 w-full" /></div>
+            <div className="col-span-12 sm:col-span-4"><Skeleton className="h-3 w-20 mb-2" /><Skeleton className="h-10 w-full" /></div>
+            <div className="col-span-12 sm:col-span-4"><Skeleton className="h-3 w-24 mb-2" /><Skeleton className="h-10 w-full" /></div>
+            <div className="col-span-12 sm:col-span-4"><Skeleton className="h-3 w-12 mb-2" /><Skeleton className="h-10 w-full" /></div>
+            <div className="col-span-12 sm:col-span-4"><Skeleton className="h-3 w-20 mb-2" /><Skeleton className="h-10 w-full" /></div>
+            <div className="col-span-12 sm:col-span-8"><Skeleton className="h-3 w-16 mb-2" /><Skeleton className="h-10 w-full" /></div>
+            <div className="col-span-12 sm:col-span-4"><Skeleton className="h-3 w-10 mb-2" /><Skeleton className="h-10 w-full" /></div>
+            <div className="col-span-12 sm:col-span-2"><Skeleton className="h-3 w-10 mb-2" /><Skeleton className="h-10 w-full" /></div>
+            <div className="col-span-12 sm:col-span-2"><Skeleton className="h-3 w-8 mb-2" /><Skeleton className="h-10 w-full" /></div>
+          </div>
+          <div className="mt-6 flex">
+            <Skeleton className="h-10 w-28" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const fmtPeriodDate = (iso) => {
     if (!iso) return null;

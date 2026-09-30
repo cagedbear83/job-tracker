@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { api, formatApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import {
   Popover,
@@ -582,9 +583,28 @@ export default function AllContacts() {
 
       {/* Loading */}
       {loading && (
-        <div className="border border-border p-12 text-center text-muted-foreground">
-          <CircleNotchIcon size={24} className="animate-spin mx-auto mb-2 opacity-40" />
-          <p className="text-sm">Loading contacts…</p>
+        <div className="border border-border overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-secondary">
+                {["w-10","w-16","w-20","w-14","w-12","w-12"].map((w, i) => (
+                  <th key={i} className="px-4 py-2"><Skeleton className={`h-3 ${w}`} /></th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {[0, 1, 2, 3, 4].map((i) => (
+                <tr key={i} className="border-b border-border">
+                  <td className="px-4 py-2.5"><Skeleton className="h-4 w-20" /></td>
+                  <td className="px-4 py-2.5"><Skeleton className="h-4 w-36" /></td>
+                  <td className="px-4 py-2.5"><Skeleton className="h-4 w-28" /></td>
+                  <td className="px-4 py-2.5"><Skeleton className="h-4 w-16" /></td>
+                  <td className="px-4 py-2.5"><Skeleton className="h-4 w-20" /></td>
+                  <td className="px-4 py-2.5"><Skeleton className="h-4 w-24" /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 

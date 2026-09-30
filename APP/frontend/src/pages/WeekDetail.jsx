@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
 import { api, formatApiError, API, getValidToken } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { FeatureGate } from "@/components/FeatureGate";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -503,10 +504,43 @@ export default function WeekDetail() {
   // ── Loading / error states ─────────────────────────────────────────────────
   if (pageLoading) {
     return (
-      <div className="space-y-6" data-testid="week-detail-page">
-        <div className="flex items-center gap-3 text-muted-foreground py-24 justify-center">
-          <CircleNotchIcon size={20} weight="bold" className="animate-spin" />
-          <span className="kbd-label">Loading benefit week...</span>
+      <div className="space-y-6" aria-busy="true" aria-label="Loading benefit week" data-testid="week-detail-page">
+        <div className="flex items-end justify-between gap-4 flex-wrap">
+          <div>
+            <Skeleton className="h-3 w-16 mb-2" />
+            <Skeleton className="h-10 w-72" />
+            <Skeleton className="h-4 w-32 mt-2" />
+          </div>
+          <div className="flex gap-2">
+            <Skeleton className="h-9 w-16" />
+            <Skeleton className="h-9 w-40" />
+            <Skeleton className="h-9 w-48" />
+          </div>
+        </div>
+        <div className="border border-border bg-background">
+          <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+            <Skeleton className="h-4 w-36" />
+            <Skeleton className="h-8 w-24" />
+          </div>
+          <table className="w-full text-sm">
+            <tbody>
+              {[0, 1, 2, 3].map((i) => (
+                <tr key={i} className="border-b border-border">
+                  <td className="px-4 py-3"><Skeleton className="h-4 w-24" /></td>
+                  <td className="px-4 py-3"><Skeleton className="h-4 w-36" /></td>
+                  <td className="px-4 py-3"><Skeleton className="h-4 w-28" /></td>
+                  <td className="px-4 py-3"><Skeleton className="h-4 w-16" /></td>
+                  <td className="px-4 py-3"><Skeleton className="h-4 w-20" /></td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-1">
+                      <Skeleton className="h-7 w-16" />
+                      <Skeleton className="h-7 w-7" />
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     );
