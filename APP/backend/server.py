@@ -238,16 +238,11 @@ async def health_ready():
 
 app.include_router(api)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=allow_credentials,
-    allow_origins=allow_origins,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
 # ============== Security headers ==============
+# Registered first so CORSMiddleware (added next) is outermost — Starlette
+# applies middleware in reverse registration order, so the last add_middleware
+# call wraps everything. CORS must be outermost so its headers appear on error
+# responses that FastAPI's exception handlers emit before inner middleware runs.
 @app.middleware("http")
 async def security_headers(request: Request, call_next):
     response = await call_next(request)
@@ -258,3 +253,13 @@ async def security_headers(request: Request, call_next):
     if os.environ.get("ENABLE_HSTS", "false").lower() in ("1", "true", "yes"):
         response.headers.setdefault("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
     return response
+
+
+# CORSMiddleware added last = outermost wrapper = present on all responses.
+app.add_middleware(
+    CORSMiddleware,
+    allow_credentials=allow_credentials,
+    allow_origins=allow_origins,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
