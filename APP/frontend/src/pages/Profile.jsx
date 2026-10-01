@@ -160,7 +160,7 @@ export default function Profile() {
       await api.post("/sms/verify-otp", { claimant_id: profileId, code: otpCode });
       toast.success("Phone verified — SMS reminders enabled");
       setOtpStep(0);
-      await load();
+      await profileQuery.refetch();
     } catch (err) {
       toast.error(formatApiError(err));
     } finally {

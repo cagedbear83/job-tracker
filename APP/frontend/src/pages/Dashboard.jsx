@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
 import { Link } from "react-router-dom";
-import { api, formatApiError } from "@/lib/api";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -22,7 +22,6 @@ import {
   LockSimpleIcon,
   InfoIcon,
 } from "@phosphor-icons/react";
-import { toast } from "sonner";
 import {
   BarChart,
   Bar,

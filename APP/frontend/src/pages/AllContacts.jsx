@@ -20,7 +20,6 @@ import {
   CaretDownIcon,
   ArrowRightIcon,
   LockIcon,
-  CircleNotchIcon,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
 
@@ -147,7 +146,7 @@ export default function AllContacts() {
     queryKey: queryKeys.contacts.all(),
     queryFn:  () => api.get("/contacts/search").then(r => r.data),
   });
-  const allContacts = contactsQuery.data?.results ?? [];
+  const allContacts = useMemo(() => contactsQuery.data?.results ?? [], [contactsQuery.data]);
   const anyGated    = contactsQuery.data?.gated   ?? false;
   const loading     = contactsQuery.isLoading;
 
@@ -255,7 +254,7 @@ export default function AllContacts() {
     if (!name) return;
     setSavingView(true);
     try {
-      const { data: view } = await api.post("/saved-views", { name, filters });
+      await api.post("/saved-views", { name, filters });
       queryClient.invalidateQueries({ queryKey: ["savedViews"] });
       setSaveViewName("");
       toast.success(`View "${name}" saved`);
@@ -264,7 +263,7 @@ export default function AllContacts() {
     } finally {
       setSavingView(false);
     }
-  }, [saveViewName, filters]);
+  }, [saveViewName, filters, queryClient]);
 
   const deleteView = useCallback(async (viewId) => {
     try {
@@ -273,7 +272,7 @@ export default function AllContacts() {
     } catch (e) {
       toast.error(formatApiError(e));
     }
-  }, []);
+  }, [queryClient]);
 
   const filterCount = activeFilterCount(filters);
   const tagById = (id) => allTags.find((t) => t.id === id)?.name || id;

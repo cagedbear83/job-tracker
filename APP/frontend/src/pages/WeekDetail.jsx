@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
 import { useParams, Link } from "react-router-dom";
@@ -302,7 +302,7 @@ export default function WeekDetail() {
   });
 
   const week        = weekQuery.data ?? null;
-  const contacts    = contactsQuery.data ?? [];
+  const contacts    = useMemo(() => contactsQuery.data ?? [], [contactsQuery.data]);
   const allTags     = tagsQuery.data ?? [];
   const savedViews  = savedViewsQuery.data ?? [];
   const pageLoading = weekQuery.isLoading || contactsQuery.isLoading;
@@ -318,7 +318,7 @@ export default function WeekDetail() {
       toast.error(formatApiError(e));
       return null;
     }
-  }, []);
+  }, [queryClient]);
 
   // ── Facet counts (computed from full contact list, not filtered) ────────────
   const facets = useMemo(() => {
