@@ -416,21 +416,70 @@ export default function WeekDetail() {
       editing
         ? api.put(`/contacts/${editing.id}`, form).then(r => r.data)
         : api.post("/contacts", form).then(r => r.data),
-    onSuccess: (updated) => {
-      if (editing && updated?.benefit_week_id !== editing.benefit_week_id) {
-        toast.success("Contact moved — the date falls in a different benefit week, so it's been reassigned there.");
-      } else {
-        toast.success(editing ? "Contact updated" : "Contact added");
-      }
+
+    // ── Optimistic add (new contacts only) ────────────────────────────────────
+    // For edits we skip this — a contact can move to a different week on save,
+    // which is too complex to predict client-side. Edits keep the spinner path.
+    onMutate: async () => {
+      if (editing) return undefined; // no optimistic update for edits
+
+      // Cancel any in-flight refetches so they don't overwrite our optimistic row
+      await queryClient.cancelQueries({ queryKey: queryKeys.contacts.byWeek(id) });
+
+      // Snapshot current list for rollback
+      const previous = queryClient.getQueryData(queryKeys.contacts.byWeek(id));
+
+      // Insert a placeholder row that mirrors the real shape
+      const optimistic = {
+        id: `__optimistic__${Date.now()}`,
+        ...form,
+        tags: form.tags ?? [],
+        _optimistic: true,
+      };
+      queryClient.setQueryData(queryKeys.contacts.byWeek(id), (old) => [
+        ...(old ?? []),
+        optimistic,
+      ]);
+
+      // Close the dialog immediately — the row is already in the list
       setOpen(false);
+
+      return { previous };
+    },
+
+    onSuccess: (updated) => {
+      if (editing) {
+        // Edit path: server response determines whether the week changed
+        if (updated?.benefit_week_id !== editing.benefit_week_id) {
+          toast.success("Contact moved — the date falls in a different benefit week, so it's been reassigned there.");
+        } else {
+          toast.success("Contact updated");
+        }
+        setOpen(false);
+      } else {
+        toast.success("Contact added");
+        // Dialog already closed in onMutate; invalidation in onSettled will
+        // replace the optimistic row with the real server record
+      }
+    },
+
+    onError: (e, _, context) => {
+      // Roll back the optimistic row if the API call failed
+      if (context?.previous !== undefined) {
+        queryClient.setQueryData(queryKeys.contacts.byWeek(id), context.previous);
+        setOpen(true); // Reopen dialog so the user can try again
+      }
+      toast.error(formatApiError(e));
+    },
+
+    // Always re-sync from the server after success or error
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.contacts.byWeek(id) });
       queryClient.invalidateQueries({ queryKey: queryKeys.weeks.detail(id) });
-      // Also bust the all-weeks list so dashboard contact counts stay fresh
       queryClient.invalidateQueries({ queryKey: queryKeys.weeks.all() });
     },
-    onError: (e) => toast.error(formatApiError(e)),
   });
-  const saving = saveMutation.isPending;
+  const saving = saveMutation.isPending && !!editing; // spinner only on edits
   const save = () => saveMutation.mutate();
 
   const removeMutation = useMutation({
@@ -1141,7 +1190,11 @@ export default function WeekDetail() {
             {displayedContacts.map((c, i) => {
               const contactTags = allTags.filter((t) => (c.tags || []).includes(t.id));
               return (
-                <tr key={c.id} className="border-b border-border" data-testid={`contact-row-${c.id}`}>
+                <tr
+                  key={c.id}
+                  className={`border-b border-border transition-opacity ${c._optimistic ? "opacity-50 pointer-events-none" : ""}`}
+                  data-testid={`contact-row-${c.id}`}
+                >
                   <td className="font-mono-data text-muted-foreground">{i + 1}</td>
                   <td className="font-mono-data">{c.contact_date}</td>
                   <td>
