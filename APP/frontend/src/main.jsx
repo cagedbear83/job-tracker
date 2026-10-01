@@ -1,4 +1,6 @@
 import React from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import ReactDOM from "react-dom/client";
 import { ThemeProvider } from "next-themes";
 import { ClerkProvider } from "@clerk/clerk-react";
@@ -36,6 +38,17 @@ if (!PUBLISHABLE_KEY) {
   );
 }
 
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60_000,          // 60 s — data is fresh for a minute
+      gcTime:    5 * 60_000,      // 5 min — keep unused cache around
+      retry: 1,
+      refetchOnWindowFocus: true, // re-validate when the tab regains focus
+    },
+  },
+});
+
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
   <React.StrictMode>
@@ -61,7 +74,10 @@ root.render(
         afterSignOutUrl="/sign-in"
       >
         <ClerkTokenBridge />
-        <App />
+        <QueryClientProvider client={queryClient}>
+          <App />
+          <ReactQueryDevtools initialIsOpen={false} />
+        </QueryClientProvider>
       </ClerkProvider>
     </ThemeProvider>
   </React.StrictMode>,

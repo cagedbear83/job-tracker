@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
 import { useNavigate } from "react-router-dom";
 import { api, formatApiError } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -17,6 +19,7 @@ import {
 import { toast } from "sonner";
 import {
   FloppyDiskIcon,
+  CircleNotchIcon,
   EnvelopeSimpleIcon,
   DeviceMobile as DeviceMobileIcon,
   PaperPlaneTiltIcon,
@@ -77,39 +80,37 @@ export default function Profile() {
   const [smsVerified, setSmsVerified] = useState(false);
   const [smsPhone, setSmsPhone] = useState("");
   const [managedBy, setManagedBy] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
+  const queryClient = useQueryClient();
 
-  const load = () =>
-    api.get("/profile").then((r) => {
-      if (r.data) {
-        setForm({ ...blankForm(), ...r.data });
-        setProfileId(r.data.id || null);
-        setSmsVerified(Boolean(r.data.sms_verified));
-        setSmsPhone(r.data.sms_phone || "");
-        setManagedBy(r.data.managed_by || null);
-      }
-    });
+  const profileQuery = useQuery({
+    queryKey: queryKeys.profile.me(),
+    queryFn:  () => api.get("/profile").then(r => r.data),
+  });
+  const loading = profileQuery.isLoading;
 
+  // Populate controlled form when query data arrives (or refreshes)
   useEffect(() => {
-    load().finally(() => setLoading(false));
-  }, []);
+    const r = profileQuery.data;
+    if (!r) return;
+    setForm({ ...blankForm(), ...r });
+    setProfileId(r.id || null);
+    setSmsVerified(Boolean(r.sms_verified));
+    setSmsPhone(r.sms_phone || "");
+    setManagedBy(r.managed_by || null);
+  }, [profileQuery.data]);
 
   const setField = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
-  const save = async (e) => {
-    if (e?.preventDefault) e.preventDefault();
-    setBusy(true);
-    try {
-      await api.put("/profile", form);
+  const saveMutation = useMutation({
+    mutationFn: () => api.put("/profile", form),
+    onSuccess: () => {
       toast.success("Profile saved");
-      await load();
-    } catch (err) {
-      toast.error(formatApiError(err));
-    } finally {
-      setBusy(false);
-    }
-  };
+      queryClient.invalidateQueries({ queryKey: queryKeys.profile.me() });
+    },
+    onError: (err) => toast.error(formatApiError(err)),
+  });
+  const busy = saveMutation.isPending;
+  const save = (e) => { if (e?.preventDefault) e.preventDefault(); saveMutation.mutate(); };
 
   const openPortal = async () => {
     setPortalBusy(true);
@@ -296,8 +297,11 @@ export default function Profile() {
             className="rounded-none bg-primary hover:bg-primary/90"
             data-testid="profile-save-button"
           >
-            <FloppyDiskIcon size={16} weight="bold" className="mr-2" />{" "}
-            {busy ? "Saving..." : "Save Profile"}
+            {busy ? (
+              <><CircleNotchIcon size={16} weight="bold" className="mr-2 animate-spin" />Saving...</>
+            ) : (
+              <><FloppyDiskIcon size={16} weight="bold" className="mr-2" />Save Profile</>
+            )}
           </Button>
         </div>
       </form>
@@ -423,8 +427,11 @@ export default function Profile() {
             className="rounded-none bg-primary hover:bg-primary/90"
             data-testid="save-notifications-button"
           >
-            <FloppyDiskIcon size={16} weight="bold" className="mr-2" />
-            {busy ? "Saving..." : "Save notification settings"}
+            {busy ? (
+              <><CircleNotchIcon size={16} weight="bold" className="mr-2 animate-spin" />Saving...</>
+            ) : (
+              <><FloppyDiskIcon size={16} weight="bold" className="mr-2" />Save notification settings</>
+            )}
           </Button>
           <span className="kbd-label ml-2">Send test:</span>
           {["sunday", "wednesday", "friday", "saturday"].map((k) => (

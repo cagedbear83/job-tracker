@@ -1,4 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { api, formatApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -127,15 +129,12 @@ export default function AllContacts() {
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [filterOpen, setFilterOpen] = useState(false);
 
-  const [allTags, setAllTags] = useState([]);
-  const [savedViews, setSavedViews] = useState([]);
+  const queryClient = useQueryClient();
   const [saveViewName, setSaveViewName] = useState("");
   const [savingView, setSavingView] = useState(false);
 
   // allContacts holds the full unfiltered set from the server
-  const [allContacts, setAllContacts] = useState([]);
-  const [anyGated, setAnyGated] = useState(false);
-  const [loading, setLoading] = useState(true);
+
 
   // Sync URL query param as user types
   useEffect(() => {
@@ -143,19 +142,27 @@ export default function AllContacts() {
     setSearchParams(trimmed ? { q: trimmed } : {}, { replace: true });
   }, [inputQ, setSearchParams]);
 
-  // Load all contacts + supporting data on mount
-  useEffect(() => {
-    api.get("/tags").then((r) => setAllTags(r.data)).catch(() => {});
-    api.get("/saved-views").then((r) => setSavedViews(r.data)).catch(() => {});
+  // ─── Server data via TanStack Query ──────────────────────────────────────
+  const contactsQuery = useQuery({
+    queryKey: queryKeys.contacts.all(),
+    queryFn:  () => api.get("/contacts/search").then(r => r.data),
+  });
+  const allContacts = contactsQuery.data?.results ?? [];
+  const anyGated    = contactsQuery.data?.gated   ?? false;
+  const loading     = contactsQuery.isLoading;
 
-    api.get("/contacts/search")
-      .then(({ data }) => {
-        setAllContacts(data.results || []);
-        setAnyGated(data.gated || false);
-      })
-      .catch((e) => toast.error(formatApiError(e)))
-      .finally(() => setLoading(false));
-  }, []);
+  const tagsQuery = useQuery({
+    queryKey: ["tags"],
+    queryFn:  () => api.get("/tags").then(r => r.data),
+    staleTime: 5 * 60_000, // tags change infrequently
+  });
+  const allTags = tagsQuery.data ?? [];
+
+  const savedViewsQuery = useQuery({
+    queryKey: ["savedViews"],
+    queryFn:  () => api.get("/saved-views").then(r => r.data),
+  });
+  const savedViews = savedViewsQuery.data ?? [];
 
   // ─── Client-side filtering ─────────────────────────────────────────────────
   const displayedResults = useMemo(() => {
@@ -249,7 +256,7 @@ export default function AllContacts() {
     setSavingView(true);
     try {
       const { data: view } = await api.post("/saved-views", { name, filters });
-      setSavedViews((prev) => [...prev, view].sort((a, b) => a.name.localeCompare(b.name)));
+      queryClient.invalidateQueries({ queryKey: ["savedViews"] });
       setSaveViewName("");
       toast.success(`View "${name}" saved`);
     } catch (e) {
@@ -262,7 +269,7 @@ export default function AllContacts() {
   const deleteView = useCallback(async (viewId) => {
     try {
       await api.delete(`/saved-views/${viewId}`);
-      setSavedViews((prev) => prev.filter((v) => v.id !== viewId));
+      queryClient.invalidateQueries({ queryKey: ["savedViews"] });
     } catch (e) {
       toast.error(formatApiError(e));
     }

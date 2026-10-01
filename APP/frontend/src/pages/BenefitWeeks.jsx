@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
 import { Link } from "react-router-dom";
 import { api, formatApiError, API, getValidToken } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -39,6 +41,7 @@ import {
   ArrowRightIcon,
   DownloadSimpleIcon,
   InfoIcon,
+  CircleNotchIcon,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
 
@@ -103,8 +106,7 @@ function Th({ children, tooltip, className = "" }) {
 }
 
 export default function BenefitWeeks() {
-  const [loading, setLoading] = useState(true);
-  const [weeks, setWeeks] = useState([]);
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({
@@ -117,19 +119,6 @@ export default function BenefitWeeks() {
     worked_for_pay: null,
   });
 
-  const load = async () => {
-    try {
-      const { data } = await api.get("/benefit-weeks");
-      setWeeks(data);
-    } catch (e) {
-      toast.error(formatApiError(e));
-    } finally {
-      setLoading(false);
-    }
-  };
-  useEffect(() => {
-    load();
-  }, []);
 
   const onWeekStart = (val) => {
     setForm({ ...form, week_start: val, week_end: getSaturday(val) });
@@ -163,31 +152,35 @@ export default function BenefitWeeks() {
     setOpen(true);
   };
 
-  const save = async () => {
-    try {
-      if (editing) {
-        await api.put(`/benefit-weeks/${editing.id}`, form);
-        toast.success("Week updated");
-      } else {
-        await api.post("/benefit-weeks", form);
-        toast.success("Week created");
-      }
-      setOpen(false);
-      await load();
-    } catch (e) {
-      toast.error(formatApiError(e));
-    }
-  };
+  const weeksQuery = useQuery({
+    queryKey: queryKeys.weeks.all(),
+    queryFn:  () => api.get("/benefit-weeks").then(r => r.data),
+  });
+  const loading = weeksQuery.isLoading;
+  const weeks   = weeksQuery.data ?? [];
 
-  const remove = async (id) => {
-    try {
-      await api.delete(`/benefit-weeks/${id}`);
+  const saveMutation = useMutation({
+    mutationFn: () =>
+      editing
+        ? api.put(`/benefit-weeks/${editing.id}`, form)
+        : api.post("/benefit-weeks", form),
+    onSuccess: () => {
+      toast.success(editing ? "Week updated" : "Week created");
+      setOpen(false);
+      queryClient.invalidateQueries({ queryKey: queryKeys.weeks.all() });
+    },
+    onError: (e) => toast.error(formatApiError(e)),
+  });
+  const saving = saveMutation.isPending;
+
+  const removeMutation = useMutation({
+    mutationFn: (id) => api.delete(`/benefit-weeks/${id}`),
+    onSuccess: () => {
       toast.success("Week deleted");
-      await load();
-    } catch (e) {
-      toast.error(formatApiError(e));
-    }
-  };
+      queryClient.invalidateQueries({ queryKey: queryKeys.weeks.all() });
+    },
+    onError: (e) => toast.error(formatApiError(e)),
+  });
 
   const exportAll = async () => {
     try {
@@ -360,10 +353,15 @@ export default function BenefitWeeks() {
                 </Button>
                 <Button
                   className="rounded-none bg-primary hover:bg-primary/90"
-                  onClick={save}
+                  onClick={() => saveMutation.mutate()}
+                  disabled={saving}
                   data-testid="week-save-button"
                 >
-                  Save
+                  {saving ? (
+                    <><CircleNotchIcon size={16} weight="bold" className="mr-2 animate-spin" />Saving...</>
+                  ) : (
+                    "Save"
+                  )}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -492,7 +490,7 @@ export default function BenefitWeeks() {
                             </AlertDialogCancel>
                             <AlertDialogAction
                               className="rounded-none bg-[#DC2626] hover:bg-destructive/90"
-                              onClick={() => remove(w.id)}
+                              onClick={() => removeMutation.mutate(w.id)}
                               data-testid={`confirm-delete-week-${w.id}`}
                             >
                               Delete

@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
 import { Link } from "react-router-dom";
 import { api, formatApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -135,41 +137,26 @@ export default function Dashboard() {
   const { show } = useUpgradeModal();
   const canAnalytics = hasFeature("advanced_analytics");
 
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState(null);
-  const [weeks, setWeeks] = useState([]);
-  const [trend, setTrend] = useState([]);
   const [range, setRange] = useState(12);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const [d, w] = await Promise.all([
-          api.get("/dashboard"),
-          api.get("/benefit-weeks"),
-        ]);
-        setStats(d.data);
-        setWeeks(w.data);
-      } catch (err) {
-        toast.error(formatApiError(err));
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
+  const statsQuery = useQuery({
+    queryKey: queryKeys.dashboard.stats(),
+    queryFn:  () => Promise.all([
+      api.get("/dashboard"),
+      api.get("/benefit-weeks"),
+    ]).then(([d, w]) => ({ stats: d.data, weeks: w.data })),
+  });
 
-  useEffect(() => {
-    // Advanced analytics is a paid feature — skip the request entirely on the
-    // free tier (the backend would return 402) and show a locked card instead.
-    if (!canAnalytics) {
-      setTrend([]);
-      return;
-    }
-    api
-      .get(`/dashboard/trend?weeks=${range}`)
-      .then((r) => setTrend(r.data))
-      .catch(() => {});
-  }, [range, canAnalytics]);
+  const trendQuery = useQuery({
+    queryKey: queryKeys.dashboard.trend(range),
+    queryFn:  () => api.get(`/dashboard/trend?weeks=${range}`).then(r => r.data),
+    enabled:  canAnalytics,
+  });
+
+  const loading = statsQuery.isLoading;
+  const stats   = statsQuery.data?.stats ?? null;
+  const weeks   = statsQuery.data?.weeks ?? [];
+  const trend   = trendQuery.data ?? [];
 
   if (loading) {
     return <DashboardSkeleton />;

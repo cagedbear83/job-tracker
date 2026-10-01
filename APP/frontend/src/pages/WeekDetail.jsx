@@ -1,4 +1,6 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
 import { useParams, Link } from "react-router-dom";
 import { api, formatApiError, API, getValidToken } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -269,16 +271,10 @@ function countTagsUsage(contacts) {
 // ─────────────────────────────────────────────────────────────────────────────
 export default function WeekDetail() {
   const { id } = useParams();
-  const [week, setWeek] = useState(null);
-  const [contacts, setContacts] = useState([]);
-  const [allTags, setAllTags] = useState([]);
-  const [savedViews, setSavedViews] = useState([]);
-  const [pageLoading, setPageLoading] = useState(true);
-  const [pageError, setPageError] = useState("");
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(blank(id));
-  const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [downloadingCsv, setDownloadingCsv] = useState(false);
@@ -287,41 +283,36 @@ export default function WeekDetail() {
   const [saveViewName, setSaveViewName] = useState("");
   const [savingView, setSavingView] = useState(false);
 
-  const load = async () => {
-    setPageError("");
-    try {
-      const [w, c, t, v] = await Promise.all([
-        api.get(`/benefit-weeks/${id}`),
-        api.get(`/contacts?week_id=${id}`),
-        api.get("/tags"),
-        api.get("/saved-views"),
-      ]);
-      setWeek(w.data);
-      setContacts(c.data);
-      setAllTags(t.data);
-      setSavedViews(v.data);
-    } catch (e) {
-      setPageError(formatApiError(e));
-      toast.error(formatApiError(e));
-    } finally {
-      setPageLoading(false);
-    }
-  };
+  const weekQuery = useQuery({
+    queryKey: queryKeys.weeks.detail(id),
+    queryFn:  () => api.get(`/benefit-weeks/${id}`).then(r => r.data),
+  });
+  const contactsQuery = useQuery({
+    queryKey: queryKeys.contacts.byWeek(id),
+    queryFn:  () => api.get(`/contacts?week_id=${id}`).then(r => r.data),
+  });
+  const tagsQuery = useQuery({
+    queryKey: ["tags"],
+    queryFn:  () => api.get("/tags").then(r => r.data),
+    staleTime: 5 * 60_000,
+  });
+  const savedViewsQuery = useQuery({
+    queryKey: ["savedViews"],
+    queryFn:  () => api.get("/saved-views").then(r => r.data),
+  });
 
-  useEffect(() => {
-    setPageLoading(true);
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+  const week        = weekQuery.data ?? null;
+  const contacts    = contactsQuery.data ?? [];
+  const allTags     = tagsQuery.data ?? [];
+  const savedViews  = savedViewsQuery.data ?? [];
+  const pageLoading = weekQuery.isLoading || contactsQuery.isLoading;
+  const pageError   = weekQuery.isError ? formatApiError(weekQuery.error) : "";
 
   // ── Tag management ──────────────────────────────────────────────────────────
   const createTag = useCallback(async (name) => {
     try {
       const { data } = await api.post("/tags", { name });
-      setAllTags((prev) => {
-        if (prev.find((t) => t.id === data.id)) return prev;
-        return [...prev, data].sort((a, b) => a.name.localeCompare(b.name));
-      });
+      queryClient.invalidateQueries({ queryKey: ["tags"] });
       return data;
     } catch (e) {
       toast.error(formatApiError(e));
@@ -388,7 +379,7 @@ export default function WeekDetail() {
           date_to: filters.date_to,
         },
       });
-      setSavedViews((prev) => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
+      queryClient.invalidateQueries({ queryKey: ["savedViews"] });
       setSaveViewName("");
       toast.success(`View "${data.name}" saved`);
     } catch (e) {
@@ -401,7 +392,7 @@ export default function WeekDetail() {
   const deleteView = async (viewId, viewName) => {
     try {
       await api.delete(`/saved-views/${viewId}`);
-      setSavedViews((prev) => prev.filter((v) => v.id !== viewId));
+      queryClient.invalidateQueries({ queryKey: ["savedViews"] });
       toast.success(`View "${viewName}" deleted`);
     } catch (e) {
       toast.error(formatApiError(e));
@@ -420,41 +411,40 @@ export default function WeekDetail() {
     setOpen(true);
   };
 
-  const save = async () => {
-    setSaving(true);
-    try {
-      if (editing) {
-        const { data: updated } = await api.put(`/contacts/${editing.id}`, form);
-        if (updated.benefit_week_id !== editing.benefit_week_id) {
-          toast.success("Contact moved — the date falls in a different benefit week, so it's been reassigned there.");
-        } else {
-          toast.success("Contact updated");
-        }
+  const saveMutation = useMutation({
+    mutationFn: () =>
+      editing
+        ? api.put(`/contacts/${editing.id}`, form).then(r => r.data)
+        : api.post("/contacts", form).then(r => r.data),
+    onSuccess: (updated) => {
+      if (editing && updated?.benefit_week_id !== editing.benefit_week_id) {
+        toast.success("Contact moved — the date falls in a different benefit week, so it's been reassigned there.");
       } else {
-        await api.post("/contacts", form);
-        toast.success("Contact added");
+        toast.success(editing ? "Contact updated" : "Contact added");
       }
       setOpen(false);
-      await load();
-    } catch (e) {
-      toast.error(formatApiError(e));
-    } finally {
-      setSaving(false);
-    }
-  };
+      queryClient.invalidateQueries({ queryKey: queryKeys.contacts.byWeek(id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.weeks.detail(id) });
+      // Also bust the all-weeks list so dashboard contact counts stay fresh
+      queryClient.invalidateQueries({ queryKey: queryKeys.weeks.all() });
+    },
+    onError: (e) => toast.error(formatApiError(e)),
+  });
+  const saving = saveMutation.isPending;
+  const save = () => saveMutation.mutate();
 
-  const remove = async (cid) => {
-    setDeletingId(cid);
-    try {
-      await api.delete(`/contacts/${cid}`);
+  const removeMutation = useMutation({
+    mutationFn: (cid) => api.delete(`/contacts/${cid}`),
+    onSuccess: () => {
       toast.success("Contact deleted");
-      await load();
-    } catch (e) {
-      toast.error(formatApiError(e));
-    } finally {
       setDeletingId(null);
-    }
-  };
+      queryClient.invalidateQueries({ queryKey: queryKeys.contacts.byWeek(id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.weeks.detail(id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.weeks.all() });
+    },
+    onError: (e) => { setDeletingId(null); toast.error(formatApiError(e)); },
+  });
+  const remove = (cid) => { setDeletingId(cid); removeMutation.mutate(cid); };
 
   const downloadPdf = async () => {
     setDownloadingPdf(true);
@@ -561,7 +551,7 @@ export default function WeekDetail() {
             <Button
               variant="outline"
               className="rounded-none border-destructive/30 text-destructive hover:bg-red-100"
-              onClick={() => { setPageLoading(true); load(); }}
+              onClick={() => { weekQuery.refetch(); contactsQuery.refetch(); }}
             >
               Try Again
             </Button>
