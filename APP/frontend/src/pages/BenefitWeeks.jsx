@@ -42,6 +42,7 @@ import {
   DownloadSimpleIcon,
   InfoIcon,
   CircleNotchIcon,
+  CalendarBlankIcon,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
 
@@ -109,6 +110,7 @@ export default function BenefitWeeks() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [formErrors, setFormErrors] = useState({});
   const [form, setForm] = useState({
     week_start: getSunday(),
     week_end: getSaturday(getSunday()),
@@ -126,6 +128,7 @@ export default function BenefitWeeks() {
 
   const openNew = () => {
     setEditing(null);
+    setFormErrors({});
     setForm({
       week_start: getSunday(),
       week_end: getSaturday(getSunday()),
@@ -140,6 +143,7 @@ export default function BenefitWeeks() {
 
   const openEdit = (w) => {
     setEditing(w);
+    setFormErrors({});
     setForm({
       week_start: w.week_start,
       week_end: w.week_end,
@@ -158,6 +162,16 @@ export default function BenefitWeeks() {
   });
   const loading = weeksQuery.isLoading;
   const weeks   = weeksQuery.data ?? [];
+
+  const save = () => {
+    const e = {};
+    if (form.able_to_work === null) e.able_to_work = "Required";
+    if (form.available_for_work === null) e.available_for_work = "Required";
+    if (form.worked_for_pay === null) e.worked_for_pay = "Required";
+    if (Object.keys(e).length) { setFormErrors(e); return; }
+    setFormErrors({});
+    saveMutation.mutate();
+  };
 
   const saveMutation = useMutation({
     mutationFn: () =>
@@ -309,6 +323,9 @@ export default function BenefitWeeks() {
                       </div>
                     </div>
                   ))}
+                  {(formErrors.able_to_work || formErrors.available_for_work || formErrors.worked_for_pay) && (
+                    <p className="text-xs text-destructive pt-1">Please answer all three questions above.</p>
+                  )}
                 </div>
 
                 {/* Notes */}
@@ -351,7 +368,7 @@ export default function BenefitWeeks() {
                 </Button>
                 <Button
                   className="rounded-none bg-primary hover:bg-primary/90"
-                  onClick={() => saveMutation.mutate()}
+                  onClick={save}
                   disabled={saving}
                   data-testid="week-save-button"
                 >
@@ -392,10 +409,26 @@ export default function BenefitWeeks() {
                   <TableRowSkeleton />
                 </>
               )}
-              {!loading && weeks.length === 0 && (
+                            {!loading && weeks.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="text-center text-muted-foreground py-12">
-                    No weeks yet — click "New Benefit Week".
+                  <td colSpan={6} className="py-16">
+                    <div className="flex flex-col items-center justify-center text-center gap-3">
+                      <CalendarBlankIcon size={32} weight="light" className="text-muted-foreground opacity-60" />
+                      <div>
+                        <p className="text-sm font-semibold text-muted-foreground">No benefit weeks yet</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Add your first week to start tracking your work-search contacts.
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        className="rounded-none bg-primary hover:bg-primary/90 mt-1"
+                        onClick={openNew}
+                      >
+                        <PlusIcon size={14} weight="bold" className="mr-2" />
+                        Add Benefit Week
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               )}
@@ -404,6 +437,18 @@ export default function BenefitWeeks() {
                   key={w.id}
                   className="border-b border-border"
                   data-testid={`week-row-${w.id}`}
+                  onMouseEnter={() => {
+                    queryClient.prefetchQuery({
+                      queryKey: queryKeys.weeks.detail(w.id),
+                      queryFn: () => api.get(`/benefit-weeks/${w.id}`).then(r => r.data),
+                      staleTime: 60_000,
+                    });
+                    queryClient.prefetchQuery({
+                      queryKey: queryKeys.contacts.byWeek(w.id),
+                      queryFn: () => api.get(`/contacts?week_id=${w.id}`).then(r => r.data),
+                      staleTime: 60_000,
+                    });
+                  }}
                 >
                   <td className="font-mono-data font-semibold">
                     {w.week_start} → {w.week_end}

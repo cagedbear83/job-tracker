@@ -274,6 +274,7 @@ export default function WeekDetail() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [formErrors, setFormErrors] = useState({});
   const [form, setForm] = useState(blank(id));
   const [deletingId, setDeletingId] = useState(null);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
@@ -402,11 +403,13 @@ export default function WeekDetail() {
   // ── Dialog helpers ──────────────────────────────────────────────────────────
   const openNew = () => {
     setEditing(null);
+    setFormErrors({});
     setForm(blank(id));
     setOpen(true);
   };
   const openEdit = (c) => {
     setEditing(c);
+    setFormErrors({});
     setForm({ ...c, tags: c.tags || [] });
     setOpen(true);
   };
@@ -481,7 +484,13 @@ export default function WeekDetail() {
     },
   });
   const saving = saveMutation.isPending && !!editing; // spinner only on edits
-  const save = () => saveMutation.mutate();
+  const save = () => {
+    const e = {};
+    if (!form.employer_name?.trim()) e.employer_name = "Employer name is required";
+    if (Object.keys(e).length) { setFormErrors(e); return; }
+    setFormErrors({});
+    saveMutation.mutate();
+  };
 
   const removeMutation = useMutation({
     mutationFn: (cid) => api.delete(`/contacts/${cid}`),
@@ -726,10 +735,11 @@ export default function WeekDetail() {
                   <Label className="kbd-label">Employer Name</Label>
                   <Input
                     value={form.employer_name}
-                    onChange={(e) => setForm({ ...form, employer_name: e.target.value })}
-                    className="rounded-none mt-2"
+                    onChange={(e) => { setForm({ ...form, employer_name: e.target.value }); if (formErrors.employer_name) setFormErrors({}); }}
+                    className={`rounded-none mt-2${formErrors.employer_name ? " border-destructive" : ""}`}
                     data-testid="contact-employer-input"
                   />
+                  {formErrors.employer_name && <p className="text-xs text-destructive mt-1">{formErrors.employer_name}</p>}
                 </div>
                 <div className="col-span-12">
                   <Label className="kbd-label">Employer Address</Label>

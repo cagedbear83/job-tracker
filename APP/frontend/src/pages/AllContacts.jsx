@@ -616,15 +616,28 @@ export default function AllContacts() {
 
       {/* Empty states */}
       {!loading && allContacts.length === 0 && (
-        <div className="border border-border p-12 text-center text-muted-foreground">
-          <MagnifyingGlassIcon size={32} className="mx-auto mb-3 opacity-30" />
-          <p className="text-sm">No contacts yet. Add your first work-search contact from a benefit week.</p>
+        <div className="border border-border py-16 flex flex-col items-center gap-3 text-center">
+          <MagnifyingGlassIcon size={32} className="text-muted-foreground opacity-40" />
+          <div>
+            <p className="text-sm font-semibold text-muted-foreground">No contacts yet</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Work-search contacts are logged from a benefit week.{" "}
+              <Link to="/weeks" className="underline underline-offset-2 hover:text-foreground transition-colors">
+                Go to Benefit Weeks
+              </Link>{" "}
+              to get started.
+            </p>
+          </div>
         </div>
       )}
 
       {!loading && allContacts.length > 0 && displayedResults.length === 0 && (
-        <div className="border border-border p-12 text-center text-muted-foreground">
-          <p className="text-sm">No contacts match your search.</p>
+        <div className="border border-border py-12 flex flex-col items-center gap-3 text-center">
+          <FunnelIcon size={24} weight="light" className="text-muted-foreground opacity-50" />
+          <p className="text-sm text-muted-foreground">No contacts match your search or filters.</p>
+          <Button size="sm" variant="ghost" className="rounded-none text-xs" onClick={() => { setInputQ(""); setFilters(EMPTY_FILTERS); }}>
+            Clear search &amp; filters
+          </Button>
         </div>
       )}
 
