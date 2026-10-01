@@ -1,6 +1,8 @@
 import React from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
+import { toast } from "sonner";
+import { formatApiError } from "@/lib/api";
 import ReactDOM from "react-dom/client";
 import { ThemeProvider } from "next-themes";
 import { ClerkProvider } from "@clerk/clerk-react";
@@ -39,6 +41,24 @@ if (!PUBLISHABLE_KEY) {
 }
 
 const queryClient = new QueryClient({
+  // ── Global error handlers ────────────────────────────────────────────────
+  queryCache: new QueryCache({
+    onError: (error, query) => {
+      // Only toast on first-load failures (no cached data yet).
+      // Background refetch failures are silent — the stale data stays visible.
+      if (query.state.data === undefined) {
+        toast.error(formatApiError(error));
+      }
+    },
+  }),
+  mutationCache: new MutationCache({
+    onError: (error, _variables, _context, mutation) => {
+      // Mutations that handle their own error UI set meta.suppressGlobalError.
+      // Everything else gets a toast here so no onError boilerplate is needed.
+      if (mutation.meta?.suppressGlobalError) return;
+      toast.error(formatApiError(error));
+    },
+  }),
   defaultOptions: {
     queries: {
       staleTime: 60_000,          // 60 s — data is fresh for a minute

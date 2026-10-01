@@ -107,7 +107,6 @@ export default function Profile() {
       toast.success("Profile saved");
       queryClient.invalidateQueries({ queryKey: queryKeys.profile.me() });
     },
-    onError: (err) => toast.error(formatApiError(err)),
   });
   const busy = saveMutation.isPending;
   const save = (e) => { if (e?.preventDefault) e.preventDefault(); saveMutation.mutate(); };

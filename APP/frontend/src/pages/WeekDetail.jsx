@@ -412,6 +412,7 @@ export default function WeekDetail() {
   };
 
   const saveMutation = useMutation({
+    meta: { suppressGlobalError: true }, // onError below handles its own toast
     mutationFn: () =>
       editing
         ? api.put(`/contacts/${editing.id}`, form).then(r => r.data)
@@ -491,7 +492,7 @@ export default function WeekDetail() {
       queryClient.invalidateQueries({ queryKey: queryKeys.weeks.detail(id) });
       queryClient.invalidateQueries({ queryKey: queryKeys.weeks.all() });
     },
-    onError: (e) => { setDeletingId(null); toast.error(formatApiError(e)); },
+    onError: () => { setDeletingId(null); }, // global MutationCache.onError handles the toast
   });
   const remove = (cid) => { setDeletingId(cid); removeMutation.mutate(cid); };
 

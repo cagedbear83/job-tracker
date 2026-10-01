@@ -169,7 +169,6 @@ export default function BenefitWeeks() {
       setOpen(false);
       queryClient.invalidateQueries({ queryKey: queryKeys.weeks.all() });
     },
-    onError: (e) => toast.error(formatApiError(e)),
   });
   const saving = saveMutation.isPending;
 
@@ -179,7 +178,6 @@ export default function BenefitWeeks() {
       toast.success("Week deleted");
       queryClient.invalidateQueries({ queryKey: queryKeys.weeks.all() });
     },
-    onError: (e) => toast.error(formatApiError(e)),
   });
 
   const exportAll = async () => {
