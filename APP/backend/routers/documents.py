@@ -8,7 +8,7 @@ import io
 import magic as _magic          # python-magic: validates actual file bytes
 from PIL import Image, ImageOps
 from pypdf import PdfReader, PdfWriter
-from pypdf.errors import PdfReadError
+from pypdf.errors import PdfReadError, PyPdfError
 
 
 router = APIRouter()
@@ -56,7 +56,7 @@ def _compress_pdf(raw: bytes) -> bytes:
         compressed = buf.getvalue()
         # Only use the compressed version if it's actually smaller
         return compressed if len(compressed) < len(raw) else raw
-    except PdfReadError as exc:
+    except PyPdfError as exc:
         raise HTTPException(
             status_code=422,
             detail=f"Invalid or corrupt PDF: {exc}",

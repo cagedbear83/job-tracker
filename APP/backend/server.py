@@ -236,6 +236,27 @@ async def health_ready():
         return JSONResponse(status_code=503, content={"status": "not ready", "mongo": "error"})
 
 
+# ============== Global exception handler ==============
+# Catches any unhandled exception and returns a JSONResponse with a 500 status.
+# Because this runs inside ExceptionMiddleware (which sits inside CORSMiddleware),
+# the resulting JSONResponse still flows through CORS middleware and gets the
+# Access-Control-Allow-Origin header — unlike an exception that propagates all
+# the way to Starlette's outermost ServerErrorMiddleware, which generates a bare
+# 500 with no CORS headers.
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logging.error(
+        "Unhandled exception on %s %s",
+        request.method,
+        request.url.path,
+        exc_info=exc,
+    )
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "An unexpected error occurred. Please try again."},
+    )
+
+
 app.include_router(api)
 
 # ============== Security headers ==============
