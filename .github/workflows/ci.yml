@@ -59,6 +59,10 @@ jobs:
       # Production is the default (app_env.py); CI runs without the
       # production-only checks such as required CLERK_AUTHORIZED_PARTIES.
       APP_ENV: test
+      # test_platform.py: the stub-minted session for this address becomes the
+      # admin, and webhook tests sign with this key.
+      ADMIN_EMAILS: ci-admin@example.com
+      MAILGUN_WEBHOOK_SIGNING_KEY: ci-mailgun-signing-key
       RATE_LIMIT_ENABLED: "false"
       REACT_APP_BACKEND_URL: http://localhost:8001
     defaults:
@@ -101,10 +105,39 @@ jobs:
       # dashboard with no external services. Rounds 2-4 require live Mailgun/
       # Twilio/Gemini and are run manually until those are mocked.
       - name: Run backend tests
-        run: pytest tests/backend_test.py tests/test_hardening.py -v
+        run: pytest tests/backend_test.py tests/test_hardening.py tests/test_platform.py -v
       - name: Backend logs on failure
         if: failure()
         run: cat /tmp/backend.log || true
       - name: Clerk stub logs on failure
         if: failure()
         run: cat /tmp/clerk_stub.log || true
+
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Backend (pip-audit, all of requirements.txt)
+        working-directory: APP/backend
+        run: |
+          pip install pip-audit
+          pip-audit -r requirements.txt --progress-spinner off
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Frontend (yarn audit, shipped dependencies, high and critical)
+        working-directory: APP/frontend
+        # yarn's exit code is a bitmask of the severities found:
+        # 8 = high, 16 = critical. Fail on those; report moderate and below.
+        run: |
+          set +e
+          yarn audit --groups dependencies --summary
+          code=$?
+          if [ $(( code & 24 )) -ne 0 ]; then
+            echo "High or critical advisories in shipped frontend dependencies"
+            exit 1
+          fi
