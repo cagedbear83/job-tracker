@@ -78,6 +78,12 @@ async def on_startup():
     await db.trial_ledger.create_index("card_hash")
     # contact_date is queried by the 53-week retention job
     await db.contacts.create_index("contact_date")
+    # Mailgun webhook replay guard (core._claim_mailgun_webhook_token): one
+    # row per token, kept twice as long as the accepted timestamp window.
+    await db.mailgun_webhook_tokens.create_index("token", unique=True)
+    await db.mailgun_webhook_tokens.create_index(
+        "seen_at", expireAfterSeconds=MAILGUN_WEBHOOK_MAX_AGE_SECONDS * 2
+    )
 
     # password_resets, refresh_tokens and invites are all retired collections —
     # Clerk owns password reset, session refresh, and invitations now, so none

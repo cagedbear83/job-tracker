@@ -1197,7 +1197,7 @@ async def _parse_mailgun_webhook(request: Request) -> dict:
     return payload
 
 
-def _verify_mailgun_signature(payload: dict):
+def _verify_mailgun_signature(payload: dict) -> str:
     signature_payload = payload.get("signature", {})
     if isinstance(signature_payload, str):
         try:
@@ -1242,6 +1242,29 @@ def _verify_mailgun_signature(payload: dict):
     ).hexdigest()
     if not hmac.compare_digest(expected, str(signature)):
         raise HTTPException(status_code=403, detail="Invalid Mailgun webhook signature")
+    return str(token)
+
+
+async def _claim_mailgun_webhook_token(token: str) -> None:
+    """Accept each signed Mailgun token once.
+
+    The timestamp check limits a replay to MAILGUN_WEBHOOK_MAX_AGE_SECONDS;
+    this closes that window too. Mailgun generates a fresh random token per
+    request, so a token we have already seen means a resent capture. Called
+    only after the signature verifies, so nobody can burn tokens in advance.
+
+    The unique index on `token` makes this atomic across workers, and the
+    TTL index (both created in server.py at startup) drops rows once they are
+    older than any timestamp the check above would still accept.
+    """
+    from pymongo.errors import DuplicateKeyError
+
+    try:
+        await db.mailgun_webhook_tokens.insert_one(
+            {"token": token, "seen_at": datetime.now(timezone.utc)}
+        )
+    except DuplicateKeyError:
+        raise HTTPException(status_code=403, detail="Mailgun webhook already processed")
 
 
 # ============== Bulk Invite (Admin) ==============

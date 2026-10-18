@@ -347,6 +347,16 @@ def test_mailgun_bounce_disables_reminders(mdb):
     assert mdb.email_events.find_one({"type": "email.bounced", "to": [bounce]})
 
 
+@pytest.mark.skipif(not os.environ.get("MAILGUN_WEBHOOK_SIGNING_KEY"), reason="MAILGUN_WEBHOOK_SIGNING_KEY not configured")
+def test_mailgun_webhook_replay_rejected():
+    """A validly signed request is accepted once; resending it is refused."""
+    body = _signed("email.delivered", f"ci-replay-{uuid.uuid4().hex[:8]}@example.com")
+    first = requests.post(f"{API}/webhooks/mailgun", json=body, timeout=30)
+    assert first.status_code == 200, first.text
+    again = requests.post(f"{API}/webhooks/mailgun", json=body, timeout=30)
+    assert again.status_code == 403 and "already processed" in again.text
+
+
 @needs_admin
 def test_admin_email_events_list(AH):
     r = requests.get(f"{API}/admin/email-events", headers=AH, timeout=30)

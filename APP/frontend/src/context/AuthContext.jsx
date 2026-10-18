@@ -37,6 +37,13 @@ const LOGOUT_BROADCAST_KEY = "ijt_logout_at";
  *
  *  4. Server revocation  – /auth/me returns 4xx → user set to null → route
  *     guards redirect to /sign-in automatically.
+ *
+ * One 4xx is handled differently: a 403 from /auth/me means Clerk signed the
+ * person in, but the backend won't link the session to an account until the
+ * email is verified (clerk_auth.get_or_create_user). Redirecting to /sign-in
+ * would loop, because Clerk sees a live session and sends them straight back.
+ * Instead `accountBlocked` carries the server's message and the route guards
+ * show <AccountBlocked> with a way to verify, retry, or sign out.
  */
 export function AuthProvider({ children }) {
   const { isLoaded: clerkLoaded, isSignedIn, signOut } = useClerkAuth();
@@ -44,6 +51,7 @@ export function AuthProvider({ children }) {
 
   const [user, setUser]               = useState(null);
   const [loading, setLoading]         = useState(true);
+  const [accountBlocked, setAccountBlocked] = useState(null);
   const [clerkTimedOut, setClerkTimedOut] = useState(false);
 
   // ─── Clerk timeout (unchanged) ──────────────────────────────────────────
@@ -93,10 +101,27 @@ export function AuthProvider({ children }) {
   }, [signOut]);
 
   // ─── User hydration ──────────────────────────────────────────────────────
+  // Returns the server's message for a 403 from /auth/me, otherwise null.
+  const blockedDetail = (err) =>
+    err?.response?.status === 403
+      ? err.response.data?.detail || "Your account needs attention before you can continue."
+      : null;
+
   const refreshUser = useCallback(async () => {
-    const { data } = await api.get("/auth/me");
-    setUser(data);
-    return data;
+    try {
+      const { data } = await api.get("/auth/me");
+      setUser(data);
+      setAccountBlocked(null);
+      return data;
+    } catch (err) {
+      const detail = blockedDetail(err);
+      if (detail) {
+        setUser(null);
+        setAccountBlocked(detail);
+        return null;
+      }
+      throw err;
+    }
   }, []);
 
   useEffect(() => {
@@ -104,6 +129,7 @@ export function AuthProvider({ children }) {
 
     if (!isSignedIn) {
       setUser(null);
+      setAccountBlocked(null);
       setLoading(false);
       return undefined;
     }
@@ -113,9 +139,15 @@ export function AuthProvider({ children }) {
     (async () => {
       try {
         const { data } = await api.get("/auth/me");
-        if (!cancelled) setUser(data);
-      } catch {
-        if (!cancelled) setUser(null);
+        if (!cancelled) {
+          setUser(data);
+          setAccountBlocked(null);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setUser(null);
+          setAccountBlocked(blockedDetail(err));
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -134,6 +166,7 @@ export function AuthProvider({ children }) {
     localStorage.setItem(LOGOUT_BROADCAST_KEY, String(Date.now()));
 
     setUser(null);
+    setAccountBlocked(null);
     await signOut();
   }, [signOut]);
 
@@ -143,6 +176,7 @@ export function AuthProvider({ children }) {
         user,
         loading: (!clerkLoaded || loading) && !clerkTimedOut,
         clerkFailed: clerkTimedOut && !clerkLoaded,
+        accountBlocked,
         logout,
         refreshUser,
         needsOnboarding: Boolean(user?.needs_onboarding),
