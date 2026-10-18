@@ -4,7 +4,7 @@
 # UploadFile, Request, the response classes), the Pydantic models, config,
 # db, and the public helpers.
 from core import *  # noqa: F401,F403
-from core import _parse_mailgun_webhook, _verify_mailgun_signature
+from core import _claim_mailgun_webhook_token, _parse_mailgun_webhook, _verify_mailgun_signature
 
 router = APIRouter()
 
@@ -13,7 +13,8 @@ router = APIRouter()
 @router.post("/webhooks/mailgun")
 async def mailgun_webhook(request: Request):
     payload = await _parse_mailgun_webhook(request)
-    _verify_mailgun_signature(payload)
+    token = _verify_mailgun_signature(payload)
+    await _claim_mailgun_webhook_token(token)
     data = payload.get("data") or {}
     if isinstance(data, str):
         try:

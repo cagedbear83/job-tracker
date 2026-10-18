@@ -1,6 +1,7 @@
 import "@/App.css";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { useClerk } from "@clerk/clerk-react";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { Toaster } from "@/components/ui/sonner";
@@ -83,6 +84,78 @@ function AuthUnavailable() {
   );
 }
 
+/**
+ * Shown when Clerk signed the person in but the backend refused to link the
+ * session (a 403 from /auth/me: today, an email Clerk hasn't verified yet).
+ * Sending them to /sign-in instead would loop: Clerk sees a live session and
+ * redirects straight back.
+ */
+function AccountBlocked() {
+  const { accountBlocked, refreshUser, logout } = useAuth();
+  const { openUserProfile } = useClerk();
+  const [checking, setChecking] = useState(false);
+  const [stillBlocked, setStillBlocked] = useState(false);
+
+  const retry = async () => {
+    setChecking(true);
+    setStillBlocked(false);
+    try {
+      const u = await refreshUser();
+      if (!u) setStillBlocked(true);
+    } catch {
+      setStillBlocked(true);
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background p-8">
+      <div className="w-full max-w-lg">
+        <div className="brand-bar w-20 mb-4" />
+        <div className="kbd-label">One more step</div>
+        <h1 className="font-display font-black text-2xl tracking-tighter mt-1">
+          Verify your email to continue
+        </h1>
+        <p className="text-sm text-muted-foreground mt-3 leading-relaxed">
+          {accountBlocked} Open your account settings to send a new
+          verification code, then come back and select I&apos;ve verified.
+        </p>
+        {stillBlocked && (
+          <p role="status" className="text-sm mt-3 font-semibold">
+            We still can&apos;t see a verified email on your account. It can take
+            a minute after you enter the code.
+          </p>
+        )}
+        <div className="mt-6 flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={() => openUserProfile()}
+            className="bg-primary text-primary-foreground px-4 py-2 text-sm font-semibold hover:bg-primary-hover"
+          >
+            Verify email
+          </button>
+          <button
+            type="button"
+            onClick={retry}
+            disabled={checking}
+            className="border border-border px-4 py-2 text-sm font-semibold hover:border-primary hover:text-primary disabled:opacity-60"
+          >
+            {checking ? "Checking…" : "I've verified"}
+          </button>
+          <button
+            type="button"
+            onClick={logout}
+            className="px-4 py-2 text-sm font-semibold text-muted-foreground hover:text-primary"
+          >
+            Sign out
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** Full-page loading state used by the route guards. */
 function AuthLoading() {
   return (
@@ -93,9 +166,10 @@ function AuthLoading() {
 }
 
 function Protected({ children }) {
-  const { user, loading, needsOnboarding, clerkFailed } = useAuth();
+  const { user, loading, needsOnboarding, clerkFailed, accountBlocked } = useAuth();
   if (clerkFailed) return <AuthUnavailable />;
   if (loading) return <AuthLoading />;
+  if (accountBlocked) return <AccountBlocked />;
   if (!user) return <Navigate to="/sign-in" replace />;
   // Clerk created the account but the claimant profile doesn't exist yet —
   // registration used to collect it in the same step.
@@ -104,9 +178,10 @@ function Protected({ children }) {
 }
 
 function PublicOnly({ children }) {
-  const { user, loading, needsOnboarding, clerkFailed } = useAuth();
+  const { user, loading, needsOnboarding, clerkFailed, accountBlocked } = useAuth();
   if (clerkFailed) return <AuthUnavailable />;
   if (loading) return <AuthLoading />;
+  if (accountBlocked) return <AccountBlocked />;
   if (user) {
     return <Navigate to={defaultDest(user, needsOnboarding)} replace />;
   }
@@ -116,9 +191,10 @@ function PublicOnly({ children }) {
 // Signed in, but deliberately reachable before onboarding is finished —
 // Protected would bounce this route back to itself.
 function RequiresAccount({ children }) {
-  const { user, loading, clerkFailed } = useAuth();
+  const { user, loading, clerkFailed, accountBlocked } = useAuth();
   if (clerkFailed) return <AuthUnavailable />;
   if (loading) return <AuthLoading />;
+  if (accountBlocked) return <AccountBlocked />;
   if (!user) return <Navigate to="/sign-in" replace />;
   return <PublicChrome>{children}</PublicChrome>;
 }
@@ -127,9 +203,10 @@ function RequiresAccount({ children }) {
 // second one competing with it for the same content and search results. Signed-
 // in visitors still land straight on their dashboard.
 function LandingOrApp() {
-  const { user, loading, needsOnboarding, clerkFailed } = useAuth();
+  const { user, loading, needsOnboarding, clerkFailed, accountBlocked } = useAuth();
   if (clerkFailed) return <AuthUnavailable />;
   if (loading) return <AuthLoading />;
+  if (accountBlocked) return <AccountBlocked />;
   if (user) {
     return <Navigate to={defaultDest(user, needsOnboarding)} replace />;
   }
