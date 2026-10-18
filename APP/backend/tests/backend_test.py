@@ -381,6 +381,31 @@ def test_csv_import(H, week_id):
     assert r.json()["inserted"] == 2
 
 
+def test_csv_export_neutralizes_formulas(H, week_id):
+    """F3: text that a spreadsheet would run as a formula must export as text."""
+    import csv as _csv
+
+    payloads = ["=1+2", "+SUM(A1:A2)", "-2+3", "@SUM(A1)", '=HYPERLINK("https://example.com","x")']
+    buf = io.StringIO()
+    w = _csv.writer(buf)
+    w.writerow(["date", "employer", "position", "result"])
+    for p in payloads:
+        w.writerow(["2026-01-08", p, p, "Applied"])
+    files = {"file": ("formulas.csv", buf.getvalue().encode(), "text/csv")}
+    r = requests.post(f"{API}/import/csv", headers=H, files=files, data={"week_id": week_id}, timeout=30)
+    assert r.status_code == 200, r.text
+
+    r = requests.get(f"{API}/contacts/export.csv", params={"week_id": week_id}, headers=H, timeout=30)
+    assert r.status_code == 200, r.text
+    assert r.headers["content-disposition"] == f'attachment; filename="contacts_{week_id}.csv"'
+    rows = list(_csv.DictReader(io.StringIO(r.text)))
+    exported = {row["employer_name"] for row in rows}
+    for p in payloads:
+        assert "'" + p in exported, f"{p!r} was not neutralized"
+    # Ordinary values are untouched.
+    assert "TEST_CsvCo" in exported
+
+
 # ---- screenshot endpoint exists (no real call) ----
 def test_screenshot_no_auth():
     r = requests.post(f"{API}/import/screenshot", timeout=30)

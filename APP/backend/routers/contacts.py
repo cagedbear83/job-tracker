@@ -357,6 +357,29 @@ async def search_contacts(
 
 
 # ============== CSV Export ==============
+# Leading characters that Excel, Google Sheets and LibreOffice treat as the
+# start of a formula (OWASP "CSV Injection"). Tab and CR are included because
+# some spreadsheet apps strip them and then evaluate what follows.
+_CSV_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _csv_safe(value):
+    """Neutralize a cell so a spreadsheet shows it as text, never runs it.
+
+    Contact fields arrive from CSV imports and screenshot OCR, so text like
+    =HYPERLINK("https://evil.example","Click") can reach this export. Case
+    workers and claimants open these files in Excel, where that would run as
+    a live formula. A leading apostrophe makes Excel display the value as
+    plain text; the apostrophe itself is not shown in the cell.
+
+    Escaped here, at the export, rather than on import: this covers every
+    path text can enter by, including data stored before this fix.
+    """
+    if isinstance(value, str) and value.startswith(_CSV_FORMULA_PREFIXES):
+        return "'" + value
+    return value
+
+
 @router.get("/contacts/export.csv")
 async def export_contacts_csv(
     week_id: Optional[str] = None, user=Depends(get_current_user)
@@ -382,12 +405,15 @@ async def export_contacts_csv(
     writer = csv.DictWriter(buf, fieldnames=fields, extrasaction="ignore")
     writer.writeheader()
     for c in contacts:
-        writer.writerow(c)
+        writer.writerow({k: _csv_safe(c.get(k)) for k in fields})
     buf.seek(0)
     await log_audit(user["id"], "EXPORT_CSV", "contact", week_id, f"Exported {len(contacts)} contacts to CSV")
-    fname = f"contacts_{week_id or 'all'}.csv"
+    # week_id comes from the query string; keep only filename-safe characters
+    # so it cannot break or inject into the Content-Disposition header.
+    safe_week = _re.sub(r"[^A-Za-z0-9_-]", "", week_id or "")[:64] or "all"
+    fname = f"contacts_{safe_week}.csv"
     return StreamingResponse(
         io.BytesIO(buf.getvalue().encode()),
         media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={fname}"},
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
     )
