@@ -75,7 +75,7 @@ def _jwks() -> dict:
 
 
 def mint_token(issuer: str, email: str, name: str = "", ttl: int = 3600,
-               fva_minutes: int = 0) -> dict:
+               fva_minutes: int = 0, email_verified: bool = True) -> dict:
     """Create a signed session token and register the matching user."""
     clerk_id = f"user_{uuid.uuid4().hex[:24]}"
     first, _, last = name.partition(" ")
@@ -87,7 +87,16 @@ def mint_token(issuer: str, email: str, name: str = "", ttl: int = 3600,
         "username": None,
         "primary_email_address_id": "idn_primary",
         "email_addresses": [
-            {"id": "idn_primary", "email_address": email},
+            {
+                "id": "idn_primary",
+                "email_address": email,
+                # Same shape as Clerk's EmailAddress.verification. Read by
+                # clerk_auth._primary_email_verified to set email_verified.
+                "verification": {
+                    "status": "verified" if email_verified else "unverified",
+                    "strategy": "email_code",
+                },
+            },
         ],
         "public_metadata": {},
     }
@@ -144,6 +153,7 @@ class Handler(BaseHTTPRequestHandler):
             email=body.get("email") or f"test-{uuid.uuid4().hex[:8]}@example.com",
             name=body.get("name", "Test User"),
             fva_minutes=body.get("fva_minutes", 0),
+            email_verified=bool(body.get("email_verified", True)),
         )
         return self._send(200, result)
 

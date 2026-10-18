@@ -24,15 +24,18 @@ routers reference user["id"] — and gains a `clerk_id` that maps it to Clerk.
 
 from __future__ import annotations
 
+import logging
 import os
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import jwt
 import requests
 from fastapi import HTTPException, Request
 from jwt import PyJWKClient
+
+logger = logging.getLogger(__name__)
 
 # ── Configuration ────────────────────────────────────────────────────────
 # CLERK_ISSUER is the Frontend API origin, e.g.
@@ -64,6 +67,13 @@ ADMIN_EMAILS = {
     for e in (os.environ.get("ADMIN_EMAILS") or "").split(",")
     if e.strip()
 }
+
+# How often to re-ask Clerk about an address that was NOT verified the last
+# time we looked. Verified is terminal, so a verified user is never re-checked;
+# an unverified one costs at most one Clerk API call per this many hours.
+EMAIL_VERIFIED_RECHECK_HOURS = int(
+    os.environ.get("EMAIL_VERIFIED_RECHECK_HOURS", "24")
+)
 
 if not CLERK_ISSUER:
     raise RuntimeError(
@@ -250,16 +260,89 @@ def fetch_clerk_user(clerk_user_id: str) -> dict:
     return _clerk_request("GET", f"/users/{clerk_user_id}")
 
 
+def _primary_address(clerk_user: dict) -> dict:
+    """The primary email-address object off a Clerk user record.
+
+    Falls back to the first address when the primary id is missing or does
+    not match, and to {} when the user has no addresses at all.
+    """
+    addrs = clerk_user.get("email_addresses") or []
+    primary_id = clerk_user.get("primary_email_address_id")
+    for addr in addrs:
+        if addr.get("id") == primary_id:
+            return addr
+    return addrs[0] if addrs else {}
+
+
 def _primary_email(clerk_user: dict) -> str:
     """Best-effort primary email address off a Clerk user record."""
-    primary_id = clerk_user.get("primary_email_address_id")
-    for addr in clerk_user.get("email_addresses") or []:
-        if addr.get("id") == primary_id:
-            return (addr.get("email_address") or "").lower()
-    addrs = clerk_user.get("email_addresses") or []
-    if addrs:
-        return (addrs[0].get("email_address") or "").lower()
-    return ""
+    return (_primary_address(clerk_user).get("email_address") or "").lower()
+
+
+def _primary_email_verified(clerk_user: dict) -> bool:
+    """True only when Clerk reports the primary address as verified.
+
+    Every reminder sender in core.py (_send_user_reminder and both calendar
+    reminder jobs) skips users whose `email_verified` is falsy. Before the
+    Clerk migration the old /auth/verify-email endpoint set that flag; after
+    it, nothing did, so every Clerk-provisioned account silently stopped
+    receiving reminders. This is now the single source for that flag.
+
+    Fails closed: a missing or unexpected verification object counts as
+    unverified, so we never email an address Clerk has not confirmed.
+    """
+    verification = _primary_address(clerk_user).get("verification") or {}
+    return verification.get("status") == "verified"
+
+
+def _verification_fields(clerk_user: dict) -> dict:
+    """The two user-doc fields that record Clerk's verification verdict."""
+    return {
+        "email_verified": _primary_email_verified(clerk_user),
+        "email_verified_checked_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+def _needs_verification_check(user: dict) -> bool:
+    """Whether an existing user doc should re-ask Clerk about verification.
+
+    Verified is terminal. Otherwise re-check when the field has never been
+    set (every Clerk-era account created before this fix) or when the last
+    check is older than EMAIL_VERIFIED_RECHECK_HOURS, which picks up users who
+    verify after their first sign-in.
+    """
+    if user.get("email_verified") is True:
+        return False
+    checked_at = user.get("email_verified_checked_at")
+    if not checked_at:
+        return True
+    try:
+        last = datetime.fromisoformat(checked_at)
+    except (TypeError, ValueError):
+        return True
+    if last.tzinfo is None:
+        last = last.replace(tzinfo=timezone.utc)
+    return datetime.now(timezone.utc) - last >= timedelta(
+        hours=EMAIL_VERIFIED_RECHECK_HOURS
+    )
+
+
+async def _refresh_email_verified(db, user: dict) -> None:
+    """Re-read verification from Clerk and persist it onto `user` in place.
+
+    Never raises: a Clerk outage must not turn into a 401/502 on an
+    otherwise valid session. The check simply runs again on a later request.
+    """
+    try:
+        clerk_user = fetch_clerk_user(user["clerk_id"])
+    except Exception as e:  # HTTPException(502) from _clerk_request, network errors
+        logger.warning(
+            "email_verified refresh failed for user %s: %s", user.get("id"), e
+        )
+        return
+    fields = _verification_fields(clerk_user)
+    await db.users.update_one({"id": user["id"]}, {"$set": fields})
+    user.update(fields)
 
 
 def _display_name(clerk_user: dict, fallback_email: str) -> str:
@@ -275,6 +358,18 @@ def _display_name(clerk_user: dict, fallback_email: str) -> str:
 
 
 # ── Provisioning ─────────────────────────────────────────────────────────
+def _unverified_email_error() -> HTTPException:
+    """403 for a session whose email must be verified before we can link it.
+
+    The detail is user-facing: the frontend drops the session on any 4xx
+    from /auth/me, and this tells the person what to do next.
+    """
+    return HTTPException(
+        status_code=403,
+        detail="Verify your email address to finish signing in.",
+    )
+
+
 async def get_or_create_user(db, claims: dict) -> dict:
     """Map a verified Clerk session to this app's Mongo user document.
 
@@ -292,10 +387,17 @@ async def get_or_create_user(db, claims: dict) -> dict:
 
     user = await db.users.find_one({"clerk_id": clerk_id}, {"_id": 0, "password_hash": 0})
     if user:
+        # Heals accounts provisioned before email_verified was recorded, and
+        # catches users who verify after their first sign-in. At most one
+        # Clerk call per user per EMAIL_VERIFIED_RECHECK_HOURS; none once
+        # verified.
+        if _needs_verification_check(user):
+            await _refresh_email_verified(db, user)
         return user
 
     clerk_user = fetch_clerk_user(clerk_id)
     email = _primary_email(clerk_user)
+    email_verified = _primary_email_verified(clerk_user)
 
     # An account may already exist from before the Clerk migration, or from an
     # invitation that pre-seeded a record. Adopt it by email rather than
@@ -303,7 +405,20 @@ async def get_or_create_user(db, claims: dict) -> dict:
     if email:
         existing = await db.users.find_one({"email": email}, {"_id": 0})
         if existing:
-            updates = {"clerk_id": clerk_id}
+            # Adoption hands this Clerk account everything the existing row
+            # owns: claimant profiles, benefit weeks, documents, and admin if
+            # the email is in ADMIN_EMAILS. Matching on email is only safe
+            # once Clerk has proven the caller controls that address. Clerk
+            # normally enforces that at sign-up, but that is a dashboard
+            # setting; this check keeps the backend from depending on it.
+            #
+            # Refuse rather than provision a second user: users.email is a
+            # unique index, and a duplicate would orphan the real records.
+            # Nothing is written, so the next request after verification
+            # adopts normally.
+            if not email_verified:
+                raise _unverified_email_error()
+            updates = {"clerk_id": clerk_id, **_verification_fields(clerk_user)}
             # Bootstrap admin on adoption too, so listing an email in
             # ADMIN_EMAILS works whether or not the row predates Clerk.
             if email in ADMIN_EMAILS and existing.get("role") != "admin":
@@ -317,6 +432,13 @@ async def get_or_create_user(db, claims: dict) -> dict:
             existing.update(updates)
             return existing
 
+    # ADMIN_EMAILS grants platform admin on first sign-in, so it gets the same
+    # proof-of-ownership requirement as adoption. Refusing (instead of
+    # creating a plain user) matters: the clerk_id lookup above returns early
+    # on every later request, so a row created now would never be promoted.
+    if email and email in ADMIN_EMAILS and not email_verified:
+        raise _unverified_email_error()
+
     now = datetime.now(timezone.utc).isoformat()
     is_admin = bool(email) and email in ADMIN_EMAILS
     user_doc = {
@@ -329,6 +451,8 @@ async def get_or_create_user(db, claims: dict) -> dict:
         "role": "admin" if is_admin else "user",
         "platform_role": "platform_admin" if is_admin else "user",
         "created_at": now,
+        # Reminder emails are gated on this (see _primary_email_verified).
+        **_verification_fields(clerk_user),
     }
 
     # Invitation metadata, if this account came in through one. Clerk copies

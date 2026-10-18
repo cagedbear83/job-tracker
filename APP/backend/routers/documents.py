@@ -95,6 +95,10 @@ async def upload_document(
         seats = max(1, int(sub_doc.get("seats", 1))) if sub_doc else 1
         storage_mb = storage_mb * seats
 
+    # Before reading the upload: an invalid claimant should fail fast and
+    # cheaply, not after the file has been read and compressed.
+    claimant_id = await require_owned_claimant(user["id"], claimant_id)
+
     if file.content_type not in DOC_MIME_ALLOWLIST:
         raise HTTPException(
             status_code=415,

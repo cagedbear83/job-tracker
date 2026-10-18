@@ -61,6 +61,101 @@ def test_auth_me_provisions_user(H, session):
     assert data["needs_onboarding"] is True
 
 
+def _db():
+    """Direct Mongo handle for asserting on fields the API does not expose."""
+    from pymongo import MongoClient
+
+    url = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
+    return MongoClient(url)[os.environ.get("DB_NAME", "ci_test_db")]
+
+
+def test_provisioning_records_verified_email(H, session):
+    """F1: reminders are gated on users.email_verified, so provisioning must set it.
+
+    Runs after test_auth_me_provisions_user, which created the row.
+    """
+    users = _db().users
+    u = users.find_one({"clerk_id": session["clerk_id"]})
+    assert u is not None
+    assert u["email_verified"] is True
+    assert u.get("email_verified_checked_at")
+
+    # An account provisioned before this fix has no email_verified at all.
+    # The next authenticated request must heal it from Clerk.
+    users.update_one(
+        {"clerk_id": session["clerk_id"]},
+        {"$unset": {"email_verified": "", "email_verified_checked_at": ""}},
+    )
+    r = requests.get(f"{API}/auth/me", headers=H, timeout=30)
+    assert r.status_code == 200, r.text
+    assert users.find_one({"clerk_id": session["clerk_id"]})["email_verified"] is True
+
+
+def test_provisioning_records_unverified_email():
+    """An address Clerk has not verified must not be marked verified."""
+    r = requests.post(
+        f"{CLERK_STUB}/__test__/token",
+        json={
+            "email": f"ci-unverified-{uuid.uuid4().hex[:10]}@example.com",
+            "email_verified": False,
+        },
+        timeout=30,
+    )
+    assert r.status_code == 200, r.text
+    minted = r.json()
+    r = requests.get(
+        f"{API}/auth/me",
+        headers={"Authorization": f"Bearer {minted['token']}"},
+        timeout=30,
+    )
+    assert r.status_code == 200, r.text
+    u = _db().users.find_one({"clerk_id": minted["clerk_id"]})
+    assert u["email_verified"] is False
+
+
+def _mint(email, verified=True):
+    r = requests.post(
+        f"{CLERK_STUB}/__test__/token",
+        json={"email": email, "email_verified": verified},
+        timeout=30,
+    )
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def _me(minted):
+    return requests.get(
+        f"{API}/auth/me",
+        headers={"Authorization": f"Bearer {minted['token']}"},
+        timeout=30,
+    )
+
+
+def test_adoption_requires_verified_email():
+    """F4: a Clerk account may only take over an existing row by email once
+    Clerk has verified that email. The stub gives every mint a new clerk_id,
+    so a second mint for the same address exercises the adoption path."""
+    email = f"ci-adopt-{uuid.uuid4().hex[:10]}@example.com"
+    original = _mint(email)
+    r = _me(original)
+    assert r.status_code == 200, r.text
+    original_id = r.json()["id"]
+
+    # Same email, unverified: refused, and the row is left alone.
+    r = _me(_mint(email, verified=False))
+    assert r.status_code == 403, r.text
+    row = _db().users.find_one({"email": email})
+    assert row["clerk_id"] == original["clerk_id"]
+    assert _db().users.count_documents({"email": email}) == 1
+
+    # Same email, verified: adopted, same local user id.
+    newcomer = _mint(email)
+    r = _me(newcomer)
+    assert r.status_code == 200, r.text
+    assert r.json()["id"] == original_id
+    assert _db().users.find_one({"email": email})["clerk_id"] == newcomer["clerk_id"]
+
+
 def test_auth_me_no_token():
     r = requests.get(f"{API}/auth/me", timeout=30)
     assert r.status_code == 401
@@ -132,6 +227,83 @@ def test_onboarding_creates_claimant_profile(H):
 
     me = requests.get(f"{API}/auth/me", headers=H, timeout=30)
     assert me.json()["needs_onboarding"] is False
+
+
+def _paid_user_with_claimant():
+    """A fresh user on an active Pro subscription, with one claimant profile.
+
+    Calendar events and document storage are paid features, so the
+    ownership checks behind them are only reachable on a paid tier. The
+    subscription row is written straight to Mongo; billing is not under test.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    minted = _mint(f"ci-owner-{uuid.uuid4().hex[:10]}@example.com")
+    h = {"Authorization": f"Bearer {minted['token']}"}
+    r = requests.post(
+        f"{API}/auth/onboarding",
+        json={
+            "first_name": "Owner", "last_name": "Check", "phone": "(312) 555-0101",
+            "sms_opt_in": False, "dob": "1990-01-01", "address": "1 N State St",
+            "city": "Chicago", "zip": "60602", "knows_next_cert_date": "na",
+        },
+        headers=h, timeout=30,
+    )
+    assert r.status_code == 200, r.text
+    profile_id = r.json()["id"]
+    user_id = r.json()["user_id"]
+    _db().subscriptions.update_one(
+        {"user_id": user_id},
+        {"$set": {
+            "user_id": user_id, "tier": "pro", "status": "active",
+            "current_period_end": datetime.now(timezone.utc) + timedelta(days=30),
+        }},
+        upsert=True,
+    )
+    return h, profile_id
+
+
+def test_calendar_event_rejects_foreign_claimant(H):
+    """F2: a calendar event may only reference the caller's own claimant.
+
+    The reminder jobs email the linked profile's reminder_email, so another
+    account's profile id here would redirect reminders to that claimant.
+    """
+    h, own_profile = _paid_user_with_claimant()
+    # H belongs to the shared session user; its claimant is someone else's.
+    foreign_profile = requests.get(f"{API}/profile", headers=H, timeout=30).json()["id"]
+    event = {"event_date": "2030-01-07", "event_type": "other", "title": "x"}
+
+    r = requests.post(f"{API}/calendar-events", json={**event, "claimant_id": foreign_profile}, headers=h, timeout=30)
+    assert r.status_code == 404, r.text
+    r = requests.post(f"{API}/calendar-events", json={**event, "claimant_id": str(uuid.uuid4())}, headers=h, timeout=30)
+    assert r.status_code == 404, r.text
+
+    r = requests.post(f"{API}/calendar-events", json={**event, "claimant_id": own_profile}, headers=h, timeout=30)
+    assert r.status_code == 201, r.text
+    eid = r.json()["id"]
+    r = requests.post(f"{API}/calendar-events", json=event, headers=h, timeout=30)
+    assert r.status_code == 201, r.text
+
+    # Updates are checked the same way.
+    r = requests.put(f"{API}/calendar-events/{eid}", json={**event, "claimant_id": foreign_profile}, headers=h, timeout=30)
+    assert r.status_code == 404, r.text
+    stored = _db().calendar_events.find_one({"id": eid})
+    assert stored["claimant_id"] == own_profile
+
+
+def test_document_upload_rejects_foreign_claimant(H):
+    """F2: document uploads may only be filed under the caller's own claimant."""
+    h, _ = _paid_user_with_claimant()
+    foreign_profile = requests.get(f"{API}/profile", headers=H, timeout=30).json()["id"]
+    r = requests.post(
+        f"{API}/documents/upload",
+        headers=h,
+        data={"title": "x", "claimant_id": foreign_profile},
+        files={"file": ("x.pdf", b"%PDF-1.4 not really", "application/pdf")},
+        timeout=30,
+    )
+    assert r.status_code == 404, r.text
 
 
 # ---- profile ----
@@ -207,6 +379,31 @@ def test_csv_import(H, week_id):
     r = requests.post(f"{API}/import/csv", headers=H, files=files, data=data, timeout=30)
     assert r.status_code == 200, r.text
     assert r.json()["inserted"] == 2
+
+
+def test_csv_export_neutralizes_formulas(H, week_id):
+    """F3: text that a spreadsheet would run as a formula must export as text."""
+    import csv as _csv
+
+    payloads = ["=1+2", "+SUM(A1:A2)", "-2+3", "@SUM(A1)", '=HYPERLINK("https://example.com","x")']
+    buf = io.StringIO()
+    w = _csv.writer(buf)
+    w.writerow(["date", "employer", "position", "result"])
+    for p in payloads:
+        w.writerow(["2026-01-08", p, p, "Applied"])
+    files = {"file": ("formulas.csv", buf.getvalue().encode(), "text/csv")}
+    r = requests.post(f"{API}/import/csv", headers=H, files=files, data={"week_id": week_id}, timeout=30)
+    assert r.status_code == 200, r.text
+
+    r = requests.get(f"{API}/contacts/export.csv", params={"week_id": week_id}, headers=H, timeout=30)
+    assert r.status_code == 200, r.text
+    assert r.headers["content-disposition"] == f'attachment; filename="contacts_{week_id}.csv"'
+    rows = list(_csv.DictReader(io.StringIO(r.text)))
+    exported = {row["employer_name"] for row in rows}
+    for p in payloads:
+        assert "'" + p in exported, f"{p!r} was not neutralized"
+    # Ordinary values are untouched.
+    assert "TEST_CsvCo" in exported
 
 
 # ---- screenshot endpoint exists (no real call) ----
