@@ -61,6 +61,101 @@ def test_auth_me_provisions_user(H, session):
     assert data["needs_onboarding"] is True
 
 
+def _db():
+    """Direct Mongo handle for asserting on fields the API does not expose."""
+    from pymongo import MongoClient
+
+    url = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
+    return MongoClient(url)[os.environ.get("DB_NAME", "ci_test_db")]
+
+
+def test_provisioning_records_verified_email(H, session):
+    """F1: reminders are gated on users.email_verified, so provisioning must set it.
+
+    Runs after test_auth_me_provisions_user, which created the row.
+    """
+    users = _db().users
+    u = users.find_one({"clerk_id": session["clerk_id"]})
+    assert u is not None
+    assert u["email_verified"] is True
+    assert u.get("email_verified_checked_at")
+
+    # An account provisioned before this fix has no email_verified at all.
+    # The next authenticated request must heal it from Clerk.
+    users.update_one(
+        {"clerk_id": session["clerk_id"]},
+        {"$unset": {"email_verified": "", "email_verified_checked_at": ""}},
+    )
+    r = requests.get(f"{API}/auth/me", headers=H, timeout=30)
+    assert r.status_code == 200, r.text
+    assert users.find_one({"clerk_id": session["clerk_id"]})["email_verified"] is True
+
+
+def test_provisioning_records_unverified_email():
+    """An address Clerk has not verified must not be marked verified."""
+    r = requests.post(
+        f"{CLERK_STUB}/__test__/token",
+        json={
+            "email": f"ci-unverified-{uuid.uuid4().hex[:10]}@example.com",
+            "email_verified": False,
+        },
+        timeout=30,
+    )
+    assert r.status_code == 200, r.text
+    minted = r.json()
+    r = requests.get(
+        f"{API}/auth/me",
+        headers={"Authorization": f"Bearer {minted['token']}"},
+        timeout=30,
+    )
+    assert r.status_code == 200, r.text
+    u = _db().users.find_one({"clerk_id": minted["clerk_id"]})
+    assert u["email_verified"] is False
+
+
+def _mint(email, verified=True):
+    r = requests.post(
+        f"{CLERK_STUB}/__test__/token",
+        json={"email": email, "email_verified": verified},
+        timeout=30,
+    )
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def _me(minted):
+    return requests.get(
+        f"{API}/auth/me",
+        headers={"Authorization": f"Bearer {minted['token']}"},
+        timeout=30,
+    )
+
+
+def test_adoption_requires_verified_email():
+    """F4: a Clerk account may only take over an existing row by email once
+    Clerk has verified that email. The stub gives every mint a new clerk_id,
+    so a second mint for the same address exercises the adoption path."""
+    email = f"ci-adopt-{uuid.uuid4().hex[:10]}@example.com"
+    original = _mint(email)
+    r = _me(original)
+    assert r.status_code == 200, r.text
+    original_id = r.json()["id"]
+
+    # Same email, unverified: refused, and the row is left alone.
+    r = _me(_mint(email, verified=False))
+    assert r.status_code == 403, r.text
+    row = _db().users.find_one({"email": email})
+    assert row["clerk_id"] == original["clerk_id"]
+    assert _db().users.count_documents({"email": email}) == 1
+
+    # Same email, verified: adopted, same local user id.
+    newcomer = _mint(email)
+    r = _me(newcomer)
+    assert r.status_code == 200, r.text
+    assert r.json()["id"] == original_id
+    assert _db().users.find_one({"email": email})["clerk_id"] == newcomer["clerk_id"]
+
+
 def test_auth_me_no_token():
     r = requests.get(f"{API}/auth/me", timeout=30)
     assert r.status_code == 401
