@@ -213,7 +213,7 @@ async def serve_document(did: str, user=Depends(get_current_user)):
     return StreamingResponse(
         io.BytesIO(raw),
         media_type=content_type,
-        headers={"Content-Disposition": f"inline; filename={filename}"},
+        headers={"Content-Disposition": content_disposition("inline", filename, "document")},
     )
 
 

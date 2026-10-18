@@ -35,6 +35,8 @@ import requests
 from fastapi import HTTPException, Request
 from jwt import PyJWKClient
 
+from app_env import IS_PRODUCTION
+
 logger = logging.getLogger(__name__)
 
 # ── Configuration ────────────────────────────────────────────────────────
@@ -46,9 +48,10 @@ CLERK_ISSUER = (os.environ.get("CLERK_ISSUER") or "").rstrip("/")
 CLERK_SECRET_KEY = os.environ.get("CLERK_SECRET_KEY")
 CLERK_API_BASE = os.environ.get("CLERK_API_BASE", "https://api.clerk.com/v1")
 
-# Optional hardening: Clerk puts the requesting origin in `azp`. Pinning it
-# stops a token minted for some other site on the same Clerk instance from
-# being replayed here. Comma-separated; empty disables the check.
+# Clerk puts the requesting origin in `azp`. Pinning it stops a token minted
+# for some other site on the same Clerk instance from being replayed here.
+# Comma-separated. Required in production (checked below); empty disables the
+# check in development and test.
 CLERK_AUTHORIZED_PARTIES = [
     p.strip()
     for p in (os.environ.get("CLERK_AUTHORIZED_PARTIES") or "").split(",")
@@ -91,6 +94,13 @@ if not CLERK_ISSUER.startswith(("http://", "https://")):
     )
 if not CLERK_SECRET_KEY:
     raise RuntimeError("CLERK_SECRET_KEY environment variable is required")
+if IS_PRODUCTION and not CLERK_AUTHORIZED_PARTIES:
+    raise RuntimeError(
+        "CLERK_AUTHORIZED_PARTIES is required in production: the frontend "
+        "origin(s) allowed to use session tokens, comma-separated, e.g. "
+        "https://illinoisjobtracker.app. Set APP_ENV=development (or test) "
+        "to run without it locally."
+    )
 
 
 # ── Token verification ───────────────────────────────────────────────────
@@ -207,8 +217,9 @@ def verify_session_token(token: str) -> dict:
         raise HTTPException(status_code=401, detail="Could not verify session")
 
     if CLERK_AUTHORIZED_PARTIES:
-        azp = claims.get("azp")
-        if azp and azp not in CLERK_AUTHORIZED_PARTIES:
+        # A missing azp is rejected too. Browser-issued Clerk session tokens
+        # always carry it, so a token without one did not come from our app.
+        if claims.get("azp") not in CLERK_AUTHORIZED_PARTIES:
             raise HTTPException(status_code=401, detail="Invalid token audience")
 
     return claims
@@ -241,9 +252,14 @@ def _clerk_request(method: str, path: str, **kwargs) -> dict:
         **kwargs,
     )
     if resp.status_code >= 400:
+        # The body can carry Clerk-internal detail (ids, field names, request
+        # traces). Log it for us; give the client a generic message.
+        logger.error(
+            "Clerk API %s %s -> HTTP %s: %s",
+            method, path, resp.status_code, resp.text[:500],
+        )
         raise HTTPException(
-            status_code=502,
-            detail=f"Clerk API error ({resp.status_code}): {resp.text[:300]}",
+            status_code=502, detail="Identity service is unavailable. Try again shortly."
         )
     return resp.json() if resp.content else {}
 

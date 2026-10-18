@@ -79,7 +79,7 @@ async def update_week(wid: str, body: BenefitWeekIn, user=Depends(get_current_us
         wid,
         f"Week {body.week_start}–{body.week_end} — {diff}",
     )
-    w = await db.benefit_weeks.find_one({"id": wid}, {"_id": 0})
+    w = await db.benefit_weeks.find_one({"id": wid, "user_id": user["id"]}, {"_id": 0})
     return w
 
 

@@ -56,6 +56,9 @@ jobs:
       CLERK_API_BASE: http://127.0.0.1:8799/v1
       CLERK_SECRET_KEY: sk_test_ci_stub
       CLERK_STUB_URL: http://127.0.0.1:8799
+      # Production is the default (app_env.py); CI runs without the
+      # production-only checks such as required CLERK_AUTHORIZED_PARTIES.
+      APP_ENV: test
       RATE_LIMIT_ENABLED: "false"
       REACT_APP_BACKEND_URL: http://localhost:8001
     defaults:
@@ -98,7 +101,7 @@ jobs:
       # dashboard with no external services. Rounds 2-4 require live Mailgun/
       # Twilio/Gemini and are run manually until those are mocked.
       - name: Run backend tests
-        run: pytest tests/backend_test.py -v
+        run: pytest tests/backend_test.py tests/test_hardening.py -v
       - name: Backend logs on failure
         if: failure()
         run: cat /tmp/backend.log || true

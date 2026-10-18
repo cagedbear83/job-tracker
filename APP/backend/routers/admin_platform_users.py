@@ -19,6 +19,7 @@
 # whatever frontend already consumes it. We did not touch that endpoint.
 from __future__ import annotations
 
+import re
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -59,7 +60,8 @@ async def list_users(
 ):
     query: dict = {}
     if q:
-        query["email"] = {"$regex": q.strip(), "$options": "i"}
+        # Substring search, so escape regex metacharacters and cap length.
+        query["email"] = {"$regex": re.escape(q.strip()[:100]), "$options": "i"}
     cur = db.users.find(query, _METADATA_PROJECTION).sort("created_at", -1).skip(skip).limit(limit)
     users = [await _decorate_with_tier(db, u) async for u in cur]
     total = await db.users.count_documents(query)

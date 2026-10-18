@@ -116,7 +116,7 @@ async def update_contact(cid: str, body: ContactIn, user=Depends(get_current_use
     await log_audit(
         user["id"], "UPDATE", "contact", cid, f"{body.employer_name} — {diff}"
     )
-    c = await db.contacts.find_one({"id": cid}, {"_id": 0})
+    c = await db.contacts.find_one({"id": cid, "user_id": user["id"]}, {"_id": 0})
     return c
 
 
@@ -415,5 +415,5 @@ async def export_contacts_csv(
     return StreamingResponse(
         io.BytesIO(buf.getvalue().encode()),
         media_type="text/csv",
-        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+        headers={"Content-Disposition": content_disposition("attachment", fname)},
     )
