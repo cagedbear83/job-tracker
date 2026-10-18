@@ -480,6 +480,33 @@ async def get_active_claimant_id(user_id: str) -> Optional[str]:
     return p["id"] if p else None
 
 
+async def require_owned_claimant(user_id: str, claimant_id: Optional[str]) -> Optional[str]:
+    """Validate a client-supplied claimant (profile) id against its owner.
+
+    Returns None for an empty value (the record is not tied to a claimant),
+    the id itself when it names one of `user_id`'s profiles, and raises 404
+    otherwise. 404 rather than 403 so the response does not reveal whether
+    another account's profile id exists.
+
+    Routes that store a claimant_id from the request body must call this.
+    The reminder jobs email the linked profile's reminder_email, so an
+    unchecked id would let one account send reminder emails, with its own
+    title and notes, to another claimant.
+
+    When case-worker access to managed claimants is built (org_role in
+    rbac.py), extend this to also accept profiles whose managed_by is the
+    caller, rather than loosening the call sites.
+    """
+    if not claimant_id:
+        return None
+    found = await db.profiles.find_one(
+        {"id": claimant_id, "user_id": user_id}, {"_id": 0, "id": 1}
+    )
+    if not found:
+        raise HTTPException(status_code=404, detail="Claimant not found")
+    return claimant_id
+
+
 async def send_email(to_email: str, subject: str, html: str) -> bool:
     api_key = os.environ.get("MAILGUN_API_KEY", "")
     domain = os.environ.get("MAILGUN_DOMAIN", "")
@@ -1046,7 +1073,12 @@ async def _broadcast_event_reminders(kind: str):
                 continue
             claimant = None
             if ev.get("claimant_id"):
-                claimant = await db.profiles.find_one({"id": ev["claimant_id"]}, {"_id": 0})
+                # Scoped to the event's owner: a claimant_id stored before
+                # require_owned_claimant existed must not redirect a reminder
+                # to another account's claimant.
+                claimant = await db.profiles.find_one(
+                    {"id": ev["claimant_id"], "user_id": ev["user_id"]}, {"_id": 0}
+                )
             to_email = (claimant.get("reminder_email") if claimant else "") or user.get("email")
             label = EVENT_TYPE_LABELS.get(ev["event_type"], ev["event_type"].replace("_", " ").title())
             when = "in 3 days" if kind == "3day" else "today"
@@ -1084,7 +1116,12 @@ async def _send_certification_final_reminders():
                 continue
             claimant = None
             if ev.get("claimant_id"):
-                claimant = await db.profiles.find_one({"id": ev["claimant_id"]}, {"_id": 0})
+                # Scoped to the event's owner: a claimant_id stored before
+                # require_owned_claimant existed must not redirect a reminder
+                # to another account's claimant.
+                claimant = await db.profiles.find_one(
+                    {"id": ev["claimant_id"], "user_id": ev["user_id"]}, {"_id": 0}
+                )
             to_email = (claimant.get("reminder_email") if claimant else "") or user.get("email")
             title = "Certification due today — file by 7PM CT"
             body = (

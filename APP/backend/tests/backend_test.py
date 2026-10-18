@@ -229,6 +229,83 @@ def test_onboarding_creates_claimant_profile(H):
     assert me.json()["needs_onboarding"] is False
 
 
+def _paid_user_with_claimant():
+    """A fresh user on an active Pro subscription, with one claimant profile.
+
+    Calendar events and document storage are paid features, so the
+    ownership checks behind them are only reachable on a paid tier. The
+    subscription row is written straight to Mongo; billing is not under test.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    minted = _mint(f"ci-owner-{uuid.uuid4().hex[:10]}@example.com")
+    h = {"Authorization": f"Bearer {minted['token']}"}
+    r = requests.post(
+        f"{API}/auth/onboarding",
+        json={
+            "first_name": "Owner", "last_name": "Check", "phone": "(312) 555-0101",
+            "sms_opt_in": False, "dob": "1990-01-01", "address": "1 N State St",
+            "city": "Chicago", "zip": "60602", "knows_next_cert_date": "na",
+        },
+        headers=h, timeout=30,
+    )
+    assert r.status_code == 200, r.text
+    profile_id = r.json()["id"]
+    user_id = r.json()["user_id"]
+    _db().subscriptions.update_one(
+        {"user_id": user_id},
+        {"$set": {
+            "user_id": user_id, "tier": "pro", "status": "active",
+            "current_period_end": datetime.now(timezone.utc) + timedelta(days=30),
+        }},
+        upsert=True,
+    )
+    return h, profile_id
+
+
+def test_calendar_event_rejects_foreign_claimant(H):
+    """F2: a calendar event may only reference the caller's own claimant.
+
+    The reminder jobs email the linked profile's reminder_email, so another
+    account's profile id here would redirect reminders to that claimant.
+    """
+    h, own_profile = _paid_user_with_claimant()
+    # H belongs to the shared session user; its claimant is someone else's.
+    foreign_profile = requests.get(f"{API}/profile", headers=H, timeout=30).json()["id"]
+    event = {"event_date": "2030-01-07", "event_type": "other", "title": "x"}
+
+    r = requests.post(f"{API}/calendar-events", json={**event, "claimant_id": foreign_profile}, headers=h, timeout=30)
+    assert r.status_code == 404, r.text
+    r = requests.post(f"{API}/calendar-events", json={**event, "claimant_id": str(uuid.uuid4())}, headers=h, timeout=30)
+    assert r.status_code == 404, r.text
+
+    r = requests.post(f"{API}/calendar-events", json={**event, "claimant_id": own_profile}, headers=h, timeout=30)
+    assert r.status_code == 201, r.text
+    eid = r.json()["id"]
+    r = requests.post(f"{API}/calendar-events", json=event, headers=h, timeout=30)
+    assert r.status_code == 201, r.text
+
+    # Updates are checked the same way.
+    r = requests.put(f"{API}/calendar-events/{eid}", json={**event, "claimant_id": foreign_profile}, headers=h, timeout=30)
+    assert r.status_code == 404, r.text
+    stored = _db().calendar_events.find_one({"id": eid})
+    assert stored["claimant_id"] == own_profile
+
+
+def test_document_upload_rejects_foreign_claimant(H):
+    """F2: document uploads may only be filed under the caller's own claimant."""
+    h, _ = _paid_user_with_claimant()
+    foreign_profile = requests.get(f"{API}/profile", headers=H, timeout=30).json()["id"]
+    r = requests.post(
+        f"{API}/documents/upload",
+        headers=h,
+        data={"title": "x", "claimant_id": foreign_profile},
+        files={"file": ("x.pdf", b"%PDF-1.4 not really", "application/pdf")},
+        timeout=30,
+    )
+    assert r.status_code == 404, r.text
+
+
 # ---- profile ----
 def test_profile_upsert(H):
     body = {"first_name": "Demo", "last_name": "Claimant", "middle_initial": "A",

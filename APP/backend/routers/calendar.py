@@ -27,6 +27,7 @@ async def create_calendar_event(
     body: CalendarEventIn, user=Depends(get_current_user)
 ):
     await sub.gate_feature(db, user["id"], "calendar_events")
+    claimant_id = await require_owned_claimant(user["id"], body.claimant_id)
     doc = {
         "id": str(uuid.uuid4()),
         "user_id": user["id"],
@@ -34,7 +35,7 @@ async def create_calendar_event(
         "event_type": body.event_type,
         "title": body.title,
         "notes": body.notes,
-        "claimant_id": body.claimant_id,
+        "claimant_id": claimant_id,
         "created_at": datetime.utcnow(),
     }
     await db.calendar_events.insert_one(doc)
@@ -57,12 +58,13 @@ async def update_calendar_event(
     )
     if not existing:
         raise HTTPException(status_code=404, detail="Not found")
+    claimant_id = await require_owned_claimant(user["id"], body.claimant_id)
     update = {
         "event_date": body.event_date,
         "event_type": body.event_type,
         "title": body.title,
         "notes": body.notes,
-        "claimant_id": body.claimant_id,
+        "claimant_id": claimant_id,
     }
     await db.calendar_events.update_one(
         {"id": eid, "user_id": user["id"]}, {"$set": update}
@@ -71,7 +73,9 @@ async def update_calendar_event(
         user["id"], "UPDATE", "calendar_event", eid,
         f"{body.event_type}: {body.title}"
     )
-    doc = await db.calendar_events.find_one({"id": eid}, {"_id": 0})
+    doc = await db.calendar_events.find_one(
+        {"id": eid, "user_id": user["id"]}, {"_id": 0}
+    )
     return doc
 
 
