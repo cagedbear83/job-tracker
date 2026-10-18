@@ -103,6 +103,11 @@ export default defineConfig({
     port: 3000,
   },
   build: {
+    // Vite 7 raised its default browser target to "baseline widely
+    // available" (Chrome 107 / Safari 16, late 2022). Claimants often use
+    // older phones, so keep the Vite 5 default this app shipped with until
+    // now: iOS 14+ Safari, Chrome/Edge 87-88+, Firefox 78+.
+    target: ["es2020", "edge88", "firefox78", "chrome87", "safari14"],
     outDir: "build",
     sourcemap: true,
     rollupOptions: {
