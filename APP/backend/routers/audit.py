@@ -4,6 +4,7 @@
 # UploadFile, Request, the response classes), the Pydantic models, config,
 # db, and the public helpers.
 from core import *  # noqa: F401,F403
+import re as _re
 
 router = APIRouter()
 
@@ -24,7 +25,9 @@ async def get_audit(
     if entity and entity != "ALL":
         query["entity"] = entity
     if q:
-        query["detail"] = {"$regex": q, "$options": "i"}
+        # Escaped and capped: raw user text as a $regex can 500 on a bad
+        # pattern or tie up Mongo with a catastrophic one (ReDoS).
+        query["detail"] = {"$regex": _re.escape(q.strip()[:100]), "$options": "i"}
     items = (
         await db.audit_log.find(query, {"_id": 0})
         .sort("timestamp", -1)

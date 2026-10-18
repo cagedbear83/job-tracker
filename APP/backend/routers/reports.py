@@ -259,7 +259,7 @@ async def report_pdf(week_id: str, user=Depends(get_current_user)):
         return StreamingResponse(
             buf,
             media_type="application/pdf",
-            headers={"Content-Disposition": f"inline; filename={filename}"},
+            headers={"Content-Disposition": content_disposition("inline", filename, "WorkSearch.pdf")},
         )
     except HTTPException:
         raise

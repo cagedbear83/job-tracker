@@ -22,6 +22,7 @@ from typing import List, Literal, Optional
 import jwt
 
 import clerk_auth
+from app_env import IS_PRODUCTION
 import pytz
 import requests as http_requests
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -505,6 +506,19 @@ async def require_owned_claimant(user_id: str, claimant_id: Optional[str]) -> Op
     if not found:
         raise HTTPException(status_code=404, detail="Claimant not found")
     return claimant_id
+
+
+def content_disposition(disposition: str, filename: str, fallback: str = "download") -> str:
+    """A Content-Disposition header value with a sanitized, quoted filename.
+
+    Filenames here come from user data (uploaded file titles, week dates,
+    query parameters). Keeping only letters, digits, dot, dash and underscore
+    means a crafted name cannot break the header or inject a second one.
+    """
+    import re
+
+    safe = re.sub(r"[^A-Za-z0-9._-]", "_", filename or "").strip("._")[:120]
+    return f'{disposition}; filename="{safe or fallback}"'
 
 
 async def send_email(to_email: str, subject: str, html: str) -> bool:
@@ -1161,6 +1175,9 @@ class OtpVerifyIn(BaseModel):
 
 
 # ============== Mailgun Webhook ==============
+MAILGUN_WEBHOOK_MAX_AGE_SECONDS = int(os.environ.get("MAILGUN_WEBHOOK_MAX_AGE_SECONDS", "300"))
+
+
 async def _parse_mailgun_webhook(request: Request) -> dict:
     content_type = request.headers.get("content-type", "").lower()
     if "application/json" in content_type:
@@ -1203,7 +1220,19 @@ def _verify_mailgun_signature(payload: dict):
     if not timestamp or not token or not signature:
         raise HTTPException(status_code=400, detail="Mailgun webhook signature missing")
 
-    secret = os.environ.get("MAILGUN_API_KEY", "")
+    # Replay protection: a captured, validly signed request is only usable
+    # within this window. Mailgun signs at send time, so 5 minutes is plenty.
+    try:
+        age = abs(datetime.now(timezone.utc).timestamp() - float(timestamp))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="Mailgun webhook timestamp invalid")
+    if age > MAILGUN_WEBHOOK_MAX_AGE_SECONDS:
+        raise HTTPException(status_code=403, detail="Mailgun webhook timestamp too old")
+
+    # Mailgun signs webhooks with the "HTTP webhook signing key" (Dashboard ->
+    # Sending -> Webhooks). On older accounts it equals the API key, which is
+    # why MAILGUN_API_KEY is still accepted as a fallback.
+    secret = os.environ.get("MAILGUN_WEBHOOK_SIGNING_KEY") or os.environ.get("MAILGUN_API_KEY", "")
     if not secret:
         logging.warning("Mailgun webhook signature verification is not configured")
         raise HTTPException(status_code=503, detail="Mailgun webhook verification is not configured")
@@ -1270,6 +1299,16 @@ def _generate_ref(reason: str) -> str:
 # wraps outermost — this ensures CORS headers are attached even on error
 # responses, e.g. HTTPException from /auth/verify-email) ==============
 origins_env = os.environ.get("CORS_ORIGINS", "*")
+if IS_PRODUCTION and origins_env.strip() in ("", "*"):
+    # A wildcard already turns credentials off below, so this is not a
+    # session-theft risk. It still lets every website on the internet read API
+    # responses from a logged-in claimant's browser, and an unset variable on
+    # a new deploy is exactly how that happens. Fail at boot instead.
+    raise RuntimeError(
+        "CORS_ORIGINS must list explicit origins in production, e.g. "
+        "https://illinoisjobtracker.app,https://www.illinoisjobtracker.app. "
+        "Set APP_ENV=development (or test) to allow '*' locally."
+    )
 allow_credentials = True
 if origins_env.strip() == "*":
     allow_origins = ["*"]

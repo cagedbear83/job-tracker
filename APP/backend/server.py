@@ -260,6 +260,16 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 app.include_router(api)
 
 # ============== Security headers ==============
+# HSTS is on by default in production and off elsewhere (it would pin a
+# localhost dev server to HTTPS). ENABLE_HSTS=true/false overrides either way.
+_hsts_env = os.environ.get("ENABLE_HSTS")
+HSTS_ENABLED = (
+    _hsts_env.strip().lower() in ("1", "true", "yes")
+    if _hsts_env is not None and _hsts_env.strip()
+    else IS_PRODUCTION
+)
+
+
 # Registered first so CORSMiddleware (added next) is outermost — Starlette
 # applies middleware in reverse registration order, so the last add_middleware
 # call wraps everything. CORS must be outermost so its headers appear on error
@@ -271,7 +281,7 @@ async def security_headers(request: Request, call_next):
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
     response.headers.setdefault("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
-    if os.environ.get("ENABLE_HSTS", "false").lower() in ("1", "true", "yes"):
+    if HSTS_ENABLED:
         response.headers.setdefault("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
     return response
 

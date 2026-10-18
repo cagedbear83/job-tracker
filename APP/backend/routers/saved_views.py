@@ -86,7 +86,7 @@ async def update_saved_view(view_id: str, body: dict, user=Depends(get_current_u
             {"id": view_id, "user_id": user["id"]}, {"$set": update}
         )
 
-    updated = await db.saved_views.find_one({"id": view_id}, {"_id": 0})
+    updated = await db.saved_views.find_one({"id": view_id, "user_id": user["id"]}, {"_id": 0})
     return updated
 
 

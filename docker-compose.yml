@@ -6,7 +6,8 @@ services:
     image: mongo:7
     restart: unless-stopped
     ports:
-      - "27017:27017"
+      # Loopback only: this Mongo has no auth, so never expose it to the LAN.
+      - "127.0.0.1:27017:27017"
     volumes:
       - mongo_data:/data/db
 
@@ -21,11 +22,17 @@ services:
       # --- Required ---
       MONGO_URL: mongodb://mongo:27017
       DB_NAME: ${DB_NAME:-ides_tracker_db}
-      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
-      CORS_ORIGINS: ${CORS_ORIGINS:-*}
-      # --- Dev helpers ---
-      ENABLE_DEMO_USER: ${ENABLE_DEMO_USER:-true}
+      # Clerk development instance. No defaults on purpose: the backend
+      # refuses to start without these. Put them in a .env next to this file.
+      CLERK_ISSUER: ${CLERK_ISSUER:?set CLERK_ISSUER in .env (https://<slug>.clerk.accounts.dev)}
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:?set CLERK_SECRET_KEY in .env (sk_test_...)}
+      CLERK_AUTHORIZED_PARTIES: ${CLERK_AUTHORIZED_PARTIES:-}
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
+      # Turns off the production-only checks (explicit CORS, required azp,
+      # HSTS) so '*' and an empty CLERK_AUTHORIZED_PARTIES work locally.
+      APP_ENV: ${APP_ENV:-development}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       # --- Production hardening (all optional) ---
       SENTRY_DSN: ${SENTRY_DSN:-}
       SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-development}
